@@ -3,26 +3,33 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use App\Http\Problem;
+use App\Http\Requests\Api\V1\StoreUserRequest;
+use App\Http\Requests\Api\V1\SyncUserBranchesRequest;
+use App\Http\Requests\Api\V1\UpdateUserRequest;
 use App\Http\Resources\Api\V1\UserResource;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
-use App\Services\Rbac\RoleService;
-use App\Support\Rbac\Catalog;
+use App\Services\Rbac\RoleAssignmentGuard;
+use App\Services\Users\UserService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
 /**
- * Quản lý người dùng của Tenant: hiện mới có xem và gán vai trò (tạo/sửa user thuộc bước onboarding sau).
- * Dữ liệu được RLS giới hạn theo Tenant; phạm vi own/branch/tenant do UserPolicy xử lý.
+ * Quản lý người dùng của Tenant. Dữ liệu được RLS giới hạn theo Tenant; phạm vi own/branch/tenant do UserPolicy xử lý;
+ * chống leo thang quyền (không thao tác trên người có quyền cao hơn mình, không tự khóa, luôn còn Owner) do UserService.
  */
 class UserController extends Controller
 {
-    public function __construct(private RoleService $roles, private AuditLogger $audit) {}
+    public function __construct(
+        private UserService $users,
+        private RoleAssignmentGuard $roles,
+        private AuditLogger $audit,
+    ) {}
 
     public function index(Request $request): AnonymousResourceCollection
     {
@@ -34,7 +41,7 @@ class UserController extends Controller
         ]);
 
         $actor = $request->user();
-        $query = User::query()->with('roles')->orderBy('name');
+        $query = User::query()->with(['roles', 'branches'])->orderBy('name')->orderBy('id');
 
         match ($actor->permissionScope('tenant.user.view')) {
             'tenant' => null,
@@ -47,7 +54,7 @@ class UserController extends Controller
             $query->where(fn ($q) => $q->where('name', 'ilike', $like)->orWhere('email', 'ilike', $like));
         }
 
-        return UserResource::collection($query->paginate($validated['per_page'] ?? 20));
+        return UserResource::collection($query->paginate($validated['per_page'] ?? 20)->withQueryString());
     }
 
     public function show(User $user): UserResource
@@ -57,8 +64,65 @@ class UserController extends Controller
         return new UserResource($user->load(['roles', 'branches']));
     }
 
+    /** Tạo người dùng. Bỏ trống password => sinh mật khẩu tạm, hiển thị một lần; người dùng phải đổi ở lần đăng nhập đầu. */
+    public function store(StoreUserRequest $request): JsonResponse
+    {
+        Gate::authorize('create', User::class);
+
+        [$user, $temporary] = $this->users->create($request->user(), $request->validated());
+
+        $resource = new UserResource($user->load(['roles', 'branches']));
+        if ($temporary !== null) {
+            $resource->additional(['temporary_password' => $temporary]);
+        }
+
+        return $resource->response()->setStatusCode(201)->header('Cache-Control', 'no-store');
+    }
+
+    /** Sửa tên/số điện thoại; khóa/mở khóa tài khoản qua `status`. Email là định danh nên không đổi ở đây. */
+    public function update(UpdateUserRequest $request, User $user): UserResource
+    {
+        Gate::authorize('update', $user);
+
+        $actor = $request->user();
+        $this->users->assertCanManage($actor, $user);
+
+        $status = $request->validated('status');
+        if ($status !== null && $status !== $user->status) {
+            $this->users->assertNotSelf($actor, $user);
+            if ($status === User::STATUS_DISABLED) {
+                $this->users->assertNotLastOwner($user);
+            }
+        }
+
+        DB::transaction(function () use ($request, $actor, $user, $status) {
+            $this->users->updateProfile($user, $request->safe()->only(['name', 'phone']));
+
+            if ($status !== null) {
+                $this->users->applyStatus($actor, $user, $status, $request->validated('reason'));
+            }
+        });
+
+        return new UserResource($user->refresh()->load(['roles', 'branches']));
+    }
+
+    /** Xóa mềm người dùng (dữ liệu và lịch sử vẫn được giữ). */
+    public function destroy(Request $request, User $user): Response
+    {
+        Gate::authorize('delete', $user);
+
+        $actor = $request->user();
+        $this->users->assertNotSelf($actor, $user);
+        $this->users->assertCanManage($actor, $user);
+        $this->users->assertNotLastOwner($user);
+
+        $this->users->delete($user);
+
+        return response()->noContent();
+    }
+
     /** Thay toàn bộ vai trò của user. */
-    public function syncRoles(Request $request, User $user): UserResource|JsonResponse
+    public function syncRoles(Request $request, User $user): UserResource
     {
         Gate::authorize('assignRoles', $user);
 
@@ -67,40 +131,14 @@ class UserController extends Controller
             'role_ids.*' => ['uuid', 'distinct'],
         ]);
 
-        $roles = Role::whereIn('uuid', $validated['role_ids'])->get(); // TenantScope: chỉ vai trò của Tenant mình
-        if ($roles->count() !== count($validated['role_ids'])) {
-            return Problem::response(422, 'validation_failed', 'Có vai trò không tồn tại.', null, [
-                'errors' => ['role_ids' => ['Có vai trò không tồn tại.']],
-            ]);
-        }
-
-        // Chống leo thang quyền: chỉ gán được vai trò có quyền nằm trong phạm vi quyền của chính mình
-        // (nên chỉ người có đủ quyền như Owner mới gán được Owner).
-        $actorPermissions = $request->user()->permissionMap();
+        $actor = $request->user();
+        $roles = $this->roles->resolve($validated['role_ids']);
         $current = $user->roles()->get();
-        foreach ($roles->merge($current)->unique('id') as $role) {
-            if (! Catalog::covers($actorPermissions, $this->roles->grants($role))) {
-                $this->audit->record(
-                    'rbac', 'privilege_escalation_blocked',
-                    subject: $user,
-                    result: AuditLogger::DENIED,
-                    reason: 'role_exceeds_privileges',
-                    metadata: [
-                        'role' => $role->key,
-                        'requested' => $roles->pluck('key')->all(),
-                        'exceeding' => array_slice(Catalog::uncovered($actorPermissions, $this->roles->grants($role)), 0, 50, true),
-                    ],
-                );
 
-                return Problem::response(403, 'role_exceeds_privileges', 'Không thể gán hoặc gỡ vai trò có quyền vượt quá quyền của chính bạn.');
-            }
-        }
+        $this->roles->assertAssignable($actor, $roles, $current, $user);
 
-        $keepsOwner = $roles->contains(fn (Role $r) => $r->isOwner());
-        if (! $keepsOwner && $current->contains(fn (Role $r) => $r->isOwner()) && ! $this->otherActiveOwnerExists($user)) {
-            $this->audit->record('rbac', 'user_roles_change_blocked', subject: $user, result: AuditLogger::DENIED, reason: 'last_owner');
-
-            return Problem::response(422, 'last_owner', 'Doanh nghiệp phải còn ít nhất một Chủ doanh nghiệp đang hoạt động.');
+        if (! $roles->contains(fn (Role $r) => $r->isOwner()) && $current->contains(fn (Role $r) => $r->isOwner())) {
+            $this->users->assertNotLastOwner($user);
         }
 
         DB::transaction(function () use ($user, $roles, $current) {
@@ -118,15 +156,31 @@ class UserController extends Controller
         return new UserResource($user->load(['roles', 'branches']));
     }
 
-    private function otherActiveOwnerExists(User $user): bool
+    /** Thay toàn bộ chi nhánh của user. */
+    public function syncBranches(SyncUserBranchesRequest $request, User $user): UserResource
     {
-        return DB::table('user_roles as ur')
-            ->join('roles as r', 'r.id', '=', 'ur.role_id')
-            ->join('users as u', 'u.id', '=', 'ur.user_id')
-            ->where('r.key', Role::OWNER)
-            ->where('ur.user_id', '!=', $user->id)
-            ->where('u.status', User::STATUS_ACTIVE)
-            ->whereNull('u.deleted_at')
-            ->exists();
+        Gate::authorize('update', $user);
+
+        $this->users->assertCanManage($request->user(), $user);
+        $this->users->setBranches($request->user(), $user, $request->validated('branch_ids'));
+
+        return new UserResource($user->refresh()->load(['roles', 'branches']));
+    }
+
+    /** Cấp mật khẩu tạm mới cho nhân viên (quên mật khẩu). Không dùng cho chính mình: hãy dùng đổi mật khẩu. */
+    public function resetPassword(Request $request, User $user): JsonResponse
+    {
+        Gate::authorize('update', $user);
+
+        $actor = $request->user();
+        $this->users->assertNotSelf($actor, $user);
+        $this->users->assertCanManage($actor, $user);
+
+        $temporary = $this->users->applyPasswordReset($actor, $user);
+
+        return (new UserResource($user->refresh()->load(['roles', 'branches'])))
+            ->additional(['temporary_password' => $temporary])
+            ->response()
+            ->header('Cache-Control', 'no-store');
     }
 }

@@ -64,7 +64,7 @@ return [
 
         'admin' => [
             'name' => 'Quản trị viên',
-            'description' => 'Quản trị người dùng, cấu hình và nghiệp vụ; không quản lý sao lưu.',
+            'description' => 'Quản trị người dùng, cấu hình và nghiệp vụ; bao trùm mọi vai trò trừ Owner; không quản lý sao lưu/gói dịch vụ.',
             'grants' => [
                 'tenant.settings' => 'tenant:VU',
                 'tenant.branch' => 'tenant:VCU',
@@ -74,10 +74,10 @@ return [
                 'crm.customer' => 'tenant:VCUDE',
                 'purchase.supplier' => 'tenant:VCUDE',
                 'catalog.product' => 'tenant:VCUDE',
-                'inventory.movement' => 'tenant:VE',
-                'inventory.adjustment' => 'tenant:VA',
+                'inventory.movement' => 'tenant:VCAE',
+                'inventory.adjustment' => 'tenant:VCA',
                 'purchase.order' => 'tenant:VCUAXE',
-                'sales.order' => 'tenant:VCUXE',
+                'sales.order' => 'tenant:VCUAXE',
                 'sales.return' => 'tenant:VCAX',
                 'finance.receivable' => 'tenant:VCAXE',
                 'finance.cashbook' => 'tenant:VCAXE',

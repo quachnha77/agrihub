@@ -16,15 +16,33 @@ class UserPolicy
         return $this->inScope($user, 'tenant.user.view', $target);
     }
 
-    /** Gán/gỡ vai trò (việc kiểm tra leo thang quyền nằm ở UserController). */
-    public function assignRoles(User $user, User $target): bool
+    /** Tạo người dùng là thao tác cấp doanh nghiệp. */
+    public function create(User $user): bool
+    {
+        return $user->hasPermission('tenant.user.create', 'tenant');
+    }
+
+    /** Sửa hồ sơ, đổi trạng thái, gán chi nhánh/vai trò, reset mật khẩu. (Chống leo thang quyền do UserService đảm nhiệm.) */
+    public function update(User $user, User $target): bool
     {
         return ! $target->is_platform_admin && $this->inScope($user, 'tenant.user.update', $target);
     }
 
+    public function delete(User $user, User $target): bool
+    {
+        return ! $target->is_platform_admin && $this->inScope($user, 'tenant.user.delete', $target);
+    }
+
+    public function assignRoles(User $user, User $target): bool
+    {
+        return $this->update($user, $target);
+    }
+
     private function inScope(User $user, string $permission, User $target): bool
     {
-        if ($user->tenant_id === null || $user->tenant_id !== $target->tenant_id) {
+        $tenantId = $user->effectiveTenantId();
+
+        if ($tenantId === null || $tenantId !== $target->tenant_id) {
             return false;
         }
 

@@ -1,6 +1,8 @@
 <?php
 
+use App\Http\ApiProblemException;
 use App\Http\Middleware\AssignRequestId;
+use App\Http\Middleware\EnforcePasswordChange;
 use App\Http\Middleware\EnsurePlatformAdmin;
 use App\Http\Middleware\EnsureTenantUser;
 use App\Http\Middleware\SetTenantContext;
@@ -41,18 +43,27 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->prepend(AssignRequestId::class);
 
         // Context Tenant phải được đặt SAU xác thực và TRƯỚC route-model-binding (binding đi qua TenantScope).
-        $middleware->prependToPriorityList(before: SubstituteBindings::class, prepend: SetTenantContext::class);
+        // Thứ tự: tenant.context → platform.admin (chuyển sang chế độ nền tảng) → tenant.user → password.fresh.
+        foreach ([SetTenantContext::class, EnsurePlatformAdmin::class, EnsureTenantUser::class, EnforcePasswordChange::class] as $guard) {
+            $middleware->prependToPriorityList(before: SubstituteBindings::class, prepend: $guard);
+        }
 
         $middleware->alias([
             'tenant.context' => SetTenantContext::class,
             'tenant.user' => EnsureTenantUser::class,
             'platform.admin' => EnsurePlatformAdmin::class,
+            'password.fresh' => EnforcePasswordChange::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $isApi = fn (Request $request) => $request->is('api/*') || $request->expectsJson();
 
+        $exceptions->dontReport(ApiProblemException::class); // lỗi nghiệp vụ 4xx không phải sự cố hệ thống
+
         $exceptions->shouldRenderJsonWhen($isApi);
+
+        // Lỗi nghiệp vụ do service ném ra (xem ApiProblemException).
+        $exceptions->render(fn (ApiProblemException $e) => Problem::response($e->status, $e->problemCode, $e->getMessage(), null, $e->extra));
 
         // Lỗi API theo RFC 7807. Tài nguyên của Tenant khác luôn trả 404 như "không tồn tại".
         $exceptions->render(function (ValidationException $e, Request $request) use ($isApi) {

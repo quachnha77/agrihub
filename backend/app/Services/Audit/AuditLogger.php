@@ -6,6 +6,7 @@ use App\Models\Branch;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\Audit\AuditSuppression;
+use App\Support\Platform\SupportSession;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\QueryException;
@@ -32,6 +33,7 @@ class AuditLogger
         private TenantContext $context,
         private AuditPartitions $partitions,
         private Redactor $redactor,
+        private SupportSession $support,
     ) {}
 
     /**
@@ -56,6 +58,11 @@ class AuditLogger
     ): void {
         $actor = $actor === false ? $this->currentUser() : $actor;
         $request = $this->httpRequest();
+
+        // Mọi hành động trong phiên hỗ trợ đều gắn mã phiên để truy vết.
+        if ($this->support->active() && ! isset($metadata['support_session'])) {
+            $metadata = ['support_session' => $this->support->id()] + $metadata;
+        }
 
         $tenantId ??= $subject instanceof Tenant ? $subject->id : ($subject?->getAttribute('tenant_id'));
         $tenantId ??= $actor?->tenant_id ?? $this->context->tenantId();

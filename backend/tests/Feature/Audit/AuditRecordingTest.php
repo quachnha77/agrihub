@@ -344,7 +344,7 @@ class AuditRecordingTest extends TestCase
         $this->assertSame(['owner'], $blocked->metadata['requested']);
 
         $this->spa()->actingAs($owner)->putJson('/api/v1/users/'.$owner->uuid.'/roles', ['role_ids' => []])->assertStatus(422);
-        $this->assertSame('last_owner', $this->lastAudit(['action' => 'user_roles_change_blocked'])->reason);
+        $this->assertSame('last_owner', $this->lastAudit(['action' => 'user_change_blocked'])->reason);
     }
 
     // --- Ghi trực tiếp --------------------------------------------------------------------

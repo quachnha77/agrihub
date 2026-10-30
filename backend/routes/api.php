@@ -5,6 +5,9 @@ use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BranchController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\PermissionController;
+use App\Http\Controllers\Api\V1\Platform\SupportSessionController;
+use App\Http\Controllers\Api\V1\Platform\TenantController;
+use App\Http\Controllers\Api\V1\Platform\UserController as PlatformUserController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\SessionController;
 use App\Http\Controllers\Api\V1\UserController;
@@ -17,30 +20,54 @@ Route::get('/health/ready', [HealthController::class, 'ready']);
 Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:login');
 
 Route::middleware(['auth:sanctum', 'tenant.context'])->group(function () {
+    // Luôn dùng được, kể cả khi đang phải đổi mật khẩu tạm.
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::get('/auth/me', [AuthController::class, 'me']);
+    Route::post('/auth/password', [AuthController::class, 'changePassword'])->middleware('throttle:sensitive');
 
-    Route::get('/auth/sessions', [SessionController::class, 'index']);
-    Route::delete('/auth/sessions', [SessionController::class, 'destroyOthers']);
-    Route::delete('/auth/sessions/{handle}', [SessionController::class, 'destroy']);
+    Route::middleware('password.fresh')->group(function () {
+        Route::get('/auth/sessions', [SessionController::class, 'index']);
+        Route::delete('/auth/sessions', [SessionController::class, 'destroyOthers']);
+        Route::delete('/auth/sessions/{handle}', [SessionController::class, 'destroy']);
 
-    // Dữ liệu của Tenant: Platform Admin không vào được nếu chưa có cơ chế impersonation.
-    // Platform Admin: dữ liệu toàn nền tảng (context nền tảng do middleware tenant.context đặt).
-    Route::middleware('platform.admin')->prefix('platform')->group(function () {
-        Route::get('/audit-logs', [AuditLogController::class, 'platformIndex']);
-    });
+        // Platform Admin: chạy ở chế độ nền tảng (thấy mọi Tenant).
+        Route::middleware('platform.admin')->prefix('platform')->group(function () {
+            Route::get('/tenants', [TenantController::class, 'index']);
+            Route::post('/tenants', [TenantController::class, 'store'])->middleware('throttle:sensitive');
+            Route::get('/tenants/{tenant}', [TenantController::class, 'show']);
+            Route::patch('/tenants/{tenant}', [TenantController::class, 'update']);
+            Route::post('/tenants/{tenant}/suspend', [TenantController::class, 'suspend']);
+            Route::post('/tenants/{tenant}/activate', [TenantController::class, 'activate']);
 
-    // Quyền chi tiết do Policy kiểm tra trong từng controller.
-    Route::middleware('tenant.user')->group(function () {
-        Route::apiResource('branches', BranchController::class);
+            Route::get('/support-session', [SupportSessionController::class, 'show']);
+            Route::post('/tenants/{tenant}/support-session', [SupportSessionController::class, 'store']);
+            Route::delete('/support-session', [SupportSessionController::class, 'destroy']);
 
-        Route::get('/audit-logs', [AuditLogController::class, 'index']);
+            Route::get('/users', [PlatformUserController::class, 'index']);
+            Route::patch('/users/{user}', [PlatformUserController::class, 'update']);
+            Route::post('/users/{user}/reset-password', [PlatformUserController::class, 'resetPassword'])->middleware('throttle:sensitive');
 
-        Route::get('/permissions', [PermissionController::class, 'index']);
-        Route::apiResource('roles', RoleController::class);
+            Route::get('/audit-logs', [AuditLogController::class, 'platformIndex']);
+        });
 
-        Route::get('/users', [UserController::class, 'index']);
-        Route::get('/users/{user}', [UserController::class, 'show']);
-        Route::put('/users/{user}/roles', [UserController::class, 'syncRoles']);
+        // Dữ liệu của Tenant. Platform Admin chỉ vào được trong phiên hỗ trợ (chỉ đọc).
+        // Quyền chi tiết do Policy kiểm tra trong từng controller.
+        Route::middleware('tenant.user')->group(function () {
+            Route::apiResource('branches', BranchController::class);
+
+            Route::get('/audit-logs', [AuditLogController::class, 'index']);
+
+            Route::get('/permissions', [PermissionController::class, 'index']);
+            Route::apiResource('roles', RoleController::class);
+
+            Route::get('/users', [UserController::class, 'index']);
+            Route::post('/users', [UserController::class, 'store'])->middleware('throttle:sensitive');
+            Route::get('/users/{user}', [UserController::class, 'show']);
+            Route::patch('/users/{user}', [UserController::class, 'update']);
+            Route::delete('/users/{user}', [UserController::class, 'destroy']);
+            Route::put('/users/{user}/roles', [UserController::class, 'syncRoles']);
+            Route::put('/users/{user}/branches', [UserController::class, 'syncBranches']);
+            Route::post('/users/{user}/reset-password', [UserController::class, 'resetPassword'])->middleware('throttle:sensitive');
+        });
     });
 });

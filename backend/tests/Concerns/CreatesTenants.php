@@ -70,6 +70,18 @@ trait CreatesTenants
         return $this->platform(fn () => User::factory()->platformAdmin()->create($attributes));
     }
 
+    /**
+     * Bắt đầu như một trình duyệt mới: xóa phiên và các guard đã nhớ người dùng trước đó.
+     * Cần khi một test chuyển giữa những người dùng KHÁC MẬT KHẨU (Sanctum gắn phiên với hash mật khẩu của từng người).
+     */
+    protected function freshBrowser(): static
+    {
+        $this->flushSession();
+        $this->app['auth']->forgetGuards();
+
+        return $this;
+    }
+
     /** Header để request được coi là từ SPA được phép (Sanctum stateful => có session). */
     protected function spa(): static
     {

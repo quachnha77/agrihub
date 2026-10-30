@@ -47,6 +47,20 @@ class RbacCatalogTest extends TestCase
         }
     }
 
+    public function test_the_role_hierarchy_is_owner_over_admin_over_everyone_else(): void
+    {
+        $admin = Catalog::roleGrants('admin');
+
+        // Admin phải bao trùm mọi vai trò không phải Owner: nhờ vậy Admin quản lý được toàn bộ nhân viên.
+        foreach (array_diff(Catalog::roleKeys(), ['owner', 'admin']) as $role) {
+            $this->assertSame([], Catalog::uncovered($admin, Catalog::roleGrants($role)), "Admin không bao trùm vai trò {$role}");
+        }
+
+        // Và Owner bao trùm Admin nhưng không ngược lại.
+        $this->assertTrue(Catalog::covers(Catalog::roleGrants('owner'), $admin));
+        $this->assertFalse(Catalog::covers($admin, Catalog::roleGrants('owner')));
+    }
+
     public function test_sales_can_only_edit_or_cancel_own_orders(): void
     {
         $g = Catalog::roleGrants('sales');

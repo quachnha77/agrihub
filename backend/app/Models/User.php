@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Services\Rbac\PermissionResolver;
 use App\Support\Audit\Auditable;
 use App\Support\HasPublicUuid;
+use App\Support\Platform\SupportSession;
 use App\Support\Rbac\Catalog;
 use App\Support\Tenancy\TenantContext;
 use Database\Factories\UserFactory;
@@ -53,6 +54,8 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_platform_admin' => 'boolean',
+            'must_change_password' => 'boolean',
+            'password_changed_at' => 'datetime',
             'locked_until' => 'datetime',
             'last_login_at' => 'datetime',
         ];
@@ -92,6 +95,14 @@ class User extends Authenticatable
     public function permissionMap(): array
     {
         return $this->permissionCache ??= app(PermissionResolver::class)->forUser($this);
+    }
+
+    /**
+     * Tenant mà user đang thao tác: Tenant của chính họ; với Platform Admin là Tenant của phiên hỗ trợ (nếu có).
+     */
+    public function effectiveTenantId(): ?int
+    {
+        return $this->is_platform_admin ? app(SupportSession::class)->tenantId() : $this->tenant_id;
     }
 
     public function flushPermissionCache(): void

@@ -3,6 +3,7 @@
 namespace App\Http\Resources\Api\V1;
 
 use App\Models\User;
+use App\Support\Platform\SupportSession;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -38,6 +39,12 @@ class UserResource extends JsonResource
                 'id' => $r->uuid, 'key' => $r->key, 'name' => $r->name,
             ])->values()),
             'permissions' => $this->when($this->withPermissions, fn () => (object) $this->permissionMap()),
+            'must_change_password' => $this->when($this->withPermissions, fn () => (bool) $this->must_change_password),
+            // Để giao diện hiện banner "đang ở phiên hỗ trợ" cho Platform Admin.
+            'support_session' => $this->when(
+                $this->withPermissions && $this->is_platform_admin,
+                fn () => app(SupportSession::class)->active() ? SupportSession::present(app(SupportSession::class)->data()) : null,
+            ),
             'last_login_at' => $this->last_login_at?->toIso8601String(),
         ];
     }

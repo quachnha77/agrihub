@@ -3,6 +3,7 @@
 namespace Tests\Feature\Rbac;
 
 use App\Models\Role;
+use App\Services\Rbac\RoleService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Tests\Concerns\CreatesTenants;
@@ -167,9 +168,16 @@ class RoleManagementTest extends TestCase
     {
         [$tenant] = $this->makeTenant();
         $admin = $this->makeUserIn($tenant, ['admin']);
-        $manager = $this->roleOf($tenant, 'branch_manager'); // có inventory.movement.create, Admin thì không
+        $strong = $this->platform(function () use ($tenant) {
+            $role = new Role(['name' => 'Cao cấp']);
+            $role->forceFill(['tenant_id' => $tenant->id, 'key' => 'custom-cao-cap', 'is_system' => false])->save();
+            app(RoleService::class)->setGrants($role, ['backup.backup.restore' => 'tenant']); // Admin không có quyền này
 
-        $this->spa()->actingAs($admin)->putJson('/api/v1/roles/'.$manager->uuid, ['name' => 'Đổi tên'])->assertForbidden();
+            return $role;
+        });
+
+        $this->spa()->actingAs($admin)->putJson('/api/v1/roles/'.$strong->uuid, ['name' => 'Đổi tên'])->assertForbidden();
+        $this->spa()->actingAs($admin)->deleteJson('/api/v1/roles/'.$strong->uuid)->assertForbidden();
     }
 
     public function test_role_rows_carry_the_tenant_id_in_the_database(): void

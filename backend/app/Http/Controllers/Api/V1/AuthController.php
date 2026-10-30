@@ -8,13 +8,18 @@ use App\Http\Requests\Api\V1\LoginRequest;
 use App\Http\Resources\Api\V1\UserResource;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
+use App\Services\Auth\SessionRevoker;
+use App\Support\Audit\AuditSuppression;
+use App\Support\Auth\PasswordPolicy;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
@@ -23,7 +28,7 @@ class AuthController extends Controller
 
     private const LOCK_MINUTES = 15;
 
-    public function __construct(private TenantContext $context, private AuditLogger $audit) {}
+    public function __construct(private TenantContext $context, private AuditLogger $audit, private SessionRevoker $sessions) {}
 
     public function login(LoginRequest $request): JsonResponse
     {
@@ -103,6 +108,54 @@ class AuthController extends Controller
     public function me(Request $request): JsonResponse
     {
         return $this->userResponse($request->user());
+    }
+
+    /**
+     * Tự đổi mật khẩu. Bắt buộc với tài khoản đang dùng mật khẩu tạm. Thành công thì đăng xuất mọi thiết bị khác
+     * và đổi mã phiên hiện tại (phiên cũ bị hủy).
+     */
+    public function changePassword(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $validated = $request->validate([
+            'current_password' => ['required', 'string', 'max:255'],
+            'password' => array_merge(['required', 'confirmed', 'different:current_password'], PasswordPolicy::rules($user->email)),
+        ], [
+            'password.confirmed' => 'Xác nhận mật khẩu không khớp.',
+            'password.different' => 'Mật khẩu mới phải khác mật khẩu hiện tại.',
+        ]);
+
+        if (! Hash::check($validated['current_password'], $user->password)) {
+            $this->audit->record('auth', 'password_change_failed', subject: $user, actor: $user, result: AuditLogger::FAILURE, reason: 'invalid_current_password');
+
+            throw ValidationException::withMessages(['current_password' => ['Mật khẩu hiện tại không đúng.']]);
+        }
+
+        $forced = (bool) $user->must_change_password;
+
+        // Platform Admin không có context Tenant nên cập nhật hàng của chính mình ở chế độ nền tảng (RLS).
+        $revoked = $this->context->runAsPlatform(fn () => DB::transaction(function () use ($user, $validated, $request) {
+            AuditSuppression::run(fn () => $user->forceFill([
+                'password' => $validated['password'],
+                'must_change_password' => false,
+                'password_changed_at' => now(),
+            ])->save());
+
+            return $this->sessions->forUser($user->id, $request->hasSession() ? $request->session()->getId() : null);
+        }));
+
+        if ($request->hasSession()) {
+            $request->session()->regenerate(destroy: true);
+        }
+
+        $this->audit->record('auth', 'password_changed', subject: $user, actor: $user, metadata: [
+            'forced_change' => $forced,
+            'other_sessions_revoked' => $revoked,
+        ]);
+
+        // Nạp lại ở chế độ nền tảng: Platform Admin không có context Tenant nên RLS sẽ che hàng của chính họ.
+        return $this->userResponse($this->context->runAsPlatform(fn () => $user->refresh()));
     }
 
     private function userResponse(User $user): JsonResponse

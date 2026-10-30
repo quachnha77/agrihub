@@ -20,7 +20,9 @@ class Tenant extends Model
 
     public const STATUS_SUSPENDED = 'suspended';
 
-    protected $fillable = ['name', 'slug', 'status'];
+    protected $fillable = ['name', 'slug', 'phone', 'address', 'tax_code']; // status chỉ đổi qua suspend/activate
+
+    protected $attributes = ['status' => 'active'];
 
     protected static function booted(): void
     {
