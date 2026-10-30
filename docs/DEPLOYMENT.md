@@ -27,6 +27,9 @@ Mọi cấu hình qua biến môi trường; cung cấp `.env.example` (không g
 ## Yêu cầu bắt buộc về database
 - Ứng dụng phải kết nối PostgreSQL bằng **role thường (NOSUPERUSER, NOBYPASSRLS)**; superuser bỏ qua Row-Level Security. Test `test_application_database_role_cannot_bypass_rls` bảo vệ điều này.
 - Sau mỗi lần triển khai bản có thay đổi catalog quyền: chạy `php artisan migrate --force` rồi `php artisan agrihub:sync-permissions`.
+- Đặt `TRUSTED_PROXIES` (IP của Nginx/load balancer) để audit log và rate limit lấy đúng IP client; để trống nếu không có proxy (mặc định không tin `X-Forwarded-For`).
+- Scheduler (`php artisan schedule:work` hoặc cron `schedule:run` mỗi phút) **bắt buộc chạy** trên production: `agrihub:audit-maintain` tạo sẵn phân vùng audit log. Thiếu scheduler thì log vẫn ghi được (tự tạo phân vùng khi thiếu) nhưng không có retention.
+- Chỉ đặt `AUDIT_PURGE_ENABLED=true` sau khi đã backup/lưu trữ audit log lâu dài; `AUDIT_RETENTION_MONTHS` tối thiểu 12.
 - Tạo Platform Admin đầu tiên: `php artisan agrihub:create-platform-admin <email>`.
 
 ## Release

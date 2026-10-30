@@ -48,6 +48,8 @@
 - Hủy thanh toán = tạo bút toán đảo, không xóa.
 
 ## 5. Audit
+> Đã triển khai: xem docs/MONITORING_LOGGING.md mục 1.0. Bảng append-only, phân vùng theo tháng, RLS theo Tenant, không khóa ngoại. Mô tả dưới đây là thiết kế ban đầu.
+
 `audit_logs`: `tenant_id, branch_id, actor_id, ip, user_agent, module, action, subject_type, subject_id, before JSONB, after JSONB, result, occurred_at`. Không ghi mật khẩu/token. Append-only.
 
 ## 6. Hiệu năng

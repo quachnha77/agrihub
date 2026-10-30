@@ -5,6 +5,9 @@ Trạng thái: thiết kế; **chưa có backup nào được thiết lập, ch�
 ## 1. Phạm vi backup
 Database PostgreSQL; ảnh/file/chứng từ/chữ ký (object storage); cấu hình cần thiết (không gồm secrets dạng rõ – secrets lưu trong secret manager có quy trình riêng).
 
+## 1b. Lưu ý riêng cho audit log
+`audit_logs` là bảng phân vùng theo tháng, chỉ ghi thêm. Backup phải gồm mọi phân vùng; trước khi bật `AUDIT_PURGE_ENABLED` (xóa phân vùng quá hạn) cần có bản lưu trữ lâu dài (ví dụ `pg_dump` từng phân vùng, mã hóa, lưu offsite) vì DROP phân vùng là vĩnh viễn. Khi restore theo Tenant, KHÔNG ghi đè audit log: chỉ thêm dòng "restore" mới (xem `restore_runs`).
+
 ## 2. Chiến lược
 - PostgreSQL: dump logic hằng ngày (`pg_dump -Fc`) + WAL archiving/PITR (mục tiêu RPO ≤ 15 phút khi bật).
 - File: đồng bộ tăng dần (versioned bucket).

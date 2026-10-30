@@ -14,7 +14,8 @@
   3. Không sửa/xóa được vai trò mạnh hơn mình; Owner bất biến; vai trò hệ thống không xóa được; vai trò còn người dùng không xóa được (409).
   4. Không thể gỡ vai trò Owner cuối cùng đang hoạt động → `422 last_owner`.
 - Platform Admin không có quyền Tenant; quyền nền tảng (`platform.*`) làm ở bước Super Admin.
-- **Chưa làm**: ghi audit log cho thay đổi phân quyền (bước 5 – bắt buộc), cache quyền giữa các request.
+- **Audit**: mọi thay đổi vai trò/quyền/gán vai trò và mọi nỗ lực leo thang quyền đều được ghi audit log (xem MONITORING_LOGGING.md).
+- **Chưa làm**: cache quyền giữa các request.
 
 ## 1. Cấu trúc quyền
 Quyền = `module.resource.action`, ví dụ `sales.order.create`, `inventory.stock.adjust`, `receivable.payment.approve`.

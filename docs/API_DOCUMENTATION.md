@@ -7,7 +7,7 @@
 - JSON, UTF-8. Thời gian ISO 8601 UTC. Tiền là **chuỗi decimal** (`"1250000.00"`), không số float.
 - Xác thực: Sanctum (cookie SPA + CSRF; bearer token cho client khác). Tenant lấy từ phiên, **không** nhận `tenant_id` từ client.
 - Phân trang: `?page=&per_page=` (tối đa 100) → `{data, meta:{page,per_page,total}, links}`. Tìm kiếm `?q=`, lọc `?filter[field]=`, sắp xếp `?sort=-created_at`.
-- Header: `Idempotency-Key` bắt buộc cho POST tạo giao dịch tiền/kho; `X-Request-Id` trả về mọi response.
+- Header: `Idempotency-Key` bắt buộc cho POST tạo giao dịch tiền/kho (chưa triển khai). `X-Request-Id` **đã triển khai**: client/proxy có thể gửi (8–64 ký tự `A-Za-z0-9._-`), nếu không server tự sinh; luôn có trong header phản hồi, trường `request_id` của lỗi, log ứng dụng và audit log.
 - Lỗi theo RFC 7807: `{type,title,status,detail,code,errors{field:[msg]}}`.
 - Mã trạng thái: 200/201/204, 401 chưa đăng nhập, 403 không đủ quyền/subscription, 404 (cũng dùng cho tài nguyên Tenant khác để tránh lộ tồn tại), 409 xung đột/idempotency, 422 validate, 429 rate limit.
 
@@ -25,6 +25,8 @@ Xác thực bằng cookie phiên (Sanctum stateful): gọi `GET /sanctum/csrf-co
 | `DELETE /auth/sessions` | Đăng xuất mọi thiết bị khác | |
 | `GET /auth/me` | (bổ sung) kèm `roles` và `permissions` (map `key → scope`) của người đăng nhập | |
 | `GET/POST /branches`, `GET/PATCH/DELETE /branches/{id}` | Chi nhánh (`?q=`, `?per_page=`). Quyền `tenant.branch.*`; scope `branch` chỉ thấy chi nhánh được gán. Xóa mềm; 409 `branch_in_use` nếu còn user | 403 `forbidden`, 404 (Tenant khác), 422, 403 `tenant_context_required` (Platform Admin) |
+| `GET /audit-logs` | Audit log của Tenant (quyền `audit.log.view`). Lọc `module, action, result, actor, branch, subject_type, subject_id, q, from, to`; cursor pagination (`per_page` ≤ 100, `links.next` giữ nguyên bộ lọc); thời gian UTC | 403, 422 |
+| `GET /platform/audit-logs` | Platform Admin: log toàn nền tảng, thêm `tenant=<uuid>\|none`; mỗi dòng có `tenant` | 403 `forbidden` |
 | `GET /permissions` | Catalog quyền theo resource + các scope (để dựng UI phân quyền) | 403 |
 | `GET/POST /roles`, `GET/PUT/PATCH/DELETE /roles/{id}` | Vai trò của Tenant kèm danh sách `{key, scope}`. Body tạo/sửa: `{name, description?, permissions:[{key,scope}]}` | 403 `permission_exceeds_privileges`, 409 `role_in_use`, 404, 422 |
 | `GET /users`, `GET /users/{id}` | Người dùng của Tenant (scope `tenant`/`branch`/`own`) kèm vai trò | 403, 404 |

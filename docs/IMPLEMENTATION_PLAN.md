@@ -12,7 +12,7 @@ Cập nhật: 2026-10-30 · Kết quả khảo sát: **repository trống** (kh�
 | User & RBAC | **Completed** (catalog quyền, 7 vai trò hệ thống, vai trò tùy chỉnh, Policy, chống leo thang quyền). Tạo/sửa user: Missing |
 | Super Admin / Tenant onboarding | In Progress – có lệnh `agrihub:create-platform-admin`; API quản lý Tenant: Missing |
 | Subscription & Billing | Missing |
-| Audit Log | Missing |
+| Audit Log | **Completed** hạ tầng (append-only, phân vùng, RLS, API xem, retention); các module nghiệp vụ sẽ gắn sự kiện khi được làm |
 | Backup / Monitoring | Missing |
 | Customers, Suppliers, Products | Missing |
 | Inventory, Purchase, Sales | Missing |
@@ -34,7 +34,7 @@ Completed: tài liệu · In Progress: khung dự án · Missing: toàn bộ mod
 2. ✅ Identity: User, Auth (Sanctum), session, lockout, rate limit.
 3. ✅ Tenancy: Tenant, Branch, TenantScope + RLS, test cross-tenant.
 4. ✅ RBAC: roles/permissions/policies + vai trò mặc định theo ma trận.
-5. Audit Log (service dùng chung).
+5. ✅ Audit Log (service dùng chung).
 6. Platform Admin: quản lý Tenant, onboarding.
 7. Subscription & Billing + enforcement read-only/giới hạn + nhắc gia hạn.
 8. Backup (kèm UI quản trị import/export) + Monitoring/health + cảnh báo (kèm kiểm thử restore).
