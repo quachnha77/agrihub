@@ -19,6 +19,13 @@ export interface MockResponse {
 
 type Handler = MockResponse | ((call: ApiCall) => MockResponse)
 
+/** Các lần gọi tới đường dẫn chưa giả lập: api() nuốt lỗi thành "mất mạng" nên phải kiểm tra riêng sau mỗi test (xem setup.ts). */
+const unmocked: string[] = []
+
+export function takeUnmockedCalls(): string[] {
+  return unmocked.splice(0, unmocked.length)
+}
+
 /** RFC 7807 giống hệt phản hồi lỗi của API Laravel. */
 export const problem = (status: number, code: string, title: string, extra: Record<string, unknown> = {}): MockResponse => ({
   status,
@@ -46,7 +53,10 @@ export function mockApi(handlers: Record<string, Handler>) {
       calls.push(call)
 
       const handler = all[`${method} ${call.path}`] ?? all[`${method} ${url.pathname}`]
-      if (!handler) throw new Error(`Chưa giả lập: ${method} ${call.path}`)
+      if (!handler) {
+        unmocked.push(`${method} ${call.path}`)
+        throw new Error(`Chưa giả lập: ${method} ${call.path}`)
+      }
 
       const result = typeof handler === 'function' ? handler(call) : handler
 

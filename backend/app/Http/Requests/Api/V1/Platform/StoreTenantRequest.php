@@ -3,6 +3,8 @@
 namespace App\Http\Requests\Api\V1\Platform;
 
 use App\Rules\UniqueEmail;
+use App\Rules\UniquePhone;
+use App\Rules\VietnamesePhone;
 use App\Support\Auth\PasswordPolicy;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -32,7 +34,7 @@ class StoreTenantRequest extends FormRequest
             'owner' => ['required', 'array'],
             'owner.name' => ['required', 'string', 'max:255'],
             'owner.email' => ['required', 'string', 'email', 'max:255', new UniqueEmail],
-            'owner.phone' => ['nullable', 'string', 'regex:/^[0-9+\-\s().]{6,30}$/'],
+            'owner.phone' => ['nullable', 'string', new VietnamesePhone, new UniquePhone],
             // Bỏ trống => hệ thống sinh mật khẩu tạm (hiển thị một lần). Dù cách nào, Owner cũng phải đổi ở lần đăng nhập đầu.
             'owner.password' => array_merge(['nullable'], PasswordPolicy::rules(fn () => $this->input('owner.email'))),
 

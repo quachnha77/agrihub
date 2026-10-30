@@ -17,7 +17,7 @@ Xác thực bằng cookie phiên (Sanctum stateful): gọi `GET /sanctum/csrf-co
 | Method & path | Mô tả | Lỗi chính |
 |---|---|---|
 | `GET /health`, `GET /health/ready` | Liveness / readiness (kiểm tra DB) | 503 khi DB lỗi |
-| `POST /auth/login` | `{email, password}` → user kèm tenant & branches | 401 `invalid_credentials`, 403 `account_disabled` / `tenant_suspended`, 429 `too_many_attempts`, 400 `stateful_request_required`, 422 |
+| `POST /auth/login` | `{login, password}` — `login` là **email hoặc số điện thoại Việt Nam** (`0912345678`, `0912 345 678`, `+84 912 345 678`...; `email` vẫn được nhận như tên cũ của cùng trường). Trả user kèm tenant & branches | 401 `invalid_credentials` (cùng một thông báo cho sai mật khẩu và tài khoản không tồn tại), 403 `account_disabled` / `tenant_suspended`, 429 `too_many_attempts`, 400 `stateful_request_required`, 422 (lỗi ở `errors.login`) |
 | `POST /auth/logout` | Kết thúc phiên (204) | |
 | `GET /auth/me` | Hồ sơ người dùng hiện tại | 401 |
 | `GET /auth/sessions` | Danh sách thiết bị/phiên của chính mình (định danh là mã băm, không lộ session id) | |
@@ -59,6 +59,8 @@ Xác thực bằng cookie phiên (Sanctum stateful): gọi `GET /sanctum/csrf-co
 | `GET /platform/backups/status` | Super Admin: tình trạng sao lưu toàn hệ thống – `state` (`ok\|warning\|critical\|disabled`), `last_completed` (`age_hours`, `size_bytes`, `verify_status`, `downloaded_at`), `last_attempt`, `last_verified`, `last_downloaded_at`, `issues[]` (`code`, `level`, `message`), `schedule`, `thresholds` | 403 |
 | `POST /platform/backups/{id}/download-link` `{password}` | Super Admin: nhập lại mật khẩu của chính mình để nhận `{data:{url, expires_at}}` – liên kết **tương đối, đã ký, hiệu lực 2 phút, dùng một lần**. Có audit | 422 `confirmation_failed`, 409 `backup_not_ready` / `backup_file_missing`, 404, 429 |
 | `GET /platform/backups/{id}/download?…` | Mở liên kết ở trên: tải file `.agbk` đã mã hóa theo luồng (`attachment`, `no-store`, `X-Content-SHA256` để đối chiếu bằng `sha256sum`). Có audit; ghi `downloaded_at` | 403 `download_link_invalid` (hết hạn / đã dùng / sai người), 403 (chữ ký sai), 429 |
+| `GET /platform/health` | Super Admin: sức khỏe hạ tầng `{status, checked_at, components[{key, label, status, summary, details[{label, value}]}]}` (`database`, `rls`, `queue`, `scheduler`, `queue_worker`, `disk`, `config`, `backups`) | 403 |
+| `GET /health/monitor` (`Authorization: Bearer <MONITOR_TOKEN>` hoặc `X-Monitor-Token`) | Cho công cụ giám sát: `{status, checked_at, failing[]}` không có chi tiết; **503 khi nghiêm trọng**. Chưa đặt `MONITOR_TOKEN` ⇒ 404 | 401 (sai mã), 404, 503, 429 |
 | `GET /notifications` (`unread=1`, `per_page`) | Hộp thông báo của **chính người đăng nhập** (Platform Admin hoặc người dùng Tenant), mới → cũ; `unread_count` ở gốc phản hồi. Mỗi thông báo: `id`, `type`, `level` (`info\|warning\|critical`), `title`, `body`, `payload`, `read_at`, `created_at` | 401 |
 | `POST /notifications/{id}/read`, `POST /notifications/read-all` | Đánh dấu một / tất cả thông báo của mình là đã đọc (`{data:{updated}}` với `read-all`) | 404 (không phải của mình), 401 |
 

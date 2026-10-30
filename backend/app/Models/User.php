@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Services\Rbac\PermissionResolver;
 use App\Support\Audit\Auditable;
+use App\Support\Auth\Phone;
 use App\Support\HasPublicUuid;
 use App\Support\Platform\SupportSession;
 use App\Support\Rbac\Catalog;
@@ -65,6 +66,16 @@ class User extends Authenticatable
     protected function email(): Attribute
     {
         return Attribute::make(set: fn (string $value) => mb_strtolower(trim($value)));
+    }
+
+    /** Số điện thoại lưu dạng chuẩn (0912345678) để dùng được làm định danh đăng nhập. Chuỗi rỗng thành NULL. */
+    protected function phone(): Attribute
+    {
+        return Attribute::make(set: function (?string $value) {
+            $value = $value === null ? null : trim($value);
+
+            return $value === null || $value === '' ? null : (Phone::normalize($value) ?? $value);
+        });
     }
 
     public function auditLabel(): ?string

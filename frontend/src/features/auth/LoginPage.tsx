@@ -7,10 +7,9 @@ import { Navigate, useLocation } from 'react-router'
 import { z } from 'zod'
 import { Alert, Button, TextField } from '../../components/ui.tsx'
 import { ApiError, post } from '../../lib/api.ts'
+import { isValidLogin } from '../../lib/phone.ts'
 import { useAuth } from './auth-context.ts'
 import type { Envelope, Me } from './types.ts'
-
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 /** Chọn thông báo dễ hiểu cho từng mã lỗi đăng nhập. */
 function loginErrorMessage(error: unknown, t: (key: string, options?: Record<string, unknown>) => string): string {
@@ -38,14 +37,14 @@ export default function LoginPage() {
   const schema = useMemo(
     () =>
       z.object({
-        email: z.string().trim().min(1, t('auth.login.emailRequired')).refine((value) => EMAIL_PATTERN.test(value), t('validation.email')),
+        login: z.string().trim().min(1, t('auth.login.loginRequired')).refine(isValidLogin, t('auth.login.loginInvalid')),
         password: z.string().min(1, t('auth.login.passwordRequired')),
       }),
     [t],
   )
   type Values = z.infer<typeof schema>
 
-  const form = useForm<Values>({ resolver: zodResolver(schema), defaultValues: { email: '', password: '' } })
+  const form = useForm<Values>({ resolver: zodResolver(schema), defaultValues: { login: '', password: '' } })
 
   const login = useMutation({
     mutationFn: (values: Values) => post<Envelope<Me>>('/auth/login', values, { silent: true }),
@@ -82,12 +81,11 @@ export default function LoginPage() {
             })}
           >
             <TextField
-              label={t('auth.login.email')}
-              type="email"
+              label={t('auth.login.login')}
+              type="text"
               autoComplete="username"
-              inputMode="email"
-              error={form.formState.errors.email?.message}
-              {...form.register('email')}
+              error={form.formState.errors.login?.message}
+              {...form.register('login')}
             />
             <TextField
               label={t('auth.login.password')}

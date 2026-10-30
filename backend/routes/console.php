@@ -22,5 +22,11 @@ Schedule::command('agrihub:backup:verify --scheduled')->weeklyOn(config('backup.
 // Mỗi giờ kiểm tra sức khỏe sao lưu (quá hạn, chưa khôi phục thử, chưa tải bản sao ra ngoài) và thông báo cho Super Admin.
 Schedule::command('agrihub:backup:check --scheduled')->hourlyAt(17)->withoutOverlapping();
 
+// Giám sát hạ tầng: mỗi phút ghi tín hiệu sống (scheduler + queue worker) và gửi tín hiệu "còn sống" ra dịch vụ bên ngoài;
+// mỗi 5 phút kiểm tra sức khỏe và cảnh báo Super Admin khi có thay đổi (chỉ khi MONITOR_ALERTS_ENABLED).
+Schedule::command('agrihub:monitor:beat')->everyMinute();
+Schedule::command('agrihub:monitor:ping')->everyMinute();
+Schedule::command('agrihub:monitor:check --scheduled')->everyFiveMinutes()->withoutOverlapping();
+
 // Dọn thông báo trong ứng dụng đã cũ.
 Schedule::command('agrihub:notices:prune')->dailyAt('03:45')->withoutOverlapping();

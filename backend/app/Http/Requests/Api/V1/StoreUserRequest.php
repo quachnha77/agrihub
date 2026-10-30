@@ -3,6 +3,8 @@
 namespace App\Http\Requests\Api\V1;
 
 use App\Rules\UniqueEmail;
+use App\Rules\UniquePhone;
+use App\Rules\VietnamesePhone;
 use App\Support\Auth\PasswordPolicy;
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -19,7 +21,7 @@ class StoreUserRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', new UniqueEmail],
-            'phone' => ['nullable', 'string', 'regex:/^[0-9+\-\s().]{6,30}$/'],
+            'phone' => ['nullable', 'string', new VietnamesePhone, new UniquePhone],
             'password' => array_merge(['nullable'], PasswordPolicy::rules(fn () => $this->input('email'))),
             'role_ids' => ['nullable', 'array', 'max:20'],
             'role_ids.*' => ['uuid', 'distinct'],

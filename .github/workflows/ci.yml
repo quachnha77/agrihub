@@ -118,7 +118,16 @@ jobs:
         run: |
           list=$(docker compose exec -T scheduler php artisan schedule:list)
           echo "$list"
-          for cmd in backup:platform backup:prune backup:verify backup:check notices:prune; do echo "$list" | grep -q "agrihub:$cmd"; done
+          for cmd in backup:platform backup:tenants backup:prune backup:verify backup:check notices:prune monitor:beat monitor:ping monitor:check; do echo "$list" | grep -q "agrihub:$cmd"; done
+      - name: Scheduler và queue worker gửi tín hiệu sống (giám sát hạ tầng)
+        run: |
+          for i in $(seq 1 30); do
+            out=$(docker compose exec -T queue php artisan agrihub:monitor:check --no-notify || true)
+            if echo "$out" | grep -q '\[ok\] scheduler' && echo "$out" | grep -q '\[ok\] queue_worker' && echo "$out" | grep -q '\[ok\] rls'; then echo "$out"; exit 0; fi
+            sleep 10
+          done
+          echo "$out"
+          exit 1
       - name: Nhật ký container khi lỗi
         if: failure()
         run: docker compose logs --no-color --tail=150

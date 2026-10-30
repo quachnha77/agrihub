@@ -146,6 +146,7 @@ describe('banner gói dịch vụ và phiên hỗ trợ', () => {
     const server = mockApi({
       'GET /api/v1/auth/me': meOk(platformAdmin({ support_session: session })),
       'GET /api/v1/platform/backups/status': { json: { data: { state: 'ok', enabled: true, issues: [] } } },
+      'GET /api/v1/platform/health': { json: { data: { status: 'ok', checked_at: '2026-10-30T10:00:00Z', components: [] } } },
       'DELETE /api/v1/platform/support-session': { status: 204 },
     })
     renderApp('/')

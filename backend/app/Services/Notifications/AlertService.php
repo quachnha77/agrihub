@@ -38,13 +38,24 @@ class AlertService
             $this->deliver($admin, $alert, ['mail']);
         }
 
-        $extra = (array) config('backup.alerts.mail_to');
+        return $admins->count() + $this->toExtraEmails($alert);
+    }
 
-        foreach ($extra as $address) {
+    /**
+     * Chỉ email, tới các địa chỉ ngoài hệ thống (BACKUP_ALERT_EMAILS + MONITOR_ALERT_EMAILS). Không cần database: dùng khi
+     * chính database không dùng được nên không đọc được danh sách Super Admin hay lưu thông báo.
+     *
+     * @return int số địa chỉ
+     */
+    public function toExtraEmails(SystemAlert $alert): int
+    {
+        $addresses = array_values(array_unique(array_merge((array) config('backup.alerts.mail_to'), (array) config('monitoring.mail_to'))));
+
+        foreach ($addresses as $address) {
             $this->safely(fn () => Notification::route('mail', $address)->notifyNow($alert, ['mail']));
         }
 
-        return $admins->count() + count($extra);
+        return count($addresses);
     }
 
     /** Chỉ trong ứng dụng: thông báo cho một người dùng (vd. người vừa yêu cầu sao lưu). */

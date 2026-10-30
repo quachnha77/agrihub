@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
+use App\Support\Auth\LoginIdentifier;
 use App\Support\Platform\SupportSession;
 use App\Support\Rbac\Catalog;
 use App\Support\Tenancy\TenantAwareUserProvider;
@@ -45,12 +46,13 @@ class AppServiceProvider extends ServiceProvider
         // Thao tác nhạy cảm sinh/đổi mật khẩu (đổi mật khẩu, cấp mật khẩu tạm, tạo người dùng/doanh nghiệp): 10 lần/phút/người dùng.
         RateLimiter::for('sensitive', fn (Request $request) => Limit::perMinute((int) config('platform.rate_limits.sensitive'))->by('sensitive|'.($request->user()?->getAuthIdentifier() ?? $request->ip())));
 
-        // Chống dò mật khẩu: theo cặp email + IP. Áp dụng cả cho email không tồn tại để không lộ thông tin tài khoản.
+        // Chống dò mật khẩu: theo cặp (email hoặc số điện thoại) + IP. Áp dụng cả cho tài khoản không tồn tại để không lộ thông tin.
+        // Khóa dùng dạng đã chuẩn hóa nên viết số điện thoại theo kiểu khác không né được giới hạn.
         RateLimiter::for('login', function (Request $request) {
-            $email = strtolower((string) $request->input('email'));
+            $key = LoginIdentifier::throttleKey((string) $request->input('login', $request->input('email')));
 
             return [
-                Limit::perMinute(5)->by('login|'.$email.'|'.$request->ip()),
+                Limit::perMinute(5)->by('login|'.$key.'|'.$request->ip()),
                 Limit::perMinute(20)->by('login-ip|'.$request->ip()),
             ];
         });

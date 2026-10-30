@@ -11,6 +11,7 @@ use App\Services\Audit\AuditLogger;
 use App\Services\Auth\SessionRevoker;
 use App\Services\Billing\SubscriptionService;
 use App\Support\Audit\AuditSuppression;
+use App\Support\Auth\LoginIdentifier;
 use App\Support\Auth\PasswordPolicy;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\JsonResponse;
@@ -37,15 +38,15 @@ class AuthController extends Controller
             return Problem::response(400, 'stateful_request_required', 'Yêu cầu đăng nhập phải đến từ ứng dụng web được phép.');
         }
 
-        $email = Str::lower($request->validated('email'));
+        $identifier = $request->identifier(); // email hoặc số điện thoại đã chuẩn hóa
         $password = $request->validated('password');
 
-        // Tìm user trước khi biết Tenant => chạy ở chế độ nền tảng (RLS).
-        $user = $this->context->runAsPlatform(fn () => User::where('email', $email)->first());
+        // Tìm user trước khi biết Tenant => chạy ở chế độ nền tảng (RLS). Cột tra cứu do chính LoginIdentifier quyết định.
+        $user = $this->context->runAsPlatform(fn () => User::where($identifier->type, $identifier->value)->first());
 
         // Phản hồi giống hệt nhau cho "khóa" và "bị giới hạn tốc độ": không lộ việc tài khoản có tồn tại.
         if ($user?->isLocked()) {
-            $this->loginFailed($user, $email, 'account_locked');
+            $this->loginFailed($user, $identifier, 'account_locked');
 
             return $this->tooManyAttempts();
         }
@@ -57,26 +58,26 @@ class AuthController extends Controller
             if ($user !== null) {
                 $this->registerFailure($user);
             }
-            $this->loginFailed($user, $email, 'invalid_credentials');
+            $this->loginFailed($user, $identifier, 'invalid_credentials');
 
-            return Problem::response(401, 'invalid_credentials', 'Email hoặc mật khẩu không đúng.');
+            return Problem::response(401, 'invalid_credentials', 'Tài khoản hoặc mật khẩu không đúng.');
         }
 
         if (! $user->isActive()) {
-            $this->loginFailed($user, $email, 'account_disabled');
+            $this->loginFailed($user, $identifier, 'account_disabled');
 
             return Problem::response(403, 'account_disabled', 'Tài khoản đã bị vô hiệu hóa.');
         }
 
         $tenant = $this->context->runAsPlatform(fn () => $user->tenant);
         if ($tenant !== null && ! $tenant->isActive()) {
-            $this->loginFailed($user, $email, 'tenant_suspended');
+            $this->loginFailed($user, $identifier, 'tenant_suspended');
 
             return Problem::response(403, 'tenant_suspended', 'Doanh nghiệp đang bị tạm khóa. Vui lòng liên hệ AgriHub.');
         }
 
         if ($tenant !== null && $this->billing->current($tenant->id)?->isBlocked()) {
-            $this->loginFailed($user, $email, 'subscription_expired');
+            $this->loginFailed($user, $identifier, 'subscription_expired');
 
             return Problem::response(402, 'subscription_expired', 'Gói dịch vụ đã hết hạn. Vui lòng liên hệ AgriHub để gia hạn.');
         }
@@ -180,14 +181,14 @@ class AuthController extends Controller
     }
 
     /** Đăng nhập thất bại: ghi cả khi email không tồn tại (không có chủ thể), không bao giờ ghi mật khẩu. */
-    private function loginFailed(?User $user, string $email, string $reason): void
+    private function loginFailed(?User $user, LoginIdentifier $identifier, string $reason): void
     {
         $this->audit->record(
             'auth', 'login_failed',
             subject: $user,
             result: AuditLogger::FAILURE,
             reason: $reason,
-            metadata: $user === null ? ['email' => $email] : [],
+            metadata: $user === null ? [$identifier->type => $identifier->value] : [],
             actor: null,
         );
     }

@@ -3,9 +3,9 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { meOk, mockApi, notSignedIn, platformAdmin, problem, renderApp, tenantUser } from '../../test/utils.tsx'
 
-async function fillLogin(email: string, password: string) {
+async function fillLogin(login: string, password: string) {
   const user = userEvent.setup()
-  if (email) await user.type(await screen.findByLabelText('Email'), email)
+  if (login) await user.type(await screen.findByLabelText('Email hoặc số điện thoại'), login)
   if (password) await user.type(screen.getByLabelText('Mật khẩu'), password)
   await user.click(screen.getByRole('button', { name: 'Đăng nhập' }))
 }
@@ -19,16 +19,23 @@ describe('đăng nhập', () => {
     expect(router.state.location.pathname).toBe('/login')
   })
 
-  it('báo lỗi bằng tiếng Việt khi để trống hoặc nhập email sai, và không gọi API', async () => {
+  it('báo lỗi bằng tiếng Việt khi để trống hoặc nhập email/số điện thoại sai, và không gọi API', async () => {
     const server = mockApi({ 'GET /api/v1/auth/me': notSignedIn() })
     renderApp('/login')
 
     await fillLogin('', '')
-    expect(await screen.findByText('Vui lòng nhập email.')).toBeInTheDocument()
+    expect(await screen.findByText('Vui lòng nhập email hoặc số điện thoại.')).toBeInTheDocument()
     expect(screen.getByText('Vui lòng nhập mật khẩu.')).toBeInTheDocument()
 
     await fillLogin('khong-phai-email', 'x')
-    expect(await screen.findByText('Email không hợp lệ.')).toBeInTheDocument()
+    expect(await screen.findByText('Email hoặc số điện thoại không hợp lệ.')).toBeInTheDocument()
+
+    for (const bad of ['0912', '12345678901234', '0112345678']) {
+      await userEvent.clear(screen.getByLabelText('Email hoặc số điện thoại'))
+      await fillLogin(bad, 'x')
+      expect(await screen.findByText('Email hoặc số điện thoại không hợp lệ.')).toBeInTheDocument()
+    }
+
     expect(server.to('POST', '/api/v1/auth/login')).toHaveLength(0)
   })
 
@@ -43,7 +50,20 @@ describe('đăng nhập', () => {
 
     expect(await screen.findByText('Xin chào, Nguyễn Văn A')).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/')
-    expect(server.to('POST', '/api/v1/auth/login')[0]?.body).toEqual({ email: 'a@nongphat.vn', password: 'Mat-khau-2026' })
+    expect(server.to('POST', '/api/v1/auth/login')[0]?.body).toEqual({ login: 'a@nongphat.vn', password: 'Mat-khau-2026' })
+  })
+
+  it.each(['0912345678', '0912 345 678', '+84 912 345 678', '091-234-5678'])('đăng nhập được bằng số điện thoại viết kiểu "%s"', async (typed) => {
+    const server = mockApi({
+      'GET /api/v1/auth/me': notSignedIn(),
+      'POST /api/v1/auth/login': meOk(tenantUser()),
+    })
+    renderApp('/login')
+
+    await fillLogin(typed, 'Mat-khau-2026')
+
+    expect(await screen.findByText('Xin chào, Nguyễn Văn A')).toBeInTheDocument()
+    expect(server.to('POST', '/api/v1/auth/login')[0]?.body).toEqual({ login: typed, password: 'Mat-khau-2026' })
   })
 
   it('quay lại đúng trang đang định vào sau khi đăng nhập', async () => {
@@ -61,7 +81,7 @@ describe('đăng nhập', () => {
   })
 
   it.each([
-    ['sai mật khẩu', problem(401, 'invalid_credentials', 'x'), 'Email hoặc mật khẩu không đúng.'],
+    ['sai mật khẩu', problem(401, 'invalid_credentials', 'x'), 'Tài khoản hoặc mật khẩu không đúng.'],
     ['gói hết hạn', problem(402, 'subscription_expired', 'x'), 'Gói dịch vụ đã hết hạn nên chưa thể sử dụng. Vui lòng liên hệ AgriHub để gia hạn.'],
     ['doanh nghiệp bị khóa', problem(403, 'tenant_suspended', 'x'), 'Doanh nghiệp đang bị tạm khóa. Vui lòng liên hệ AgriHub.'],
     ['tài khoản bị vô hiệu', problem(403, 'account_disabled', 'x'), 'Tài khoản đã bị vô hiệu hóa. Vui lòng liên hệ quản trị viên của doanh nghiệp.'],
@@ -192,6 +212,7 @@ describe('phân quyền trên giao diện', () => {
     mockApi({
       'GET /api/v1/auth/me': meOk(platformAdmin()),
       'GET /api/v1/platform/backups/status': { json: { data: { state: 'ok', enabled: true, issues: [] } } },
+      'GET /api/v1/platform/health': { json: { data: { status: 'ok', checked_at: '2026-10-30T10:00:00Z', components: [] } } },
     })
     renderApp('/')
 

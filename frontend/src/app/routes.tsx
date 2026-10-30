@@ -32,7 +32,10 @@ export const routes: RouteObject[] = [
               },
               {
                 element: <RequireAccess platform />,
-                children: [{ path: 'platform/backups', lazy: async () => ({ Component: (await import('../features/backup/PlatformBackupsPage.tsx')).default }) }],
+                children: [
+                  { path: 'platform/backups', lazy: async () => ({ Component: (await import('../features/backup/PlatformBackupsPage.tsx')).default }) },
+                  { path: 'platform/health', lazy: async () => ({ Component: (await import('../features/health/HealthPage.tsx')).default }) },
+                ],
               },
               { path: '*', element: <NotFoundPage /> },
             ],

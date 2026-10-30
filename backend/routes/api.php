@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\V1\BranchController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\PermissionController;
+use App\Http\Controllers\Api\V1\Platform\HealthController as PlatformHealthController;
 use App\Http\Controllers\Api\V1\Platform\PlanController;
 use App\Http\Controllers\Api\V1\Platform\PlatformBackupController;
 use App\Http\Controllers\Api\V1\Platform\SubscriptionController as PlatformSubscriptionController;
@@ -23,6 +24,7 @@ use Illuminate\Support\Facades\Route;
 // Prefix /api/v1 được cấu hình trong bootstrap/app.php
 Route::get('/health', [HealthController::class, 'live']);
 Route::get('/health/ready', [HealthController::class, 'ready']);
+Route::get('/health/monitor', [HealthController::class, 'monitor'])->middleware('throttle:60,1');
 
 Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:login');
 
@@ -60,6 +62,8 @@ Route::middleware(['auth:sanctum', 'tenant.context'])->group(function () {
             Route::post('/users/{user}/reset-password', [PlatformUserController::class, 'resetPassword'])->middleware('throttle:sensitive');
 
             Route::get('/audit-logs', [AuditLogController::class, 'platformIndex']);
+
+            Route::get('/health', [PlatformHealthController::class, 'index']);
 
             Route::get('/backups', [PlatformBackupController::class, 'index']);
             Route::get('/backups/status', [PlatformBackupController::class, 'status']);

@@ -21,11 +21,11 @@ class ValidationLanguageTest extends TestCase
     {
         $this->spa()->postJson('/api/v1/auth/login', [])->assertStatus(422)
             ->assertJsonPath('code', 'validation_failed')
-            ->assertJsonPath('errors.email.0', 'Email là bắt buộc.')
+            ->assertJsonPath('errors.login.0', 'Email hoặc số điện thoại là bắt buộc.')
             ->assertJsonPath('errors.password.0', 'Mật khẩu là bắt buộc.');
 
         $this->spa()->postJson('/api/v1/auth/login', ['email' => 'khong-phai-email', 'password' => 'x'])->assertStatus(422)
-            ->assertJsonPath('errors.email.0', 'Email phải là địa chỉ email hợp lệ.');
+            ->assertJsonPath('errors.login.0', 'Vui lòng nhập email hoặc số điện thoại hợp lệ.');
     }
 
     public function test_password_rules_and_confirmation_are_vietnamese(): void

@@ -123,7 +123,7 @@ class LoginTest extends TestCase
         $this->spa()->postJson('/api/v1/auth/login', ['email' => 'khong-phai-email'])
             ->assertStatus(422)
             ->assertJsonPath('code', 'validation_failed')
-            ->assertJsonStructure(['errors' => ['email', 'password']]);
+            ->assertJsonStructure(['errors' => ['login', 'password']]);
     }
 
     public function test_me_requires_authentication_and_returns_profile(): void

@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 import { Alert, Card } from '../components/ui.tsx'
 import { useAuth } from '../features/auth/auth-context.ts'
 import { PlatformStatusSummary } from '../features/backup/StatusCard.tsx'
+import { HealthSummary } from '../features/health/HealthSummary.tsx'
 import { useLatestNotices } from '../features/notifications/api.ts'
 
 /** Thông báo QUAN TRỌNG chưa đọc hiện ngay khi đăng nhập (kênh "in-app" đã chốt). */
@@ -43,7 +44,12 @@ export default function DashboardPage() {
 
       <CriticalNotices />
 
-      {user?.is_platform_admin && <PlatformStatusSummary />}
+      {user?.is_platform_admin && (
+        <>
+          <HealthSummary />
+          <PlatformStatusSummary />
+        </>
+      )}
 
       <Card>
         <p className="text-sm text-slate-600">{t('dashboard.comingSoon')}</p>
