@@ -2,7 +2,7 @@
 
 AgriHub là nền tảng SaaS đa doanh nghiệp (multi-tenant) quản lý kinh doanh vật tư nông nghiệp: khách hàng, sản phẩm, kho, mua hàng, bán hàng, công nợ, mùa vụ, giao hàng, thu chi, cổng khách hàng, Zalo OA, subscription/billing.
 
-> Trạng thái: **Giai đoạn 0 – Khảo sát & chuẩn hóa tài liệu.** Chưa có source code. Xem [IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) để biết tiến độ.
+> Trạng thái: **Giai đoạn 1 – SaaS Foundation, bước 1 (khung dự án)**. Chưa có tính năng nghiệp vụ. Xem [IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) để biết tiến độ.
 
 ## Mô hình tổ chức
 
@@ -18,6 +18,41 @@ Platform (Super Admin) → Tenant (doanh nghiệp) → Branch (chi nhánh) → U
 | Kiến trúc | Modular Monolith |
 | Triển khai | Docker + Nginx (dev / staging / production tách biệt) |
 | File | Local private storage hoặc S3-compatible |
+
+## Cấu trúc
+
+```
+backend/    Laravel 13 (PHP 8.4) – REST API /api/v1
+frontend/   React 19 + TypeScript + Vite + Tailwind CSS 4
+docker/     Dockerfile backend, cấu hình Nginx
+docs/       Tài liệu
+```
+
+## Chạy môi trường dev
+
+**Cách 1 – Docker** (Postgres 16, Redis, Nginx, queue, scheduler; *chưa được kiểm thử trên máy dev hiện tại vì chưa cài Docker*):
+```
+cp .env.example .env          # đổi POSTGRES_PASSWORD
+docker compose up -d --build
+docker compose exec app cp .env.example .env
+docker compose exec app composer install
+docker compose exec app php artisan key:generate
+docker compose exec app php artisan migrate
+```
+API: http://localhost:8000/api/v1/health · Frontend: http://localhost:5173
+
+**Cách 2 – Chạy trực tiếp** (cần PHP 8.4 với `pdo_pgsql`, Composer, Node 24, PostgreSQL 16):
+```
+cd backend && composer install && cp .env.example .env && php artisan key:generate && php artisan serve
+cd frontend && npm install && npm run dev
+```
+
+## Kiểm thử
+```
+cd backend && php artisan test && ./vendor/bin/pint --test
+cd frontend && npm run lint && npm run build
+```
+CI (GitHub Actions) chạy các lệnh trên với PostgreSQL thật.
 
 ## Tài liệu
 

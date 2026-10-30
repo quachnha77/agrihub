@@ -1,0 +1,100 @@
+# Môi trường DEVELOPMENT. Staging/Production có cấu hình riêng (xem docs/DEPLOYMENT.md).
+# Mật khẩu mặc định bên dưới chỉ dùng cho máy dev; đặt giá trị riêng trong file .env ở thư mục gốc.
+services:
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "8000:80"
+    volumes:
+      - ./backend:/var/www/html:ro
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - app
+
+  app:
+    build: ./docker/backend
+    working_dir: /var/www/html
+    volumes:
+      - ./backend:/var/www/html
+    environment:
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: ${POSTGRES_DB:-agrihub}
+      DB_USERNAME: ${POSTGRES_USER:-agrihub}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-agrihub_dev_only}
+      REDIS_HOST: redis
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  queue:
+    build: ./docker/backend
+    working_dir: /var/www/html
+    command: php artisan queue:work --tries=3 --max-time=3600
+    volumes:
+      - ./backend:/var/www/html
+    environment:
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: ${POSTGRES_DB:-agrihub}
+      DB_USERNAME: ${POSTGRES_USER:-agrihub}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-agrihub_dev_only}
+      REDIS_HOST: redis
+    depends_on:
+      - app
+
+  scheduler:
+    build: ./docker/backend
+    working_dir: /var/www/html
+    command: php artisan schedule:work
+    volumes:
+      - ./backend:/var/www/html
+    environment:
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: ${POSTGRES_DB:-agrihub}
+      DB_USERNAME: ${POSTGRES_USER:-agrihub}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-agrihub_dev_only}
+      REDIS_HOST: redis
+    depends_on:
+      - app
+
+  frontend:
+    image: node:24-alpine
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+    environment:
+      VITE_API_PROXY: http://nginx:80
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-agrihub}
+      POSTGRES_USER: ${POSTGRES_USER:-agrihub}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-agrihub_dev_only}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-agrihub} -d ${POSTGRES_DB:-agrihub}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "127.0.0.1:6379:6379"
+
+volumes:
+  pgdata:

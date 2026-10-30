@@ -1,6 +1,6 @@
 # AgriHub – Chiến lược kiểm thử
 
-Trạng thái: chưa có test (chưa có code).
+Trạng thái: mới có test health API (`backend/tests/Feature/HealthTest.php`). Local dùng SQLite in-memory theo `phpunit.xml`; **CI chạy PostgreSQL thật**. Các test tenant isolation/RLS bắt buộc chạy trên PostgreSQL, nên cần PostgreSQL cục bộ hoặc Docker trước khi làm bước Tenancy.
 
 ## Các tầng
 | Tầng | Công cụ đề xuất | Nội dung |

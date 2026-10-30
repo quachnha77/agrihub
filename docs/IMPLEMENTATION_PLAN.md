@@ -6,7 +6,7 @@ Cập nhật: 2026-10-30 · Kết quả khảo sát: **repository trống** (kh�
 
 | Phân hệ | Trạng thái |
 |---|---|
-| Hạ tầng repo (monorepo, Docker, CI) | Missing |
+| Hạ tầng repo (monorepo, Docker, CI) | In Progress – đã có khung Laravel + React, health API, CI, Docker compose (Docker chưa chạy thử) |
 | Authentication / Session / 2FA | Missing |
 | Multi-tenant / Branch | Missing |
 | User & RBAC | Missing |
@@ -25,7 +25,7 @@ Cập nhật: 2026-10-30 · Kết quả khảo sát: **repository trống** (kh�
 | Backup/restore UI (import/export) | Missing |
 | Tài liệu (16 file theo prompt) | **Completed** (bản khởi tạo; ADR/ERD ở mức khái niệm) |
 
-Completed: 1 · In Progress: 0 · Missing: toàn bộ source code.
+Completed: tài liệu · In Progress: khung dự án · Missing: toàn bộ module nghiệp vụ.
 
 ## 2. Lộ trình theo thứ tự phụ thuộc
 
