@@ -16,6 +16,7 @@ class Problem
                 'status' => $status,
                 'detail' => $detail ?? $title,
                 'code' => $code,
+                'request_id' => app()->bound('request') ? request()->attributes->get('request_id') : null,
             ], $extra),
             $status,
             ['Content-Type' => 'application/problem+json'],

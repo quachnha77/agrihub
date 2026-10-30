@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\Audit\Auditable;
 use App\Support\HasPublicUuid;
 use App\Support\Tenancy\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
@@ -9,9 +10,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Role extends Model
 {
-    use BelongsToTenant, HasPublicUuid;
+    use Auditable, BelongsToTenant, HasPublicUuid;
 
     public const OWNER = 'owner';
+
+    protected string $auditModule = 'rbac';
 
     protected $fillable = ['name', 'description'];
 

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Services\Rbac\PermissionResolver;
+use App\Support\Audit\Auditable;
 use App\Support\HasPublicUuid;
 use App\Support\Rbac\Catalog;
 use App\Support\Tenancy\TenantContext;
@@ -29,7 +30,12 @@ use Laravel\Sanctum\HasApiTokens;
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasApiTokens, HasFactory, HasPublicUuid, Notifiable, SoftDeletes;
+    use Auditable, HasApiTokens, HasFactory, HasPublicUuid, Notifiable, SoftDeletes;
+
+    protected string $auditModule = 'user';
+
+    /** Bộ đếm/dấu thời gian thay đổi ở mỗi lần đăng nhập: đã có sự kiện auth.* riêng, không ghi thành thay đổi hồ sơ. */
+    protected array $auditIgnore = ['failed_login_attempts', 'locked_until', 'last_login_at'];
 
     /** @var array<string, string>|null cache quyền trong vòng đời của object (đặt lại mỗi request) */
     private ?array $permissionCache = null;
@@ -56,6 +62,11 @@ class User extends Authenticatable
     protected function email(): Attribute
     {
         return Attribute::make(set: fn (string $value) => mb_strtolower(trim($value)));
+    }
+
+    public function auditLabel(): ?string
+    {
+        return $this->email;
     }
 
     public function tenant(): BelongsTo

@@ -107,12 +107,22 @@ class Catalog
      */
     public static function covers(array $have, array $needed): bool
     {
-        foreach ($needed as $key => $scope) {
-            if (self::scopeRank($have[$key] ?? null) < self::scopeRank($scope)) {
-                return false;
-            }
-        }
+        return self::uncovered($have, $needed) === [];
+    }
 
-        return true;
+    /**
+     * Các quyền trong $needed mà $have KHÔNG đáp ứng (thiếu quyền hoặc scope hẹp hơn): key => scope yêu cầu.
+     *
+     * @param  array<string, string>  $have
+     * @param  array<string, string>  $needed
+     * @return array<string, string>
+     */
+    public static function uncovered(array $have, array $needed): array
+    {
+        return array_filter(
+            $needed,
+            fn (string $scope, string $key) => self::scopeRank($have[$key] ?? null) < self::scopeRank($scope),
+            ARRAY_FILTER_USE_BOTH,
+        );
     }
 }

@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Problem;
+use App\Services\Audit\AuditLogger;
+use App\Support\UserAgent;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -16,6 +18,8 @@ use Illuminate\Support\Facades\DB;
  */
 class SessionController extends Controller
 {
+    public function __construct(private AuditLogger $audit) {}
+
     public function index(Request $request): JsonResponse
     {
         $currentId = $request->session()->getId();
@@ -29,6 +33,7 @@ class SessionController extends Controller
                 'current' => $s->id === $currentId,
                 'ip_address' => $s->ip_address,
                 'user_agent' => $s->user_agent,
+                'device' => UserAgent::summary($s->user_agent),
                 'last_active_at' => Carbon::createFromTimestamp($s->last_activity)->toIso8601String(),
             ]);
 
@@ -52,7 +57,14 @@ class SessionController extends Controller
             return Problem::response(422, 'cannot_revoke_current_session', 'Hãy dùng chức năng đăng xuất cho phiên hiện tại.');
         }
 
-        DB::table('sessions')->where('id', $target->id)->delete();
+        DB::transaction(function () use ($request, $target) {
+            DB::table('sessions')->where('id', $target->id)->delete();
+
+            $this->audit->record('auth', 'session_revoked', subject: $request->user(), metadata: [
+                'device' => UserAgent::summary($target->user_agent),
+                'ip_address' => $target->ip_address,
+            ]);
+        });
 
         return response()->noContent();
     }
@@ -60,10 +72,16 @@ class SessionController extends Controller
     /** Đăng xuất mọi thiết bị khác. */
     public function destroyOthers(Request $request): Response
     {
-        DB::table('sessions')
-            ->where('user_id', $request->user()->getKey())
-            ->where('id', '!=', $request->session()->getId())
-            ->delete();
+        DB::transaction(function () use ($request) {
+            $revoked = DB::table('sessions')
+                ->where('user_id', $request->user()->getKey())
+                ->where('id', '!=', $request->session()->getId())
+                ->delete();
+
+            if ($revoked > 0) {
+                $this->audit->record('auth', 'sessions_revoked_others', subject: $request->user(), metadata: ['count' => $revoked]);
+            }
+        });
 
         return response()->noContent();
     }

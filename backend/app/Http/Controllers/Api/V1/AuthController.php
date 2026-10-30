@@ -7,6 +7,7 @@ use App\Http\Problem;
 use App\Http\Requests\Api\V1\LoginRequest;
 use App\Http\Resources\Api\V1\UserResource;
 use App\Models\User;
+use App\Services\Audit\AuditLogger;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -22,7 +23,7 @@ class AuthController extends Controller
 
     private const LOCK_MINUTES = 15;
 
-    public function __construct(private TenantContext $context) {}
+    public function __construct(private TenantContext $context, private AuditLogger $audit) {}
 
     public function login(LoginRequest $request): JsonResponse
     {
@@ -38,6 +39,8 @@ class AuthController extends Controller
 
         // Phản hồi giống hệt nhau cho "khóa" và "bị giới hạn tốc độ": không lộ việc tài khoản có tồn tại.
         if ($user?->isLocked()) {
+            $this->loginFailed($user, $email, 'account_locked');
+
             return $this->tooManyAttempts();
         }
 
@@ -48,16 +51,21 @@ class AuthController extends Controller
             if ($user !== null) {
                 $this->registerFailure($user);
             }
+            $this->loginFailed($user, $email, 'invalid_credentials');
 
             return Problem::response(401, 'invalid_credentials', 'Email hoặc mật khẩu không đúng.');
         }
 
         if (! $user->isActive()) {
+            $this->loginFailed($user, $email, 'account_disabled');
+
             return Problem::response(403, 'account_disabled', 'Tài khoản đã bị vô hiệu hóa.');
         }
 
         $tenant = $this->context->runAsPlatform(fn () => $user->tenant);
         if ($tenant !== null && ! $tenant->isActive()) {
+            $this->loginFailed($user, $email, 'tenant_suspended');
+
             return Problem::response(403, 'tenant_suspended', 'Doanh nghiệp đang bị tạm khóa. Vui lòng liên hệ AgriHub.');
         }
 
@@ -72,11 +80,16 @@ class AuthController extends Controller
         Auth::guard('web')->login($user);
         $request->session()->regenerate();
 
+        $this->audit->record('auth', 'login', subject: $user, actor: $user);
+
         return $this->userResponse($user);
     }
 
     public function logout(Request $request): Response
     {
+        $user = $request->user();
+        $this->audit->record('auth', 'logout', subject: $user, actor: $user);
+
         Auth::guard('web')->logout();
 
         if ($request->hasSession()) {
@@ -106,17 +119,45 @@ class AuthController extends Controller
         return (new UserResource($user))->withPermissions()->response();
     }
 
+    /** Đăng nhập thất bại: ghi cả khi email không tồn tại (không có chủ thể), không bao giờ ghi mật khẩu. */
+    private function loginFailed(?User $user, string $email, string $reason): void
+    {
+        $this->audit->record(
+            'auth', 'login_failed',
+            subject: $user,
+            result: AuditLogger::FAILURE,
+            reason: $reason,
+            metadata: $user === null ? ['email' => $email] : [],
+            actor: null,
+        );
+    }
+
     private function registerFailure(User $user): void
     {
-        $this->context->runAsPlatform(function () use ($user) {
+        $locked = $this->context->runAsPlatform(function () use ($user) {
             $attempts = $user->failed_login_attempts + 1;
 
             if ($attempts >= self::MAX_FAILED_ATTEMPTS) {
                 $user->forceFill(['failed_login_attempts' => 0, 'locked_until' => now()->addMinutes(self::LOCK_MINUTES)])->save();
-            } else {
-                $user->forceFill(['failed_login_attempts' => $attempts])->save();
+
+                return true;
             }
+
+            $user->forceFill(['failed_login_attempts' => $attempts])->save();
+
+            return false;
         });
+
+        if ($locked) {
+            $this->audit->record(
+                'auth', 'account_locked',
+                subject: $user,
+                result: AuditLogger::DENIED,
+                reason: 'too_many_failed_attempts',
+                metadata: ['locked_minutes' => self::LOCK_MINUTES],
+                actor: null,
+            );
+        }
     }
 
     private function tooManyAttempts(): JsonResponse

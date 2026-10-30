@@ -7,6 +7,7 @@ use App\Http\Problem;
 use App\Http\Resources\Api\V1\UserResource;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\Audit\AuditLogger;
 use App\Services\Rbac\RoleService;
 use App\Support\Rbac\Catalog;
 use Illuminate\Http\JsonResponse;
@@ -21,7 +22,7 @@ use Illuminate\Support\Facades\Gate;
  */
 class UserController extends Controller
 {
-    public function __construct(private RoleService $roles) {}
+    public function __construct(private RoleService $roles, private AuditLogger $audit) {}
 
     public function index(Request $request): AnonymousResourceCollection
     {
@@ -79,18 +80,39 @@ class UserController extends Controller
         $current = $user->roles()->get();
         foreach ($roles->merge($current)->unique('id') as $role) {
             if (! Catalog::covers($actorPermissions, $this->roles->grants($role))) {
+                $this->audit->record(
+                    'rbac', 'privilege_escalation_blocked',
+                    subject: $user,
+                    result: AuditLogger::DENIED,
+                    reason: 'role_exceeds_privileges',
+                    metadata: [
+                        'role' => $role->key,
+                        'requested' => $roles->pluck('key')->all(),
+                        'exceeding' => array_slice(Catalog::uncovered($actorPermissions, $this->roles->grants($role)), 0, 50, true),
+                    ],
+                );
+
                 return Problem::response(403, 'role_exceeds_privileges', 'Không thể gán hoặc gỡ vai trò có quyền vượt quá quyền của chính bạn.');
             }
         }
 
         $keepsOwner = $roles->contains(fn (Role $r) => $r->isOwner());
         if (! $keepsOwner && $current->contains(fn (Role $r) => $r->isOwner()) && ! $this->otherActiveOwnerExists($user)) {
+            $this->audit->record('rbac', 'user_roles_change_blocked', subject: $user, result: AuditLogger::DENIED, reason: 'last_owner');
+
             return Problem::response(422, 'last_owner', 'Doanh nghiệp phải còn ít nhất một Chủ doanh nghiệp đang hoạt động.');
         }
 
-        DB::transaction(function () use ($user, $roles) {
+        DB::transaction(function () use ($user, $roles, $current) {
             $user->roles()->detach();
             $user->roles()->attach($roles->mapWithKeys(fn (Role $r) => [$r->id => ['tenant_id' => $user->tenant_id]])->all());
+
+            $this->audit->record(
+                'rbac', 'user_roles_changed',
+                subject: $user,
+                before: ['roles' => $current->pluck('key')->sort()->values()->all()],
+                after: ['roles' => $roles->pluck('key')->sort()->values()->all()],
+            );
         });
 
         return new UserResource($user->load(['roles', 'branches']));

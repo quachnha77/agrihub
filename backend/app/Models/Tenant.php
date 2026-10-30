@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Services\Rbac\RoleProvisioner;
+use App\Support\Audit\Auditable;
 use App\Support\HasPublicUuid;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -11,7 +12,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Tenant extends Model
 {
-    use HasFactory, HasPublicUuid, SoftDeletes;
+    use Auditable, HasFactory, HasPublicUuid, SoftDeletes;
+
+    protected string $auditModule = 'tenant';
 
     public const STATUS_ACTIVE = 'active';
 

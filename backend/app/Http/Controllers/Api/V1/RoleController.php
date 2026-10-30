@@ -7,6 +7,7 @@ use App\Http\Problem;
 use App\Http\Requests\Api\V1\RoleRequest;
 use App\Http\Resources\Api\V1\RoleResource;
 use App\Models\Role;
+use App\Services\Audit\AuditLogger;
 use App\Services\Rbac\RoleService;
 use App\Support\Rbac\Catalog;
 use Illuminate\Http\JsonResponse;
@@ -18,7 +19,7 @@ use Illuminate\Support\Str;
 
 class RoleController extends Controller
 {
-    public function __construct(private RoleService $roles) {}
+    public function __construct(private RoleService $roles, private AuditLogger $audit) {}
 
     public function index(): AnonymousResourceCollection
     {
@@ -50,14 +51,15 @@ class RoleController extends Controller
         Gate::authorize('create', Role::class);
 
         $grants = $request->grants();
-        if (! Catalog::covers($request->user()->permissionMap(), $grants)) {
-            return $this->exceedsPrivileges();
+        if ($blocked = $this->escalation($request->user(), $grants)) {
+            return $blocked;
         }
 
         $role = DB::transaction(function () use ($request, $grants) {
             $role = new Role($request->safe()->only(['name', 'description']));
             $role->forceFill(['key' => $this->uniqueKey($request->validated('name')), 'is_system' => false])->save();
             $this->roles->setGrants($role, $grants);
+            $this->audit->record('rbac', 'role_permissions_changed', subject: $role, before: ['permissions' => []], after: ['permissions' => $grants]);
 
             return $role;
         });
@@ -70,15 +72,21 @@ class RoleController extends Controller
         Gate::authorize('update', $role);
 
         $grants = $request->has('permissions') ? $request->grants() : null;
-        if ($grants !== null && ! Catalog::covers($request->user()->permissionMap(), $grants)) {
-            return $this->exceedsPrivileges();
+        if ($grants !== null && ($blocked = $this->escalation($request->user(), $grants, $role))) {
+            return $blocked;
         }
 
         DB::transaction(function () use ($request, $role, $grants) {
             // Tên/mô tả vai trò hệ thống vẫn sửa được; `key` thì không bao giờ đổi.
             $role->fill($request->safe()->only(['name', 'description']))->save();
+
             if ($grants !== null) {
+                $before = $this->roles->grants($role);
                 $this->roles->setGrants($role, $grants);
+
+                if ($before != $grants) {
+                    $this->audit->record('rbac', 'role_permissions_changed', subject: $role, before: ['permissions' => $before], after: ['permissions' => $grants]);
+                }
             }
         });
 
@@ -93,9 +101,33 @@ class RoleController extends Controller
             return Problem::response(409, 'role_in_use', 'Vai trò còn người dùng được gán. Hãy gỡ vai trò khỏi họ trước.');
         }
 
-        $role->delete();
+        DB::transaction(function () use ($role) {
+            $before = $this->roles->grants($role);
+            $role->delete();
+            $this->audit->record('rbac', 'role_permissions_changed', subject: $role, before: ['permissions' => $before], after: ['permissions' => []]);
+        });
 
         return response()->noContent();
+    }
+
+    /** Chặn (và ghi nhận) nỗ lực cấp quyền vượt quá quyền của chính người thao tác. */
+    private function escalation($actor, array $grants, ?Role $role = null): ?JsonResponse
+    {
+        $exceeding = Catalog::uncovered($actor->permissionMap(), $grants);
+
+        if ($exceeding === []) {
+            return null;
+        }
+
+        $this->audit->record(
+            'rbac', 'privilege_escalation_blocked',
+            subject: $role,
+            result: AuditLogger::DENIED,
+            reason: 'permission_exceeds_privileges',
+            metadata: ['exceeding' => array_slice($exceeding, 0, 50, true)],
+        );
+
+        return Problem::response(403, 'permission_exceeds_privileges', 'Không thể cấp quyền vượt quá quyền của chính bạn.');
     }
 
     private function uniqueKey(string $name): string
@@ -109,10 +141,5 @@ class RoleController extends Controller
         }
 
         return $key;
-    }
-
-    private function exceedsPrivileges(): JsonResponse
-    {
-        return Problem::response(403, 'permission_exceeds_privileges', 'Không thể cấp quyền vượt quá quyền của chính bạn.');
     }
 }

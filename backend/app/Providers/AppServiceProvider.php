@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Models\User;
+use App\Services\Audit\AuditLogger;
 use App\Support\Rbac\Catalog;
 use App\Support\Tenancy\TenantAwareUserProvider;
 use App\Support\Tenancy\TenantContext;
@@ -19,6 +20,7 @@ class AppServiceProvider extends ServiceProvider
     {
         // scoped: được tạo lại cho mỗi request/job (an toàn với queue worker lâu dài).
         $this->app->scoped(TenantContext::class);
+        $this->app->scoped(AuditLogger::class);
     }
 
     public function boot(): void

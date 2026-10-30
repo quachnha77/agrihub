@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\AssignRequestId;
 use App\Http\Middleware\EnsurePlatformAdmin;
 use App\Http\Middleware\EnsureTenantUser;
 use App\Http\Middleware\SetTenantContext;
@@ -28,6 +29,16 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         // SPA dùng cookie phiên (Sanctum) cho các domain trong SANCTUM_STATEFUL_DOMAINS.
         $middleware->statefulApi();
+
+        // IP thật của client (cho rate limit và audit log) chỉ được lấy từ X-Forwarded-* khi request đến từ proxy đáng tin.
+        // Mặc định KHÔNG tin proxy nào để client không giả được IP. Production: TRUSTED_PROXIES=ip1,ip2 (hoặc * nếu đứng sau LB nội bộ).
+        $proxies = array_values(array_filter(array_map('trim', explode(',', (string) env('TRUSTED_PROXIES', '')))));
+        if ($proxies !== []) {
+            $middleware->trustProxies(at: $proxies === ['*'] ? '*' : $proxies);
+        }
+
+        // Mã request cho mọi yêu cầu (log, audit log, header X-Request-Id).
+        $middleware->prepend(AssignRequestId::class);
 
         // Context Tenant phải được đặt SAU xác thực và TRƯỚC route-model-binding (binding đi qua TenantScope).
         $middleware->prependToPriorityList(before: SubstituteBindings::class, prepend: SetTenantContext::class);

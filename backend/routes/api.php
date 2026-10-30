@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\V1\AuditLogController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BranchController;
 use App\Http\Controllers\Api\V1\HealthController;
@@ -24,9 +25,16 @@ Route::middleware(['auth:sanctum', 'tenant.context'])->group(function () {
     Route::delete('/auth/sessions/{handle}', [SessionController::class, 'destroy']);
 
     // Dữ liệu của Tenant: Platform Admin không vào được nếu chưa có cơ chế impersonation.
+    // Platform Admin: dữ liệu toàn nền tảng (context nền tảng do middleware tenant.context đặt).
+    Route::middleware('platform.admin')->prefix('platform')->group(function () {
+        Route::get('/audit-logs', [AuditLogController::class, 'platformIndex']);
+    });
+
     // Quyền chi tiết do Policy kiểm tra trong từng controller.
     Route::middleware('tenant.user')->group(function () {
         Route::apiResource('branches', BranchController::class);
+
+        Route::get('/audit-logs', [AuditLogController::class, 'index']);
 
         Route::get('/permissions', [PermissionController::class, 'index']);
         Route::apiResource('roles', RoleController::class);
