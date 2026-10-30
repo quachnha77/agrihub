@@ -50,12 +50,20 @@ jobs:
             -c "CREATE ROLE agrihub_backup LOGIN PASSWORD 'ci_backup_password' NOSUPERUSER CREATEDB BYPASSRLS" \
             -c "GRANT pg_read_all_data TO agrihub_backup" \
             -c "GRANT agrihub TO agrihub_backup"
-      - name: Bảo đảm pg_dump / pg_restore cùng phiên bản với máy chủ PostgreSQL 16
+      - name: Dùng pg_dump / pg_restore ĐÚNG phiên bản máy chủ (lấy từ chính image postgres:16-alpine)
+        # Client của runner (ubuntu-latest) đổi phiên bản theo bản Ubuntu và pg_dump mới hơn máy chủ tạo ra bản dump mà máy chủ cũ
+        # không nạp được. Hai script nhỏ chạy công cụ trong container cùng image với service postgres (mạng host => 127.0.0.1:5432).
         working-directory: .
         run: |
-          pg_dump --version
-          pg_dump --version | grep -q ' 16\.' || { sudo apt-get update && sudo apt-get install -y postgresql-client-16; }
-          pg_dump --version | grep ' 16\.'
+          bin="$RUNNER_TEMP/pgbin"
+          mkdir -p "$bin"
+          for tool in pg_dump pg_restore; do
+            printf '#!/bin/sh\nexec docker run --rm -i --network host -e PGPASSWORD -e PGCONNECT_TIMEOUT -e PGSSLMODE postgres:16-alpine %s "$@"\n' "$tool" > "$bin/$tool"
+            chmod +x "$bin/$tool"
+          done
+          echo "BACKUP_PG_BIN=$bin" >> "$GITHUB_ENV"
+          "$bin/pg_dump" --version
+          "$bin/pg_restore" --version
       - run: composer install --no-interaction --prefer-dist --no-progress
       - run: cp .env.example .env && php artisan key:generate
       - run: ./vendor/bin/pint --test
