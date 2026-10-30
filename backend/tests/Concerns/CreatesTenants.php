@@ -41,6 +41,9 @@ trait CreatesTenants
     /** Header để request được coi là từ SPA được phép (Sanctum stateful => có session). */
     protected function spa(): static
     {
+        // Cố định để test không phụ thuộc SANCTUM_STATEFUL_DOMAINS trong .env của từng máy/CI.
+        config(['sanctum.stateful' => ['localhost']]);
+
         return $this->withHeaders(['Referer' => 'http://localhost']);
     }
 }
