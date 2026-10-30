@@ -46,6 +46,7 @@ class TenantController extends Controller
 
         $page = Tenant::query()
             ->withCount(['users', 'branches'])
+            ->with('subscription.plan')
             ->when($f['status'] ?? null, fn ($q, $v) => $q->where('status', $v))
             ->when($f['q'] ?? null, function ($q, $v) {
                 $like = '%'.str_replace(['%', '_'], ['\%', '\_'], $v).'%';
@@ -63,7 +64,7 @@ class TenantController extends Controller
 
     public function show(Tenant $tenant): TenantResource
     {
-        $tenant->loadCount(['users', 'branches'])->load('branches');
+        $tenant->loadCount(['users', 'branches'])->load(['branches', 'subscription.plan']);
         $this->attachOwners(new Collection([$tenant]));
 
         return new TenantResource($tenant);

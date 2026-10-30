@@ -50,6 +50,10 @@ export const routes: RouteObject[] = [
               {
                 element: <RequireAccess platform />,
                 children: [
+                  { path: 'platform/tenants', lazy: async () => ({ Component: (await import('../features/platform/TenantsPage.tsx')).default }) },
+                  { path: 'platform/tenants/:id', lazy: async () => ({ Component: (await import('../features/platform/TenantDetailPage.tsx')).default }) },
+                  { path: 'platform/renewals', lazy: async () => ({ Component: (await import('../features/platform/RenewalsPage.tsx')).default }) },
+                  { path: 'platform/plans', lazy: async () => ({ Component: (await import('../features/platform/PlansPage.tsx')).default }) },
                   { path: 'platform/backups', lazy: async () => ({ Component: (await import('../features/backup/PlatformBackupsPage.tsx')).default }) },
                   { path: 'platform/health', lazy: async () => ({ Component: (await import('../features/health/HealthPage.tsx')).default }) },
                 ],

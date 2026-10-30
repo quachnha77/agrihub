@@ -29,3 +29,10 @@ export function formatAgo(iso: string, now: Date = new Date()): string {
   if (seconds < 86400 * 30) return `${Math.floor(seconds / 86400)} ngày trước`
   return formatDate(iso)
 }
+
+const money = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 })
+
+/** Số tiền đồng Việt Nam: 150.000 ₫. */
+export function formatVnd(amount: number | null | undefined): string {
+  return amount === null || amount === undefined ? '—' : money.format(amount)
+}

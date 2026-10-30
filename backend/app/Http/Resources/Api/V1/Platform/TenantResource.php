@@ -3,6 +3,7 @@
 namespace App\Http\Resources\Api\V1\Platform;
 
 use App\Http\Resources\Api\V1\BranchResource;
+use App\Http\Resources\Api\V1\SubscriptionResource;
 use App\Models\Tenant;
 use App\Support\Tenancy\HostTenant;
 use Illuminate\Http\Request;
@@ -37,6 +38,7 @@ class TenantResource extends JsonResource
                 'last_login_at' => $u->last_login_at?->toIso8601String(),
             ])->values()),
             'branches' => BranchResource::collection($this->whenLoaded('branches')),
+            'subscription' => $this->whenLoaded('subscription', fn () => $this->subscription === null ? null : SubscriptionResource::summary($this->subscription)),
         ];
     }
 }

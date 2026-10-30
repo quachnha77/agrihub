@@ -4,7 +4,12 @@
 
 ## [Unreleased]
 
+### Fixed
+- `GET /platform/subscriptions/renewals?within_days=…` trả 500 (tham số URL là chuỗi nhưng truyền thẳng vào Carbon); thông báo lỗi kiểm tra dữ liệu của thuê bao/gói hiện tên trường tiếng Việt ("Số người dùng phải từ 1 trở lên" thay vì "Seats…").
+
 ### Added
+- **Giao diện Super Admin**: *Doanh nghiệp* (danh sách có trạng thái thuê bao, tìm/lọc, onboarding hiện địa chỉ subdomain + mật khẩu tạm một lần, chi tiết, sửa, khóa/mở khóa có lý do, phiên hỗ trợ chỉ đọc), *thuê bao* (gia hạn có ghi nhận thanh toán, mở lại tạm thời, đổi gói/số người dùng/đơn giá riêng, ghi nhận liên hệ, lịch sử kỳ), *Việc cần liên hệ*, *Gói & giá*, và người dùng của doanh nghiệp (cấp mật khẩu tạm, khóa/mở khóa). API doanh nghiệp trả thêm `subscription` tóm tắt.
+- DevSeeder tạo thuê bao còn hạn một năm cho hai doanh nghiệp demo (trước đây thiếu nên trang quản trị hiện "chưa có thuê bao").
 - **Quên mật khẩu và quên tài khoản** (chỉ qua email của tài khoản; chưa có SMS): `POST /auth/forgot-password`, `/auth/forgot-account`, `/auth/reset-password`; hai API đầu luôn trả `202` giống nhau và việc tra cứu/gửi thư chạy trong hàng đợi (không dò được tài khoản); liên kết một lần, hết hạn 30 phút, dựng từ cấu hình (không theo Host), đặt lại xong đăng xuất mọi thiết bị + mở khóa + báo thư; giới hạn tốc độ và tối đa 3 thư/giờ/tài khoản; audit không ghi mã/mật khẩu; email tiếng Việt (`lang/vi.json`); giao diện `/forgot-password`, `/forgot-account`, `/reset-password` và liên kết ở trang đăng nhập.
 - **Số điện thoại duy nhất theo doanh nghiệp** (thay vì toàn hệ thống): hai doanh nghiệp được dùng chung một số, đăng nhập bằng số tra theo subdomain; chưa bật subdomain thì chỉ nhận số do đúng một tài khoản dùng. Migration `2026_10_31_100000`.
 - **Mỗi doanh nghiệp một subdomain** (`<slug>.<tên miền gốc>`; Super Admin ở `admin.`): nhận diện Host, đăng nhập chỉ ở đúng địa chỉ (`403 wrong_host` kèm `login_url` khi mật khẩu đúng; không lộ tài khoản khi mật khẩu sai), phiên dùng sai địa chỉ bị từ chối, subdomain lạ `404 tenant_not_found` (health check vẫn qua), `GET /tenant-context` công khai, `url` của doanh nghiệp trong API, thêm tên subdomain dành riêng, Sanctum nhận ký tự đại diện, `TrustHosts`, cảnh báo giám sát khi `SESSION_DOMAIN` đặt chung; giao diện đăng nhập theo doanh nghiệp. Tắt mặc định (`TENANT_BASE_DOMAIN` trống).

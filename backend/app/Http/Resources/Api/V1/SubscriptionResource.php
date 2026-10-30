@@ -65,6 +65,21 @@ class SubscriptionResource extends JsonResource
         ];
     }
 
+    /** Tóm tắt một dòng cho danh sách doanh nghiệp của Super Admin (không truy vấn thêm). */
+    public static function summary(Subscription $s): array
+    {
+        return [
+            'state' => $s->state(),
+            'blocked' => $s->isBlocked(),
+            'is_trial' => $s->is_trial,
+            'plan' => $s->plan->name,
+            'seats' => $s->seats,
+            'period_end' => $s->period_end->toIso8601String(),
+            'days_left' => $s->daysLeft(),
+            'last_contacted_at' => $s->last_contacted_at?->toIso8601String(),
+        ];
+    }
+
     /** Bản rút gọn cho banner trong ứng dụng (/auth/me). Chỉ có khi cần nhắc hoặc đã hết hạn. */
     public static function notice(Subscription $s): ?array
     {

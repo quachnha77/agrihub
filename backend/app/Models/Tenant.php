@@ -8,6 +8,7 @@ use App\Support\HasPublicUuid;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Tenant extends Model
@@ -43,6 +44,11 @@ class Tenant extends Model
     public function branches(): HasMany
     {
         return $this->hasMany(Branch::class);
+    }
+
+    public function subscription(): HasOne
+    {
+        return $this->hasOne(Subscription::class);
     }
 
     public function users(): HasMany

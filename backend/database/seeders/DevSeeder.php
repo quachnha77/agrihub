@@ -4,8 +4,10 @@ namespace Database\Seeders;
 
 use App\Models\Branch;
 use App\Models\Role;
+use App\Models\Subscription;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Services\Billing\SubscriptionService;
 use App\Services\Rbac\RoleProvisioner;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Seeder;
@@ -16,12 +18,25 @@ class DevSeeder extends Seeder
     /** local-part email => vai trò hệ thống */
     private const USERS = ['owner' => 'owner', 'admin' => 'admin', 'sales' => 'sales', 'kho' => 'warehouse'];
 
+    /** Tenant demo cần thuê bao (như khi onboarding thật), nhưng còn hạn một năm để không bị chặn giữa lúc đang thử. */
+    private function ensureSubscription(Tenant $tenant): void
+    {
+        if (Subscription::withoutGlobalScopes()->where('tenant_id', $tenant->id)->exists()) {
+            return;
+        }
+
+        app(SubscriptionService::class)->startTrial($tenant, null)
+            ->forceFill(['is_trial' => false, 'seats' => 20, 'period_end' => now()->addYear()])
+            ->save();
+    }
+
     public function run(TenantContext $context, RoleProvisioner $provisioner): void
     {
         $context->runAsPlatform(function () use ($provisioner) {
             foreach ([['Cửa hàng Nông Phát', 'nong-phat'], ['Đại lý Vật tư Xanh', 'vat-tu-xanh']] as $tenantIndex => [$name, $slug]) {
                 $tenant = Tenant::firstOrCreate(['slug' => $slug], ['name' => $name]);
                 $provisioner->provision($tenant); // bổ sung vai trò còn thiếu cho Tenant đã tồn tại từ trước
+                $this->ensureSubscription($tenant);
                 $branch = Branch::firstOrCreate(
                     ['tenant_id' => $tenant->id, 'code' => 'CN-01'],
                     ['name' => 'Chi nhánh chính'],

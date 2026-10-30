@@ -79,7 +79,7 @@ export function Alert({ tone = 'info', title, children, className = '' }: { tone
 }
 
 export function Badge({ tone = 'neutral', children }: { tone?: Tone; children: ReactNode }) {
-  return <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${badgeClasses[tone]}`}>{children}</span>
+  return <span className={`inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium ${badgeClasses[tone]}`}>{children}</span>
 }
 
 export function Card({ title, actions, children, className = '' }: { title?: ReactNode; actions?: ReactNode; children: ReactNode; className?: string }) {
@@ -207,7 +207,7 @@ export function CheckboxField({ label, description, checked, onChange, disabled 
 }
 
 /** Hộp thoại: đóng bằng Esc hoặc bấm nền; focus vào hộp khi mở và trả lại khi đóng. */
-export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+export function Modal({ title, onClose, children, size = 'md' }: { title: string; onClose: () => void; children: ReactNode; size?: 'md' | 'lg' }) {
   const { t } = useTranslation()
   const titleId = useId()
   const panel = useRef<HTMLDivElement>(null)
@@ -229,7 +229,7 @@ export function Modal({ title, onClose, children }: { title: string; onClose: ()
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <div ref={panel} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} className="w-full max-w-md rounded-lg bg-white shadow-xl outline-none">
+      <div ref={panel} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} className={`max-h-[90vh] w-full overflow-y-auto rounded-lg bg-white shadow-xl outline-none ${size === 'lg' ? 'max-w-2xl' : 'max-w-md'}`}>
         <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3">
           <h2 id={titleId} className="text-base font-semibold">
             {title}

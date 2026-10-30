@@ -3,6 +3,7 @@
 namespace Tests\Feature\Platform;
 
 use App\Models\Branch;
+use App\Models\Subscription;
 use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -205,5 +206,34 @@ class TenantLifecycleTest extends TestCase
 
         $this->assertNotNull($this->platform(fn () => Branch::find($branch->id)));
         $this->assertSame(1, $this->platform(fn () => User::where('tenant_id', $tenant->id)->count()));
+    }
+
+    public function test_listing_and_detail_carry_a_one_line_subscription_summary(): void
+    {
+        $admin = $this->makePlatformAdmin();
+        $this->makeTenant(['name' => 'Chưa có thuê bao']); // dựng thẳng bằng factory: chưa có thuê bao
+        $created = $this->spa()->actingAs($admin)->postJson('/api/v1/platform/tenants', [
+            'tenant' => ['name' => 'Cửa hàng Mới'],
+            'owner' => ['name' => 'Chủ Mới', 'email' => 'chu@moi.vn'],
+        ])->assertCreated();
+        $id = $created->json('data.id');
+
+        $get = fn (string $qs) => $this->spa()->actingAs($admin)->getJson('/api/v1/platform/tenants?'.$qs)->assertOk();
+
+        $trial = $get('q=Cửa hàng Mới')->json('data.0.subscription');
+        $this->assertSame('trial', $trial['state']);
+        $this->assertTrue($trial['is_trial']);
+        $this->assertFalse($trial['blocked']);
+        $this->assertContains($trial['days_left'], [6, 7]);
+        $this->assertNotEmpty($trial['plan']);
+        $this->assertNull($get('q=Chưa có thuê bao')->json('data.0.subscription'));
+
+        // Hết hạn: tóm tắt phản ánh đúng (cả ở danh sách lẫn trang chi tiết).
+        $this->platform(fn () => Subscription::query()->whereHas('tenant', fn ($q) => $q->where('uuid', $id))->update(['period_end' => now()->subDay()]));
+
+        $this->assertSame('expired', $get('q=Cửa hàng Mới')->json('data.0.subscription.state'));
+        $detail = $this->spa()->actingAs($admin)->getJson("/api/v1/platform/tenants/{$id}")->assertOk();
+        $this->assertTrue($detail->json('data.subscription.blocked'));
+        $this->assertLessThan(0, $detail->json('data.subscription.days_left'));
     }
 }

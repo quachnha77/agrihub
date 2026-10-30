@@ -48,7 +48,7 @@ cd backend && composer install && cp .env.example .env && php artisan key:genera
 cd frontend && npm install && npm run dev
 ```
 Sau khi `php artisan migrate && php artisan db:seed --class=DevSeeder`, mở http://localhost:5173 và đăng nhập (mật khẩu dev: `password`):
-- `root@agrihub.test` – Super Admin (quản trị nền tảng: sao lưu toàn hệ thống, thông báo)
+- `root@agrihub.test` – Super Admin (quản trị nền tảng): menu **Doanh nghiệp** (thêm doanh nghiệp, gia hạn/đổi gói, khóa, phiên hỗ trợ), **Việc cần liên hệ**, **Gói & giá**, sức khỏe và sao lưu hệ thống, thông báo. Hai doanh nghiệp demo có thuê bao còn hạn một năm (`php artisan db:seed --class=DevSeeder` tạo nếu chưa có).
 - `owner@nong-phat.test`, `owner@vat-tu-xanh.test` – Chủ doanh nghiệp (hai Tenant demo độc lập); `admin@…`, `sales@…`, `kho@…` là các vai trò khác
 - Cũng đăng nhập được bằng **số điện thoại**: `0900000011` (owner Nông Phát), `0900000012` (admin Nông Phát), `0900000021` (owner Vật tư Xanh)... (dạng `0900 000 011` hay `+84 900 000 011` đều được). Số điện thoại chỉ cần duy nhất **trong một doanh nghiệp**: hai doanh nghiệp được dùng chung một số, đăng nhập bằng số tra theo subdomain (chưa bật subdomain thì số dùng chung không đăng nhập được, dùng email).
 - **Quên mật khẩu / quên tài khoản**: liên kết ở trang đăng nhập. Chỉ gửi qua email của tài khoản; khi phát triển `MAIL_MAILER=log` nên thư nằm trong `backend/storage/logs/laravel.log` và cần chạy `php artisan queue:work` để thư được gửi.

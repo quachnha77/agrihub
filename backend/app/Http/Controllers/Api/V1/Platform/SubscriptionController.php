@@ -78,7 +78,8 @@ class SubscriptionController extends Controller
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 
-        $within = $f['within_days'] ?? max(config('billing.reminder_days'));
+        // Tham số trên URL luôn là chuỗi: ép về số nguyên (Carbon::addDays không nhận chuỗi).
+        $within = (int) ($f['within_days'] ?? max(config('billing.reminder_days')));
 
         $page = Subscription::query()
             ->with(['plan', 'tenant'])

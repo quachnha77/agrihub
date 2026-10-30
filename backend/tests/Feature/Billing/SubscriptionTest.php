@@ -442,6 +442,25 @@ class SubscriptionTest extends TestCase
         $this->assertSame(['Đã hết', 'Sắp hết'], $names);
     }
 
+    public function test_renewal_queue_accepts_the_window_and_validation_errors_use_vietnamese_field_names(): void
+    {
+        [$soon] = $this->makeTenant(['name' => 'Sắp hết']);
+        [$far] = $this->makeTenant(['name' => 'Còn lâu']);
+        $this->subscribe($soon, ['period_end' => now()->addDays(20)]);
+        $this->subscribe($far, ['period_end' => now()->addDays(50)]);
+        $admin = $this->makePlatformAdmin();
+        $get = fn (string $qs) => $this->spa()->actingAs($admin)->getJson('/api/v1/platform/subscriptions/renewals?'.$qs);
+
+        // Tham số URL là chuỗi: trước đây ép kiểu thiếu làm API trả 500 khi có within_days.
+        $this->assertSame([], $get('within_days=15')->assertOk()->json('data'));
+        $this->assertSame(['Sắp hết'], $get('within_days=30')->assertOk()->json('data.*.tenant.name'));
+        $this->assertSame(['Sắp hết', 'Còn lâu'], $get('within_days=60&per_page=10&contacted=0')->assertOk()->json('data.*.tenant.name'));
+
+        $get('within_days=0')->assertStatus(422)->assertJsonPath('errors.within_days.0', fn ($m) => str_starts_with($m, 'Số ngày'));
+        $this->spa()->actingAs($admin)->patchJson("/api/v1/platform/tenants/{$soon->uuid}/subscription", ['seats' => 0])
+            ->assertStatus(422)->assertJsonPath('errors.seats.0', 'Số người dùng phải từ 1 trở lên.');
+    }
+
     public function test_recording_a_contact_marks_it_and_renewal_clears_it(): void
     {
         [$t] = $this->makeTenant();

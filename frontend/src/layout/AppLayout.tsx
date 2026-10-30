@@ -1,4 +1,4 @@
-import { Activity, Building2, DatabaseBackup, LayoutDashboard, LogOut, Menu, ServerCog, ShieldCheck, Users, X, type LucideIcon } from 'lucide-react'
+import { Activity, Building2, DatabaseBackup, LayoutDashboard, LogOut, Menu, PhoneCall, ServerCog, ShieldCheck, Store, Tags, Users, X, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { NavLink, Outlet, useNavigate } from 'react-router'
@@ -26,6 +26,9 @@ export default function AppLayout() {
     { to: '/branches', label: t('nav.branches'), icon: Building2, visible: can('tenant.branch.view') },
     { to: '/roles', label: t('nav.roles'), icon: ShieldCheck, visible: can('tenant.role.view') },
     { to: '/backups', label: t('nav.backups'), icon: DatabaseBackup, visible: can('backup.backup.view') },
+    { to: '/platform/tenants', label: t('nav.tenants'), icon: Store, visible: user?.is_platform_admin === true },
+    { to: '/platform/renewals', label: t('nav.renewals'), icon: PhoneCall, visible: user?.is_platform_admin === true },
+    { to: '/platform/plans', label: t('nav.plans'), icon: Tags, visible: user?.is_platform_admin === true },
     { to: '/platform/health', label: t('nav.health'), icon: Activity, visible: user?.is_platform_admin === true },
     { to: '/platform/backups', label: t('nav.platformBackups'), icon: ServerCog, visible: user?.is_platform_admin === true },
   ]
