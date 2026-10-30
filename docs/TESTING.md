@@ -1,6 +1,6 @@
 # AgriHub – Chiến lược kiểm thử
 
-Trạng thái: mới có test health API (`backend/tests/Feature/HealthTest.php`). `phpunit.xml` mặc định SQLite in-memory; ghi đè bằng biến môi trường `DB_*` để chạy trên PostgreSQL (đã xác nhận cục bộ với PostgreSQL 16.13, database `agrihub_test`). **CI chạy PostgreSQL thật.** Các test tenant isolation/RLS bắt buộc chạy trên PostgreSQL.
+Trạng thái: 41 test (health, đăng nhập/khóa tài khoản/rate limit, quản lý phiên, **cô lập Tenant ở 3 lớp: API, Eloquent scope, PostgreSQL RLS**, lệnh tạo Platform Admin). Toàn bộ chạy trên PostgreSQL (`phpunit.xml` mặc định `pgsql` / `agrihub_test`; thông tin kết nối lấy từ `.env` hoặc biến môi trường). Bắt buộc có PostgreSQL (cục bộ 16.13 hoặc service trong CI); không dùng SQLite vì RLS/CHECK là tính năng của PostgreSQL.
 
 ## Các tầng
 | Tầng | Công cụ đề xuất | Nội dung |

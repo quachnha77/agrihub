@@ -7,10 +7,10 @@ Cập nhật: 2026-10-30 · Kết quả khảo sát: **repository trống** (kh�
 | Phân hệ | Trạng thái |
 |---|---|
 | Hạ tầng repo (monorepo, Docker, CI) | In Progress – đã có khung Laravel + React, health API, CI, Docker compose (Docker chưa chạy thử) |
-| Authentication / Session / 2FA | Missing |
-| Multi-tenant / Branch | Missing |
-| User & RBAC | Missing |
-| Super Admin / Tenant onboarding | Missing |
+| Authentication / Session | **Completed** (đăng nhập cookie Sanctum, khóa tài khoản, rate limit, quản lý/đăng xuất từ xa). 2FA: Missing |
+| Multi-tenant / Branch | **Completed** phần nền tảng (Tenant, Branch, context, RLS, test chéo Tenant). CRUD Branch: Missing |
+| User & RBAC | User/đăng nhập: Completed. RBAC (vai trò, quyền, policy): Missing |
+| Super Admin / Tenant onboarding | In Progress – có lệnh `agrihub:create-platform-admin`; API quản lý Tenant: Missing |
 | Subscription & Billing | Missing |
 | Audit Log | Missing |
 | Backup / Monitoring | Missing |
@@ -31,8 +31,8 @@ Completed: tài liệu · In Progress: khung dự án · Missing: toàn bộ mod
 
 **Giai đoạn 1 – SaaS Foundation**
 1. Scaffold monorepo + Docker dev + CI + `.env.example`.
-2. Identity: User, Auth (Sanctum), session, lockout, rate limit.
-3. Tenancy: Tenant, Branch, TenantScope + RLS, test cross-tenant (làm sớm vì mọi module phụ thuộc).
+2. ✅ Identity: User, Auth (Sanctum), session, lockout, rate limit.
+3. ✅ Tenancy: Tenant, Branch, TenantScope + RLS, test cross-tenant.
 4. RBAC: roles/permissions/policies + seeder theo ma trận.
 5. Audit Log (service dùng chung).
 6. Platform Admin: quản lý Tenant, onboarding.

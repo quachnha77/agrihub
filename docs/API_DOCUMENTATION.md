@@ -1,6 +1,6 @@
 # AgriHub – Quy ước API
 
-> Chưa có endpoint nào được triển khai. Tài liệu này là quy ước; danh mục endpoint sẽ bổ sung theo module (dự kiến sinh OpenAPI từ code).
+> Tài liệu này là quy ước chung; endpoint đã triển khai nằm ở mục 2, phần còn lại ở mục 3 là dự kiến (sẽ sinh OpenAPI từ code).
 
 ## 1. Chung
 - Base: `/api/v1`. Thay đổi phá vỡ → `/api/v2`.
@@ -11,7 +11,23 @@
 - Lỗi theo RFC 7807: `{type,title,status,detail,code,errors{field:[msg]}}`.
 - Mã trạng thái: 200/201/204, 401 chưa đăng nhập, 403 không đủ quyền/subscription, 404 (cũng dùng cho tài nguyên Tenant khác để tránh lộ tồn tại), 409 xung đột/idempotency, 422 validate, 429 rate limit.
 
-## 2. Nhóm endpoint dự kiến
+## 2. Đã triển khai (Giai đoạn 1, bước 2–3)
+Xác thực bằng cookie phiên (Sanctum stateful): gọi `GET /sanctum/csrf-cookie` rồi gửi header `X-XSRF-TOKEN` cùng cookie ở các request ghi. Request phải đến từ host trong `SANCTUM_STATEFUL_DOMAINS`.
+
+| Method & path | Mô tả | Lỗi chính |
+|---|---|---|
+| `GET /health`, `GET /health/ready` | Liveness / readiness (kiểm tra DB) | 503 khi DB lỗi |
+| `POST /auth/login` | `{email, password}` → user kèm tenant & branches | 401 `invalid_credentials`, 403 `account_disabled` / `tenant_suspended`, 429 `too_many_attempts`, 400 `stateful_request_required`, 422 |
+| `POST /auth/logout` | Kết thúc phiên (204) | |
+| `GET /auth/me` | Hồ sơ người dùng hiện tại | 401 |
+| `GET /auth/sessions` | Danh sách thiết bị/phiên của chính mình (định danh là mã băm, không lộ session id) | |
+| `DELETE /auth/sessions/{id}` | Đăng xuất một thiết bị khác | 404, 422 `cannot_revoke_current_session` |
+| `DELETE /auth/sessions` | Đăng xuất mọi thiết bị khác | |
+| `GET /branches`, `GET /branches/{id}` | Chi nhánh của Tenant hiện tại (`?q=`, `?per_page=`). **Tạm thời chưa phân quyền theo vai trò** (RBAC ở bước sau) | 404 với chi nhánh Tenant khác; 403 `tenant_context_required` với Platform Admin |
+
+Giới hạn tốc độ đăng nhập: 5 lần/phút theo cặp email+IP và 20 lần/phút theo IP; khóa tài khoản 15 phút sau 5 lần sai liên tiếp (phản hồi 429 giống nhau, không lộ tài khoản có tồn tại).
+
+## 3. Nhóm endpoint dự kiến
 | Prefix | Mô tả | Giai đoạn |
 |---|---|---|
 | `/auth/*` | login, logout, 2FA, sessions, quên/đổi mật khẩu | 1 |
@@ -35,7 +51,7 @@
 | `/reports/*`, `/exports/*` | Báo cáo, xuất file (job bất đồng bộ) | 3 |
 | `/integrations/zalo/*` | Zalo OA | 3 |
 
-## 3. Quy tắc
+## 4. Quy tắc
 - Mọi endpoint có Policy; response ẩn trường nhạy cảm.
 - Hành động trạng thái dùng sub-resource: `POST /sales-orders/{id}/cancel` thay vì DELETE.
 - Chứng từ đã chốt: không `PUT/DELETE`; dùng điều chỉnh/hủy/đảo.
