@@ -44,7 +44,11 @@ Completed: 1 · In Progress: 0 · Missing: toàn bộ source code.
 
 Mỗi bước: phân tích → liệt kê file/DB/API → (xác nhận nếu rủi ro) → code nhỏ → test → review bảo mật → cập nhật docs → báo cáo.
 
-## 3. Quyết định cần xác nhận
+## 3. Quyết định
+
+**Đã xác nhận (2026-10-30):** repo `https://github.com/quachnha77/agrihub`; stack mục tiêu (Laravel + React/TS + PostgreSQL + Redis, monorepo); shared DB + `tenant_id` + RLS; mỗi user thuộc 1 Tenant, các Tenant độc lập.
+
+**Còn chờ xác nhận** (các mục 5–10 bên dưới; mục 1–4 đã chốt):
 1. **Tài khoản/repo GitHub** để lưu code (tên repo, public/private, tổ chức/cá nhân)? Máy chưa cài `gh`; có thể push bằng `git` + Personal Access Token/đăng nhập trình duyệt.
 2. Xác nhận stack: Laravel (phiên bản 11/12), React+TS+Vite, PostgreSQL 16, Redis. Đồng ý monorepo?
 3. Multi-tenant: shared DB + `tenant_id` + RLS (đề xuất) — đồng ý?

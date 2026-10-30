@@ -11,7 +11,7 @@ Phân loại bảng:
 ## 2. Xác định Tenant
 - Tenant lấy từ **người dùng đã xác thực** (`users.tenant_id`) hoặc membership; không đọc tenant từ body/query/header do client gửi.
 - Super Admin muốn thao tác trong Tenant: dùng cơ chế "impersonation/context" tường minh, có audit log.
-- Một user thuộc 1 Tenant (mặc định). *Chờ xác nhận:* user có thuộc nhiều Tenant không?
+- **Đã xác nhận (2026-10-30):** mỗi user thuộc đúng 1 Tenant; các Tenant hoàn toàn độc lập. `users.tenant_id` NOT NULL (trừ Super Admin).
 
 ## 3. Phòng thủ nhiều lớp
 1. **Application**: `TenantScope` (global scope) + trait `BelongsToTenant` tự gán `tenant_id` khi tạo; mọi query lọc theo tenant.
