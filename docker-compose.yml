@@ -78,15 +78,20 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-agrihub}
-      POSTGRES_USER: ${POSTGRES_USER:-agrihub}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-agrihub_dev_only}
+      # Superuser của container: chỉ để quản trị, ứng dụng KHÔNG dùng (sẽ bỏ qua RLS).
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:-agrihub_admin_dev_only}
+      # Role ứng dụng thường, được tạo bởi docker/postgres/init-app-role.sh
+      APP_DB_NAME: ${POSTGRES_DB:-agrihub}
+      APP_DB_USER: ${POSTGRES_USER:-agrihub}
+      APP_DB_PASSWORD: ${POSTGRES_PASSWORD:-agrihub_dev_only}
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./docker/postgres/init-app-role.sh:/docker-entrypoint-initdb.d/init-app-role.sh:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-agrihub} -d ${POSTGRES_DB:-agrihub}"]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       timeout: 5s
       retries: 10

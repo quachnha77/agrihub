@@ -15,12 +15,12 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_DB: agrihub_test
-          POSTGRES_USER: agrihub
-          POSTGRES_PASSWORD: ci_only_password
+          # Tài khoản quản trị của container (superuser => bỏ qua RLS) CHỈ dùng để tạo role ứng dụng bên dưới.
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci_admin_password
         ports: ["5432:5432"]
         options: >-
-          --health-cmd "pg_isready -U agrihub -d agrihub_test"
+          --health-cmd "pg_isready -U postgres"
           --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       DB_CONNECTION: pgsql
@@ -36,6 +36,14 @@ jobs:
           php-version: "8.4"
           extensions: pdo_pgsql, intl, bcmath, zip
           coverage: none
+      - name: Tạo role ứng dụng KHÔNG phải superuser (để Row-Level Security có hiệu lực)
+        working-directory: .
+        env:
+          PGPASSWORD: ci_admin_password
+        run: |
+          psql -h 127.0.0.1 -U postgres -v ON_ERROR_STOP=1 \
+            -c "CREATE ROLE agrihub LOGIN PASSWORD 'ci_only_password' NOSUPERUSER NOBYPASSRLS" \
+            -c "CREATE DATABASE agrihub_test OWNER agrihub"
       - run: composer install --no-interaction --prefer-dist --no-progress
       - run: cp .env.example .env && php artisan key:generate
       - run: ./vendor/bin/pint --test

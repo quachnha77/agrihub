@@ -162,6 +162,15 @@ class TenantIsolationTest extends TestCase
 
     // --- PostgreSQL Row-Level Security (bỏ qua Eloquent) -----------------------------------
 
+    public function test_application_database_role_cannot_bypass_rls(): void
+    {
+        // Superuser / BYPASSRLS bỏ qua RLS kể cả khi FORCE: ứng dụng không bao giờ được kết nối bằng role như vậy.
+        $role = DB::selectOne('select rolsuper, rolbypassrls from pg_roles where rolname = current_user');
+
+        $this->assertFalse($role->rolsuper, 'Role DB của ứng dụng đang là superuser.');
+        $this->assertFalse($role->rolbypassrls, 'Role DB của ứng dụng đang có BYPASSRLS.');
+    }
+
     public function test_rls_hides_other_tenants_rows_from_raw_queries(): void
     {
         [$tenantA, , $branchA] = $this->makeTenant();
