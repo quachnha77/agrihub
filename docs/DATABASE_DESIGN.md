@@ -32,11 +32,14 @@
 | Delivery | `deliveries`, `delivery_assignments`, `delivery_status_history`, `delivery_proofs` (ảnh/chữ ký) |
 | Notification/Zalo | `notification_templates`, `notifications`, `zalo_oa_configs` (token mã hóa), `zalo_customer_links`, `zalo_messages` |
 | Audit/Monitoring | `audit_logs` (partition theo tháng), `system_health_checks`, `backup_runs`, `integration_events` |
+| Online order | `online_orders` (hoặc `sales_orders.channel='online'`), `order_confirmations` (người gọi, thời điểm, ghi chú), `payment_intents`, `payment_events` (IPN thô, chữ ký đã xác minh, idempotent theo mã giao dịch) |
+| E-invoice | `einvoice_providers` (cấu hình mã hóa theo Tenant), `einvoices` (số, ký hiệu, mã tra cứu, trạng thái, XML/PDF), `einvoice_events` |
+| Backup | `backup_runs` (scope: platform/tenant, loại: auto/manual/export, ngày, kích thước, checksum, trạng thái), `restore_runs` (người thực hiện, file nguồn, kết quả) |
 | Files | `files` (đường dẫn private, checksum, owner) |
 
 ## 3. Quy tắc kho (quan trọng)
 - `stock_movements`: `tenant_id, branch_id, warehouse_id, product_id, batch_id, quantity_delta, unit_cost, movement_type, source_type/source_id, performed_by, performed_at, note`. **Chỉ INSERT**; chặn UPDATE/DELETE bằng trigger.
-- `stock_balances` cập nhật trong cùng transaction với movement (khóa dòng `SELECT … FOR UPDATE`), có CHECK `>= 0` trừ khi tenant cho phép âm kho.
+- `stock_balances` cập nhật trong cùng transaction với movement (khóa dòng `SELECT … FOR UPDATE`), có CHECK `>= 0`. **Không cho phép tồn âm** (đã chốt); thêm `reserved_quantity` cho đơn online đã xác nhận.
 - Xuất kho ưu tiên FEFO theo HSD (cấu hình).
 
 ## 4. Quy tắc công nợ

@@ -44,6 +44,9 @@ Backend kiểm tra bằng Policy/Gate trên mọi endpoint; frontend chỉ ẩn/
 | Delivery | VCUE | VCUE | VCUE | – | V | VC | VU (own) | V (own) |
 | Zalo/Notification | VCU | VCU | V | V | – | – | – | – |
 | Reports | VE | VE | VE (branch) | VE | V (kho) | V (own) | – | – |
+| Backup/Restore | VCE+Restore | – | – | – | – | – | – | – |
+| Online orders (xác nhận) | VCUAX | VCUAX | VCUAX | V | V | VUA | – | C (own) |
+| E-invoice | VCXE | VCXE | VCE | VCXE | – | V | – | V (own) |
 | Audit log | V | V | V (branch) | – | – | – | – | – |
 
 Ma trận này là **điểm khởi đầu**; sẽ được chuyển thành seeder và kiểm thử, rồi hoàn thiện theo từng module.

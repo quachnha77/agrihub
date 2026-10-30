@@ -27,6 +27,11 @@
 | `/cashbook`, `/cash-vouchers` | Thu chi | 2 |
 | `/seasons`, `/deliveries` | Mùa vụ, giao hàng | 3 |
 | `/portal/*` | Cổng khách hàng (guard riêng) | 3 |
+| `/shop/{tenant}/*` | Đặt hàng online công khai (rate limit + captcha) | 3 |
+| `/payments/webhooks/{gateway}` | IPN/webhook ngân hàng, MoMo: xác minh chữ ký, idempotent | 3 |
+| `/einvoices/*` | Phát hành/tra cứu/thay thế HĐĐT | 2 |
+| `/backups/*` | Danh sách, tạo, export, import/restore (quyền quản trị) | 1 |
+| `/notifications/*` | In-app, mẫu, lịch sử Zalo/SMS | 1 |
 | `/reports/*`, `/exports/*` | Báo cáo, xuất file (job bất đồng bộ) | 3 |
 | `/integrations/zalo/*` | Zalo OA | 3 |
 

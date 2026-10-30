@@ -30,3 +30,15 @@ Mục tiêu tham khảo: RTO ≤ 4 giờ, RPO ≤ 24 giờ (dump) / ≤ 15 phút
 - Tự động hằng tuần: restore bản mới nhất vào môi trường tạm, chạy kiểm tra (đếm bản ghi, đối chiếu tổng công nợ/tồn kho).
 - Diễn tập DR toàn phần mỗi quý; ghi kết quả vào tài liệu.
 - **Không được tuyên bố backup đạt chuẩn khi chưa có bản ghi kiểm thử restore thành công.**
+
+## 6. Giao diện Backup/Restore cho quản trị viên (đã chốt 2026-10-30)
+- Màn hình danh sách backup **theo ngày/giờ** (loại, kích thước, checksum, trạng thái, người tạo).
+- **Tạo backup thủ công**, **Export** (tải file đã mã hóa), **Import** (tải lên file backup để restore).
+- Phạm vi: Super Admin → toàn hệ thống; Tenant Owner → chỉ dữ liệu Tenant của mình (đề xuất, *chờ xác nhận*).
+- Quy tắc an toàn khi Import/Restore:
+  1. Chỉ chấp nhận file do AgriHub tạo (chữ ký + checksum + phiên bản schema); từ chối file hỏng/không khớp.
+  2. Tự động tạo **backup trước khi restore** (điểm quay lại).
+  3. Restore Tenant chạy trong transaction/DB tạm, kiểm tra tenant_id đúng; không bao giờ ghi vào Tenant khác.
+  4. Xác nhận 2 bước (nhập lại mật khẩu/2FA + gõ tên Tenant) và đặt Tenant ở chế độ bảo trì trong lúc restore.
+  5. Mọi thao tác ghi audit và `restore_runs`; thông báo cho Owner.
+  6. File export mã hóa; tải qua link ngắn hạn; giới hạn tần suất và kích thước.

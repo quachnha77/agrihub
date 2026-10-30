@@ -27,6 +27,8 @@ Thực thể tổ chức: **Platform Admin → Tenant → Branch → User**; **C
 | 5.16 | Bảo mật | 1 | Xem SECURITY.md |
 | 5.17 | Backup & DR | 1 | Xem BACKUP_DISASTER_RECOVERY.md |
 | 5.18 | Audit/Log/Monitoring | 1 | Xem MONITORING_LOGGING.md |
+| 5.20 | Đặt hàng online | 3 | Khách đặt hàng qua cổng; chọn thanh toán ngay (ngân hàng/MoMo) hoặc ghi công nợ; cửa hàng gọi điện xác nhận. Xem mục 6 |
+| 5.21 | Hóa đơn điện tử | 2 | Phát hành HĐĐT qua nhà cung cấp được kết nối. Xem mục 7 |
 | 5.19 | Báo cáo | 3 | Doanh thu, lợi nhuận dự kiến, NXT, công nợ, thu chi, top KH/SP, theo nhân viên/chi nhánh; xuất Excel/PDF |
 
 ## 3. Nguyên tắc nghiệp vụ bất biến
@@ -39,8 +41,33 @@ Thực thể tổ chức: **Platform Admin → Tenant → Branch → User**; **C
 7. Popup nhắc gia hạn mặc định ở 15/7/3/1 ngày & ngày hết hạn (cấu hình được).
 8. Lãi công nợ: chỉ khi có cấu hình + thỏa thuận; lưu công thức, kỳ tính, lịch sử; phân biệt giá bán tín dụng và lãi quá hạn.
 
-## 4. Phi chức năng
+## 4. Quyết định đã chốt (2026-10-30)
+- **Không cho phép tồn kho âm** (kiểm tra trong transaction, CHECK `>= 0`).
+- **Kênh cảnh báo/thông báo**: Zalo OA, SMS, thông báo trong web khi đăng nhập (in-app).
+- **Thanh toán**: cổng ngân hàng + MoMo.
+- **Hóa đơn điện tử**: bắt buộc hỗ trợ.
+- **Backup/Restore**: có giao diện cho quản trị viên (xem BACKUP_DISASTER_RECOVERY.md).
+
+## 5. Phi chức năng
 Giao diện tiếng Việt mặc định (i18n sẵn sàng), responsive, phân trang/tìm kiếm/lọc, trạng thái loading/empty/error, không có nút trang trí.
 
-## 5. Câu hỏi mở (cần chủ sản phẩm xác nhận)
+## 6. Đặt hàng online (5.20)
+Luồng: Khách chọn sản phẩm/chi nhánh → chọn hình thức thanh toán → tạo đơn `pending_confirmation` → cửa hàng **gọi điện số điện thoại khách để xác nhận** → `confirmed` → (giao hàng) → hoàn tất.
+
+Hình thức thanh toán khi đặt:
+1. **Thanh toán ngay** qua cổng ngân hàng hoặc MoMo. Đơn chỉ ghi "đã thanh toán" sau khi nhận IPN/webhook **có xác minh chữ ký**; không tin redirect từ trình duyệt.
+2. **Ghi công nợ**: chỉ khách có tài khoản đã được cửa hàng duyệt và còn hạn mức tín dụng; vượt hạn mức → từ chối hoặc chờ duyệt.
+
+Quy tắc:
+- Số điện thoại bắt buộc, được kiểm tra định dạng; ghi nhận thời điểm và người gọi xác nhận (audit).
+- Đơn chờ quá thời hạn cấu hình tự hết hạn; nếu đã thanh toán mà bị từ chối thì đi quy trình hoàn tiền (không tự động xóa).
+- Tồn kho: giữ chỗ (reserve) khi cửa hàng xác nhận (mặc định, cấu hình được); không bao giờ để tồn âm.
+- Chống spam/đặt trùng: rate limit, captcha, Idempotency-Key.
+- Khách đặt qua trang cửa hàng của Tenant (`/shop/{tenant}`) hoặc cổng khách hàng; Tenant xác định từ cửa hàng được truy cập, các thao tác nội bộ vẫn lấy Tenant từ phiên đăng nhập.
+- Thông báo xác nhận qua Zalo OA/SMS.
+
+## 7. Hóa đơn điện tử (5.21)
+Tuân thủ NĐ 123/2020/NĐ-CP, TT 78/2021/TT-BTC. Không tự ký/phát hành: tích hợp qua **adapter** với nhà cung cấp HĐĐT (VNPT, Viettel, MISA, MatBao… – chọn sau). Lưu mã tra cứu, số/ký hiệu, trạng thái (nháp, đã phát hành, thay thế, điều chỉnh, hủy) và file XML/PDF. Hóa đơn đã phát hành không sửa; dùng thay thế/điều chỉnh.
+
+## 8. Câu hỏi mở (cần chủ sản phẩm xác nhận)
 Xem mục "Quyết định cần xác nhận" trong [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).

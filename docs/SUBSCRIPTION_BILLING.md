@@ -17,7 +17,7 @@ Mỗi `subscription_period` lưu: `plan_id, unit_price, user_count (snapshot), a
 - `payment_transactions` trạng thái: `pending → verified | failed | refunded`.
 - **Không tự đánh dấu đã thanh toán**: chỉ khi xác minh qua webhook ký chữ ký của cổng thanh toán, hoặc Super Admin xác nhận thủ công kèm chứng từ (có audit).
 - Webhook idempotent (khóa theo mã giao dịch).
-- Cổng thanh toán cụ thể: *chờ xác nhận* (VNPay / MoMo / chuyển khoản + đối soát).
+- Cổng thanh toán: **ngân hàng + MoMo** (cổng ngân hàng cụ thể, ví dụ VNPay, *chờ xác nhận*), dùng adapter chung với thanh toán đơn online. Webhook phải xác minh chữ ký.
 
 ## 5. Enforcement giới hạn
 Middleware `EnforceSubscription` + kiểm tra khi tạo user/branch/upload: vượt giới hạn → từ chối rõ ràng (HTTP 402/403 với mã lỗi `plan_limit_exceeded`). Chế độ read-only chặn mọi method ghi (trừ thanh toán/gia hạn).

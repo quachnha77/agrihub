@@ -24,6 +24,8 @@ Log JSON có cấu trúc (request_id, tenant_id, user_id, route, latency). Cấp
 Trạng thái: `normal | warning | critical | down` theo ngưỡng cấu hình. Trang health cho Super Admin; endpoint `/health` (liveness) và `/health/ready` (readiness).
 
 ## 4. Cảnh báo
+Kênh đã chốt: **Zalo OA, SMS, thông báo trong web khi đăng nhập (in-app)**; email là tùy chọn. Cảnh báo hệ thống gửi cho Super Admin; cảnh báo nghiệp vụ (nợ quá hạn, hết hạn gói, tồn thấp) gửi theo vai trò Tenant. Người nhận phải đồng ý nhận Zalo/SMS (opt-in); lưu lịch sử gửi và trạng thái.
+
 Sự cố `critical/down` → gửi ngay (email + kênh chat), chống spam (gộp/cooldown), có runbook cho từng cảnh báo.
 
 Công cụ đề xuất: Prometheus + Grafana + Alertmanager, Uptime check ngoài (*chờ xác nhận*).
