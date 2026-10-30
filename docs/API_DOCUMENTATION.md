@@ -39,15 +39,16 @@ Xác thực bằng cookie phiên (Sanctum stateful): gọi `GET /sanctum/csrf-co
 | `GET/POST /roles`, `GET/PUT/PATCH/DELETE /roles/{id}` | Vai trò của Tenant kèm danh sách `{key, scope}`. Body tạo/sửa: `{name, description?, permissions:[{key,scope}]}` | 403 `permission_exceeds_privileges`, 409 `role_in_use`, 404, 422 |
 | `GET /users`, `GET /users/{id}` | Người dùng của Tenant (scope `tenant`/`branch`/`own`) kèm vai trò | 403, 404 |
 | `PUT /users/{id}/roles` | `{role_ids:[uuid]}` – thay toàn bộ vai trò của user | 403 `role_exceeds_privileges`, 422 `last_owner` / `validation_failed`, 404 |
-| `GET /subscription` | Gói dịch vụ của Tenant đang đăng nhập: `state` (`trial\|active\|grace\|expired`), `read_only`, gói, chu kỳ, `seats`, giá, giới hạn, `period_*`, `days_left`, `usage {users, branches}`, lịch sử `periods`. Quyền `billing.subscription.view` | 403, 404 `subscription_not_found` |
+| `GET /subscription` | Gói dịch vụ của Tenant đang đăng nhập: `state` (`trial\|active\|grace\|reopened\|expired`), `blocked`, `reopened_until`, gói, chu kỳ, `seats`, giá, giới hạn, `period_*`, `days_left`, `usage {users, branches}`, lịch sử `periods`. Quyền `billing.subscription.view` | 403, 404 `subscription_not_found` |
 | `GET/POST /platform/plans`, `PATCH /platform/plans/{id}` | Platform Admin: cấu hình gói và giá (`key` cố định, không có xóa – chỉ `is_active=false`) | 422 (trùng `key`, `key` bị cấm khi sửa), 404 |
 | `GET /platform/tenants/{id}/subscription` | Thuê bao của một doanh nghiệp (kèm sổ kỳ, ghi chú liên hệ) | 404 |
 | `PATCH /platform/tenants/{id}/subscription` | `{plan_id?, billing_cycle?, seats?, unit_price?}` – đổi gói/số user/chu kỳ/giá thương lượng, hiệu lực ngay, không đổi ngày hết hạn | 422 `subscription_limit_exceeded` / `plan_inactive` |
 | `POST /platform/tenants/{id}/subscription/renew` | Ghi nhận gia hạn `{periods?, amount?, paid_at?, payment_method?, payment_ref?, note?}` | 422 |
+| `POST /platform/tenants/{id}/subscription/reopen` `{days, reason}` | Mở lại tạm thời Tenant đã hết hạn (1–30 ngày, lý do ≥ 10 ký tự, có audit); không đổi ngày hết hạn | 422 |
 | `POST /platform/tenants/{id}/subscription/contact` `{note}` | Ghi nhận đã liên hệ khách về việc gia hạn | 422 |
 | `GET /platform/subscriptions/renewals` | Việc cần liên hệ: sắp/đã hết hạn (`within_days`, `contacted=0\|1`, `per_page`) kèm Chủ doanh nghiệp | |
 
-Mã lỗi thuê bao: `402 subscription_expired` (hết ân hạn → chỉ đọc; mọi request ghi bị chặn), `402 seat_limit_reached`, `402 branch_limit_reached`. `GET /auth/me` có thêm `subscription_notice` (xem SUBSCRIPTION_BILLING.md mục 6).
+Mã lỗi thuê bao: `402 subscription_expired` (hết hạn → Tenant **không dùng được**: đăng nhập và mọi API đều bị chặn cho đến khi nhân viên AgriHub gia hạn/mở lại), `402 seat_limit_reached`, `402 branch_limit_reached`. `GET /auth/me` có thêm `subscription_notice` (xem SUBSCRIPTION_BILLING.md mục 6).
 
 Tham số `{id}` của các route trên là uuid; giá trị sai định dạng trả 404. Mã lỗi chung: `403 password_change_required` (đang dùng mật khẩu tạm; chỉ `/auth/me`, `/auth/logout`, `/auth/password` dùng được). Các thao tác nhạy cảm (đổi mật khẩu, tạo user/doanh nghiệp, cấp mật khẩu tạm) giới hạn 10 lần/phút/người dùng (`platform.rate_limits.sensitive`).
 

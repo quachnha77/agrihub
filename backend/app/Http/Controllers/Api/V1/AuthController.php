@@ -9,6 +9,7 @@ use App\Http\Resources\Api\V1\UserResource;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
 use App\Services\Auth\SessionRevoker;
+use App\Services\Billing\SubscriptionService;
 use App\Support\Audit\AuditSuppression;
 use App\Support\Auth\PasswordPolicy;
 use App\Support\Tenancy\TenantContext;
@@ -28,7 +29,7 @@ class AuthController extends Controller
 
     private const LOCK_MINUTES = 15;
 
-    public function __construct(private TenantContext $context, private AuditLogger $audit, private SessionRevoker $sessions) {}
+    public function __construct(private TenantContext $context, private AuditLogger $audit, private SessionRevoker $sessions, private SubscriptionService $billing) {}
 
     public function login(LoginRequest $request): JsonResponse
     {
@@ -72,6 +73,12 @@ class AuthController extends Controller
             $this->loginFailed($user, $email, 'tenant_suspended');
 
             return Problem::response(403, 'tenant_suspended', 'Doanh nghiệp đang bị tạm khóa. Vui lòng liên hệ AgriHub.');
+        }
+
+        if ($tenant !== null && $this->billing->current($tenant->id)?->isBlocked()) {
+            $this->loginFailed($user, $email, 'subscription_expired');
+
+            return Problem::response(402, 'subscription_expired', 'Gói dịch vụ đã hết hạn. Vui lòng liên hệ AgriHub để gia hạn.');
         }
 
         $this->context->runAsPlatform(function () use ($user) {

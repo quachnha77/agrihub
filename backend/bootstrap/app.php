@@ -3,7 +3,6 @@
 use App\Http\ApiProblemException;
 use App\Http\Middleware\AssignRequestId;
 use App\Http\Middleware\EnforcePasswordChange;
-use App\Http\Middleware\EnforceSubscription;
 use App\Http\Middleware\EnsurePlatformAdmin;
 use App\Http\Middleware\EnsureTenantUser;
 use App\Http\Middleware\SetTenantContext;
@@ -54,7 +53,6 @@ return Application::configure(basePath: dirname(__DIR__))
             'tenant.user' => EnsureTenantUser::class,
             'platform.admin' => EnsurePlatformAdmin::class,
             'password.fresh' => EnforcePasswordChange::class,
-            'subscription.writable' => EnforceSubscription::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

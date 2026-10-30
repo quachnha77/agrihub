@@ -120,6 +120,8 @@ class SubscriptionService
                 'period_end' => $end,
                 'last_contacted_at' => null, // việc cần liên hệ của kỳ trước đã xong
                 'contact_note' => null,
+                'reopened_until' => null,
+                'reopen_reason' => null,
             ])->save();
 
             $this->ledger($subscription, $plan, SubscriptionPeriod::KIND_RENEWAL, $amount, $actor, [
@@ -132,6 +134,26 @@ class SubscriptionService
             $this->audit->record('billing', 'renewed', subject: $subscription, tenantId: $subscription->tenant_id, actor: $actor,
                 before: $before, after: $this->snapshot($subscription),
                 metadata: ['amount' => $amount, 'payment_method' => $data['payment_method'] ?? null, 'payment_ref' => $data['payment_ref'] ?? null]);
+        });
+
+        return $subscription->refresh();
+    }
+
+    /**
+     * Mở lại tạm thời cho Tenant đã hết hạn (do nhân viên AgriHub quyết định, bắt buộc có lý do). Không đổi ngày hết hạn:
+     * hết thời hạn mở lại mà chưa gia hạn thì Tenant bị dừng trở lại.
+     */
+    public function reopen(Subscription $subscription, User $actor, int $days, string $reason): Subscription
+    {
+        $until = now()->addDays($days);
+        $before = $this->snapshot($subscription);
+
+        DB::transaction(function () use ($subscription, $actor, $until, $reason, $before, $days) {
+            $subscription->forceFill(['reopened_until' => $until, 'reopen_reason' => $reason])->save();
+
+            $this->audit->record('billing', 'reopened', subject: $subscription, tenantId: $subscription->tenant_id, actor: $actor,
+                reason: mb_substr($reason, 0, 255), before: $before, after: $before,
+                metadata: ['days' => $days, 'reopened_until' => $until->toIso8601String()]);
         });
 
         return $subscription->refresh();

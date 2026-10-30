@@ -16,12 +16,14 @@ class Subscription extends Model
 
     public const CYCLE_YEARLY = 'yearly';
 
-    /** Trạng thái suy ra từ thời gian (không lưu): trial | active | grace | expired. */
+    /** Trạng thái suy ra từ thời gian (không lưu): trial | active | grace | reopened | expired. */
     public const STATE_TRIAL = 'trial';
 
     public const STATE_ACTIVE = 'active';
 
     public const STATE_GRACE = 'grace';
+
+    public const STATE_REOPENED = 'reopened';
 
     public const STATE_EXPIRED = 'expired';
 
@@ -34,6 +36,7 @@ class Subscription extends Model
             'period_start' => 'datetime',
             'period_end' => 'datetime',
             'last_contacted_at' => 'datetime',
+            'reopened_until' => 'datetime',
         ];
     }
 
@@ -55,13 +58,17 @@ class Subscription extends Model
             return $this->is_trial ? self::STATE_TRIAL : self::STATE_ACTIVE;
         }
 
+        if ($this->reopened_until !== null && $now->lessThanOrEqualTo($this->reopened_until)) {
+            return self::STATE_REOPENED; // nhân viên AgriHub mở lại tạm thời
+        }
+
         return $now->lessThanOrEqualTo($this->period_end->copy()->addDays((int) config('billing.grace_days')))
             ? self::STATE_GRACE
             : self::STATE_EXPIRED;
     }
 
-    /** Hết ân hạn: chỉ được xem dữ liệu. */
-    public function isReadOnly(): bool
+    /** Hết hạn (và hết ân hạn, chưa được mở lại): doanh nghiệp không được sử dụng hệ thống. */
+    public function isBlocked(): bool
     {
         return $this->state() === self::STATE_EXPIRED;
     }

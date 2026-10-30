@@ -116,47 +116,106 @@ class SubscriptionTest extends TestCase
         $this->spa()->actingAs($ownerA)->getJson('/api/v1/subscription')->assertOk()->assertJsonPath('data.seats', 11);
     }
 
-    // --- Hết hạn: ân hạn rồi chỉ đọc -------------------------------------------------------
+    // --- Hết hạn: dừng sử dụng, chỉ nhân viên AgriHub mở lại --------------------------------
 
-    public function test_expired_within_grace_still_allows_writes(): void
+    public function test_expired_tenant_cannot_use_the_system_at_all(): void
     {
         [$t, $owner] = $this->makeTenant();
-        $this->subscribe($t, ['period_end' => now()->subDays(2)]);
+        $this->subscribe($t, ['period_end' => now()->subDay()]);
 
-        $this->spa()->actingAs($owner)->getJson('/api/v1/subscription')->assertJsonPath('data.state', 'grace');
-        $this->spa()->actingAs($owner)->postJson('/api/v1/branches', ['code' => 'CN-02', 'name' => 'Chi nhánh 2'])->assertCreated();
-    }
-
-    public function test_after_grace_the_tenant_is_read_only_but_data_stays_readable(): void
-    {
-        [$t, $owner] = $this->makeTenant();
-        $this->subscribe($t, ['period_end' => now()->subDays(config('billing.grace_days') + 1)]);
-
+        foreach (['/api/v1/branches', '/api/v1/subscription', '/api/v1/auth/me'] as $url) {
+            $this->spa()->actingAs($owner)->getJson($url)->assertStatus(402)->assertJsonPath('code', 'subscription_expired');
+        }
         $this->spa()->actingAs($owner)->postJson('/api/v1/branches', ['code' => 'CN-02', 'name' => 'Chi nhánh 2'])
             ->assertStatus(402)->assertJsonPath('code', 'subscription_expired');
-
-        $this->spa()->actingAs($owner)->getJson('/api/v1/branches')->assertOk();
-        $this->spa()->actingAs($owner)->getJson('/api/v1/subscription')->assertOk()->assertJsonPath('data.read_only', true);
-        $this->spa()->actingAs($owner)->getJson('/api/v1/auth/me')->assertOk();
     }
 
-    public function test_expiry_does_not_block_logout_or_password_change(): void
+    public function test_expired_tenant_cannot_log_in_but_keeps_its_data(): void
     {
         [$t, $owner] = $this->makeTenant(user: ['password' => 'Mat-khau-cu-2026']);
-        $this->subscribe($t, ['period_end' => now()->subDays(60)]);
+        $this->subscribe($t, ['period_end' => now()->subDay()]);
 
-        $this->spa()->actingAs($owner)->postJson('/api/v1/auth/password', [
-            'current_password' => 'Mat-khau-cu-2026', 'password' => 'Mat-khau-moi-2027', 'password_confirmation' => 'Mat-khau-moi-2027',
-        ])->assertOk();
+        $this->spa()->postJson('/api/v1/auth/login', ['email' => $owner->email, 'password' => 'Mat-khau-cu-2026'])
+            ->assertStatus(402)->assertJsonPath('code', 'subscription_expired');
+
+        $this->assertSame(1, $this->platform(fn () => User::where('tenant_id', $t->id)->count()));
     }
 
-    public function test_renewal_lifts_read_only(): void
+    public function test_the_trial_expiring_also_stops_the_tenant(): void
     {
         [$t, $owner] = $this->makeTenant();
-        $this->subscribe($t, ['period_end' => now()->subDays(60)]);
+        $this->subscribe($t, ['is_trial' => true, 'period_end' => now()->subMinute()]);
+
+        $this->spa()->actingAs($owner)->getJson('/api/v1/branches')->assertStatus(402);
+    }
+
+    public function test_expiry_of_one_tenant_does_not_affect_another(): void
+    {
+        [$a, $ownerA] = $this->makeTenant();
+        [$b, $ownerB] = $this->makeTenant();
+        $this->subscribe($a, ['period_end' => now()->subDay()]);
+        $this->subscribe($b);
+
+        $this->spa()->actingAs($ownerA)->getJson('/api/v1/branches')->assertStatus(402);
+        $this->freshBrowser()->spa()->actingAs($ownerB)->getJson('/api/v1/branches')->assertOk();
+    }
+
+    public function test_platform_admin_can_reopen_an_expired_tenant(): void
+    {
+        [$t, $owner] = $this->makeTenant();
+        $this->subscribe($t, ['period_end' => now()->subDays(40)]);
         $admin = $this->makePlatformAdmin();
 
-        $this->spa()->actingAs($admin)->postJson("/api/v1/platform/tenants/{$t->uuid}/subscription/renew", [])->assertOk();
+        $this->spa()->actingAs($admin)->postJson("/api/v1/platform/tenants/{$t->uuid}/subscription/reopen", ['days' => 5, 'reason' => 'Khách hẹn thanh toán thứ Sáu'])
+            ->assertOk()
+            ->assertJsonPath('data.state', 'reopened')
+            ->assertJsonPath('data.blocked', false)
+            ->assertJsonPath('data.reopen_reason', 'Khách hẹn thanh toán thứ Sáu');
+
+        $this->freshBrowser()->spa()->actingAs($owner)->postJson('/api/v1/branches', ['code' => 'CN-02', 'name' => 'Chi nhánh 2'])->assertCreated();
+        $this->spa()->actingAs($owner)->getJson('/api/v1/auth/me')->assertJsonPath('data.subscription_notice.state', 'reopened');
+
+        $this->assertSame(1, $this->auditCount(['module' => 'billing', 'action' => 'reopened', 'tenant_id' => $t->id]));
+    }
+
+    public function test_reopen_lapses_after_the_granted_days(): void
+    {
+        [$t, $owner] = $this->makeTenant();
+        $s = $this->subscribe($t, ['period_end' => now()->subDays(40), 'reopened_until' => now()->subMinute()]);
+
+        $this->assertSame('expired', $s->state());
+        $this->spa()->actingAs($owner)->getJson('/api/v1/branches')->assertStatus(402);
+    }
+
+    public function test_reopen_validates_days_and_requires_a_reason(): void
+    {
+        [$t] = $this->makeTenant();
+        $this->subscribe($t, ['period_end' => now()->subDays(3)]);
+        $admin = $this->makePlatformAdmin();
+        $url = "/api/v1/platform/tenants/{$t->uuid}/subscription/reopen";
+
+        $this->spa()->actingAs($admin)->postJson($url, ['days' => 5])->assertUnprocessable();
+        $this->spa()->actingAs($admin)->postJson($url, ['days' => 5, 'reason' => 'ngắn'])->assertUnprocessable();
+        $this->spa()->actingAs($admin)->postJson($url, ['days' => 0, 'reason' => 'Lý do đủ dài rồi'])->assertUnprocessable();
+        $this->spa()->actingAs($admin)->postJson($url, ['days' => config('billing.max_reopen_days') + 1, 'reason' => 'Lý do đủ dài rồi'])->assertUnprocessable();
+    }
+
+    public function test_tenant_users_cannot_reopen_themselves(): void
+    {
+        [$t, $owner] = $this->makeTenant();
+        $this->subscribe($t);
+
+        $this->spa()->actingAs($owner)->postJson("/api/v1/platform/tenants/{$t->uuid}/subscription/reopen", ['days' => 5, 'reason' => 'Tự mở lại cho mình'])->assertForbidden();
+    }
+
+    public function test_renewal_lifts_the_block_and_clears_the_reopen(): void
+    {
+        [$t, $owner] = $this->makeTenant();
+        $this->subscribe($t, ['period_end' => now()->subDays(60), 'reopened_until' => now()->subDay(), 'reopen_reason' => 'x']);
+        $admin = $this->makePlatformAdmin();
+
+        $this->spa()->actingAs($admin)->postJson("/api/v1/platform/tenants/{$t->uuid}/subscription/renew", [])
+            ->assertOk()->assertJsonPath('data.reopen_reason', null);
 
         $this->freshBrowser()->spa()->actingAs($owner)
             ->postJson('/api/v1/branches', ['code' => 'CN-02', 'name' => 'Chi nhánh 2'])->assertCreated();
@@ -413,12 +472,10 @@ class SubscriptionTest extends TestCase
         $this->spa()->actingAs($owner)->getJson('/api/v1/auth/me')
             ->assertJsonPath('data.subscription_notice.state', 'active')
             ->assertJsonPath('data.subscription_notice.days_left', 6)
-            ->assertJsonPath('data.subscription_notice.read_only', false);
+            ->assertJsonPath('data.subscription_notice.blocked', false);
 
         $this->platform(fn () => $s->forceFill(['period_end' => now()->subDays(30)])->save());
-        $this->spa()->actingAs($owner)->getJson('/api/v1/auth/me')
-            ->assertJsonPath('data.subscription_notice.state', 'expired')
-            ->assertJsonPath('data.subscription_notice.read_only', true);
+        $this->spa()->actingAs($owner)->getJson('/api/v1/auth/me')->assertStatus(402); // đã hết hạn: không còn dùng được
     }
 
     public function test_reminder_level_follows_the_configured_milestones(): void

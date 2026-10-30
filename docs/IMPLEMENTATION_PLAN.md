@@ -12,7 +12,7 @@ Cập nhật: 2026-10-30 · Kết quả khảo sát: **repository trống** (kh�
 | User & RBAC | **Completed** (catalog quyền, 7 vai trò hệ thống, vai trò tùy chỉnh, Policy, chống leo thang quyền). Tạo/sửa user: Missing |
 | Super Admin / Tenant onboarding | **Completed** phần quản lý Tenant & người dùng (onboarding, sửa, khóa/mở khóa, phiên hỗ trợ chỉ đọc, quản lý user toàn hệ thống). Còn lại ở Subscription: gói, doanh thu, thông báo toàn hệ thống, cấu hình nền tảng |
 | Quản lý người dùng của Tenant | **Completed** (tạo/sửa/khóa/xóa mềm, gán vai trò + chi nhánh, mật khẩu tạm, đổi mật khẩu) |
-| Subscription & Billing | **Completed** phần gói/thuê bao, giới hạn user & chi nhánh, hết hạn → chỉ đọc (sau ân hạn), gia hạn thủ công, hàng đợi liên hệ, banner nhắc. Còn lại: cổng thanh toán tự động, nhắc Zalo/SMS, báo cáo doanh thu, kiểm tra dung lượng. **Giá/ân hạn/dùng thử là giả định, chờ xác nhận** |
+| Subscription & Billing | **Completed** phần gói/thuê bao, giới hạn user & chi nhánh, hết hạn → **dừng sử dụng, chỉ nhân viên AgriHub mở lại** (gia hạn hoặc reopen tạm thời), dùng thử 7 ngày, gia hạn thủ công, hàng đợi liên hệ, banner nhắc. Còn lại: cổng thanh toán tự động, nhắc Zalo/SMS, báo cáo doanh thu, kiểm tra dung lượng. **Giá gói là giả định, chờ xác nhận** |
 | Audit Log | **Completed** hạ tầng (append-only, phân vùng, RLS, API xem, retention); các module nghiệp vụ sẽ gắn sự kiện khi được làm |
 | Backup / Monitoring | Missing |
 | Customers, Suppliers, Products | Missing |
@@ -73,7 +73,7 @@ Mỗi bước: phân tích → liệt kê file/DB/API → (xác nhận nếu r�
 1. Cổng ngân hàng cụ thể (VNPay, hay chuyển khoản VietQR + đối soát, hay cả hai) — cần khi làm Payment Gateway (Giai đoạn 3), chưa chặn.
 2. Nhà cung cấp SMS (eSMS, SpeedSMS, Stringee…) — cần khi làm Notification (Giai đoạn 1).
 3. Hosting production — cần trước khi lên staging/production.
-4. **Đang dùng giả định, cần chốt:** sau khi hết hạn gói có **7 ngày ân hạn** (vẫn dùng đầy đủ), sau đó **chỉ đọc**; dùng thử **14 ngày / 5 user**. Đổi trong `backend/config/billing.php`.
+4. ✅ **Đã chốt:** hết hạn gói thì **không được dùng**, chỉ khi nhân viên AgriHub mở lại (gia hạn hoặc reopen); dùng thử **7 ngày** miễn phí.
 5. **Đang dùng giả định, cần chốt:** giá gói (Tiêu chuẩn 150.000 và Nâng cao 250.000 đồng/user/tháng; giá năm = 10 tháng) – chỉnh được qua `/platform/plans`.
 
 ## 4. Rủi ro

@@ -60,12 +60,13 @@ Route::middleware(['auth:sanctum', 'tenant.context'])->group(function () {
             Route::get('/tenants/{tenant}/subscription', [PlatformSubscriptionController::class, 'show']);
             Route::patch('/tenants/{tenant}/subscription', [PlatformSubscriptionController::class, 'update']);
             Route::post('/tenants/{tenant}/subscription/renew', [PlatformSubscriptionController::class, 'renew']);
+            Route::post('/tenants/{tenant}/subscription/reopen', [PlatformSubscriptionController::class, 'reopen']);
             Route::post('/tenants/{tenant}/subscription/contact', [PlatformSubscriptionController::class, 'contact']);
         });
 
         // Dữ liệu của Tenant. Platform Admin chỉ vào được trong phiên hỗ trợ (chỉ đọc).
         // Quyền chi tiết do Policy kiểm tra trong từng controller.
-        Route::middleware(['tenant.user', 'subscription.writable'])->group(function () {
+        Route::middleware('tenant.user')->group(function () {
             Route::get('/subscription', [SubscriptionController::class, 'show']);
 
             Route::apiResource('branches', BranchController::class);

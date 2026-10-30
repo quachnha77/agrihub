@@ -49,6 +49,16 @@ class SubscriptionController extends Controller
         return $this->present($this->billing->renew($this->find($tenant), $request->user(), $data));
     }
 
+    public function reopen(Request $request, Tenant $tenant): SubscriptionResource
+    {
+        $data = $request->validate([
+            'days' => ['required', 'integer', 'min:1', 'max:'.config('billing.max_reopen_days')],
+            'reason' => ['required', 'string', 'min:10', 'max:500'],
+        ]);
+
+        return $this->present($this->billing->reopen($this->find($tenant), $request->user(), $data['days'], $data['reason']));
+    }
+
     public function contact(Request $request, Tenant $tenant): SubscriptionResource
     {
         $note = $request->validate(['note' => ['required', 'string', 'min:3', 'max:500']])['note'];

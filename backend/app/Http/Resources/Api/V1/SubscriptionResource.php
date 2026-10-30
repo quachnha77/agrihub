@@ -29,7 +29,8 @@ class SubscriptionResource extends JsonResource
 
         return [
             'state' => $this->state(),
-            'read_only' => $this->isReadOnly(),
+            'blocked' => $this->isBlocked(),
+            'reopened_until' => $this->reopened_until?->toIso8601String(),
             'is_trial' => $this->is_trial,
             'plan' => ['key' => $this->plan->key, 'name' => $this->plan->name],
             'billing_cycle' => $this->billing_cycle,
@@ -60,6 +61,7 @@ class SubscriptionResource extends JsonResource
             ])->values()),
             'last_contacted_at' => $this->when($this->platform, fn () => $this->last_contacted_at?->toIso8601String()),
             'contact_note' => $this->when($this->platform, fn () => $this->contact_note),
+            'reopen_reason' => $this->when($this->platform, fn () => $this->reopen_reason),
         ];
     }
 
@@ -77,7 +79,8 @@ class SubscriptionResource extends JsonResource
             'is_trial' => $s->is_trial,
             'days_left' => $s->daysLeft(),
             'period_end' => $s->period_end->toIso8601String(),
-            'read_only' => $s->isReadOnly(),
+            'blocked' => $s->isBlocked(),
+            'reopened_until' => $s->reopened_until?->toIso8601String(),
         ];
     }
 }

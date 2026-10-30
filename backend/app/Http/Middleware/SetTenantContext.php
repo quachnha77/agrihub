@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Http\Problem;
 use App\Services\Audit\AuditLogger;
+use App\Services\Billing\SubscriptionService;
 use App\Support\Platform\SupportSession;
 use App\Support\Tenancy\TenantContext;
 use Closure;
@@ -23,6 +24,7 @@ class SetTenantContext
         private TenantContext $context,
         private SupportSession $support,
         private AuditLogger $audit,
+        private SubscriptionService $billing,
     ) {}
 
     public function handle(Request $request, Closure $next): Response
@@ -67,6 +69,10 @@ class SetTenantContext
 
             if (! $user->tenant?->isActive()) {
                 return Problem::response(403, 'tenant_suspended', 'Doanh nghiệp đang bị tạm khóa. Vui lòng liên hệ AgriHub.');
+            }
+
+            if ($this->billing->current((int) $user->tenant_id)?->isBlocked()) {
+                return Problem::response(402, 'subscription_expired', 'Gói dịch vụ đã hết hạn. Vui lòng liên hệ AgriHub để gia hạn.');
             }
 
             return $next($request);

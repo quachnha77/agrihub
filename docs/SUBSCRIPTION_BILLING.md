@@ -2,7 +2,7 @@
 
 Trạng thái: **đã triển khai** phần gói dịch vụ, thuê bao, giới hạn, hết hạn/chỉ đọc, gia hạn thủ công, danh sách việc cần liên hệ và banner nhắc. **Chưa làm**: thanh toán tự động qua cổng (ngân hàng/MoMo), nhắc qua Zalo OA/SMS, báo cáo doanh thu (xem mục 7).
 
-> ⚠️ **Các con số mặc định dưới đây là GIẢ ĐỊNH, chưa được chủ sản phẩm chốt** (giá, ngày dùng thử, ân hạn, giới hạn). Tất cả cấu hình được: giá/giới hạn gói qua API `/platform/plans`, còn dùng thử/ân hạn/mốc nhắc trong `backend/config/billing.php`.
+> ✅ Đã chốt: **dùng thử 7 ngày miễn phí**; **hết hạn là dừng sử dụng, chỉ nhân viên AgriHub mở lại**. ⚠️ **Còn là GIẢ ĐỊNH, chưa chốt:** giá gói và giới hạn gói. Giá/giới hạn gói chỉnh qua API `/platform/plans`; dùng thử/ân hạn/mốc nhắc trong `backend/config/billing.php`.
 
 ## 1. Gói dịch vụ (`plans`, dùng chung toàn hệ thống)
 Mỗi gói: `key` (cố định, duy nhất), tên, mô tả, **giá/user/tháng** và **giá/user/năm** (VND, số nguyên), giới hạn chi nhánh (`null` = không giới hạn), dung lượng lưu trữ (MB), `is_active`, `sort_order`.
@@ -24,13 +24,18 @@ Lưu **bản chụp** tại thời điểm cấu hình: `plan_id`, `billing_cycl
 |---|---|---|
 | `trial` | còn hạn, `is_trial` | dùng đầy đủ |
 | `active` | còn hạn | dùng đầy đủ |
-| `grace` | quá hạn ≤ `grace_days` (mặc định **7 ngày**) | **vẫn dùng đầy đủ**, banner nhắc |
-| `expired` | quá ân hạn | **chỉ đọc**: mọi request ghi bị `402 subscription_expired`; vẫn xem được dữ liệu, đăng nhập/đăng xuất/đổi mật khẩu bình thường. **Không khóa, không xóa dữ liệu** |
+| `grace` | quá hạn ≤ `grace_days` (mặc định **0** = không dùng) | dùng đầy đủ (chỉ khi cấu hình ân hạn > 0) |
+| `reopened` | đã hết hạn nhưng nhân viên AgriHub **mở lại** còn hiệu lực | dùng đầy đủ đến `reopened_until` |
+| `expired` | hết hạn, không còn ân hạn/mở lại | **DỪNG sử dụng** (xem dưới) |
 
-- Tenant mới (onboarding) tự có thuê bao **dùng thử**: `trial_days` = 14, `trial_seats` = 5, gói mặc định `standard`.
+**Khi `expired` (quyết định của chủ sản phẩm): hết hạn thì không được dùng, chỉ khi nhân viên AgriHub mở lại.**
+- Đăng nhập bị từ chối và mọi API của Tenant (kể cả đọc, `/auth/me`, đăng xuất) trả `402 subscription_expired`. Phiên đang mở cũng bị chặn ở request kế tiếp. **Dữ liệu được giữ nguyên, không xóa.**
+- Chỉ nhân viên AgriHub (Platform Admin) mới mở lại được: (a) **gia hạn** (`renew`), hoặc (b) **mở lại tạm thời** `POST …/subscription/reopen {days, reason}` (1–30 ngày, lý do bắt buộc ≥ 10 ký tự, ghi audit `billing.reopened` mà Tenant thấy được). Mở lại không đổi ngày hết hạn; hết `reopened_until` mà chưa gia hạn thì dừng lại. Gia hạn xóa trạng thái mở lại.
+
+- Tenant mới (onboarding) tự có thuê bao **dùng thử 7 ngày miễn phí**: `trial_days` = 7, `trial_seats` = 5, gói mặc định `standard`. Hết dùng thử cũng bị dừng như trên.
 - Tenant **chưa có thuê bao** (dữ liệu cũ/môi trường dev) không bị hạn chế.
-- Việc chặn ghi nằm ở middleware `EnforceSubscription` (alias `subscription.writable`) áp cho nhóm route dữ liệu Tenant; các route `/auth/*` nằm ngoài nên luôn dùng được. Phiên hỗ trợ của Platform Admin vốn đã chỉ đọc nên không bị ảnh hưởng.
-- Việc ghi nhận đổi gói / gia hạn **chỉ do Platform Admin** thực hiện; Tenant chỉ xem (`GET /subscription`, quyền `billing.subscription.view`, có ở Owner và Admin).
+- Việc chặn nằm trong middleware `SetTenantContext` (cùng chỗ chặn Tenant bị khóa) và trong `POST /auth/login`. Platform Admin không bị ảnh hưởng.
+- Việc đổi gói / gia hạn / mở lại **chỉ do Platform Admin** thực hiện; Tenant chỉ xem (`GET /subscription`, quyền `billing.subscription.view`, có ở Owner và Admin) khi còn dùng được.
 
 ## 3. Giới hạn gói (enforcement)
 - **Số user**: user `active` và chưa xóa chiếm một suất (`seats`). Tạo user mới hoặc **mở khóa** user khi đã đủ suất → `402 seat_limit_reached`. Khóa/xóa user làm trống suất.
@@ -46,12 +51,12 @@ Chưa có cổng thanh toán tự động. Nhân viên AgriHub liên hệ khách
 - `periods` (1..24, mặc định 1) kỳ theo chu kỳ hiện tại: tháng → +N tháng, năm → +12N tháng.
 - Còn hạn → nối tiếp từ ngày hết hạn; đã hết hạn → tính từ hôm nay (không tính bù thời gian đã ngừng dùng).
 - `amount` mặc định = `unit_price × seats × periods`; có thể nhập số khác (giảm giá/thu thiếu), ghi kèm `payment_method`, `payment_ref`, `note`.
-- Mọi thao tác ghi audit (`billing.renewed`, `billing.plan_changed`, `billing.trial_started`, `billing.contacted`); các sự kiện này thuộc Tenant nên **chủ doanh nghiệp thấy trong audit log của mình**.
+- Mọi thao tác ghi audit (`billing.renewed`, `billing.plan_changed`, `billing.trial_started`, `billing.contacted`, `billing.reopened`); các sự kiện này thuộc Tenant nên **chủ doanh nghiệp thấy trong audit log của mình**.
 - Đổi gói / số user / chu kỳ / giá thương lượng (`PATCH …/subscription`) có hiệu lực ngay, **không đổi ngày hết hạn và không tính tiền** (không prorate tự động ở giai đoạn đầu; khoản tiền ghi khi gia hạn).
 
 ## 6. Nhắc gia hạn & việc cần liên hệ
-- **Trong ứng dụng**: `GET /auth/me` trả `subscription_notice` cho người dùng Tenant – `null` khi còn xa hạn; có dữ liệu (`state`, `days_left`, `period_end`, `read_only`, `is_trial`) khi đang dùng thử, chạm mốc **15/7/3/1 ngày**, đang ân hạn hoặc đã hết hạn. Frontend dùng để hiện banner/popup khi đăng nhập.
-- **Cho nhân viên AgriHub**: `GET /platform/subscriptions/renewals` liệt kê thuê bao sắp hết hạn (trong `within_days`, mặc định 15 ngày) và đã hết hạn, hạn gần nhất lên trước, kèm điện thoại/Chủ doanh nghiệp để gọi; lọc `contacted=0|1`. Doanh nghiệp đang bị khóa không nằm trong danh sách. `POST …/subscription/contact {note}` ghi nhận đã liên hệ (đánh dấu trong danh sách); gia hạn xong thì dấu liên hệ tự xóa.
+- **Trong ứng dụng**: `GET /auth/me` trả `subscription_notice` cho người dùng Tenant – `null` khi còn xa hạn; có dữ liệu (`state`, `days_left`, `period_end`, `blocked`, `reopened_until`, `is_trial`) khi đang dùng thử, chạm mốc **15/7/3/1 ngày**, đang ân hạn hoặc đang được mở lại. (Tenant đã hết hạn không còn gọi được `/auth/me`; màn hình đăng nhập hiển thị lỗi `subscription_expired`.) Frontend dùng để hiện banner/popup khi đăng nhập.
+- **Cho nhân viên AgriHub**: `GET /platform/subscriptions/renewals` liệt kê thuê bao sắp hết hạn (trong `within_days`, mặc định 15 ngày) và đã hết hạn, hạn gần nhất lên trước, kèm điện thoại/Chủ doanh nghiệp để gọi; lọc `contacted=0|1`. Doanh nghiệp đang bị khóa không nằm trong danh sách. `POST …/subscription/contact {note}` ghi nhận đã liên hệ (đánh dấu trong danh sách); gia hạn xong thì dấu liên hệ tự xóa. Nhân viên cũng dùng danh sách này để quyết định mở lại tạm thời.
 - **Chưa làm**: gửi nhắc qua Zalo OA/SMS (chờ nền tảng Notification và chọn nhà cung cấp SMS).
 
 ## 7. Còn lại (chưa triển khai)
