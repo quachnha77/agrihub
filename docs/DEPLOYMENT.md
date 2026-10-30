@@ -32,6 +32,8 @@ Mọi cấu hình qua biến môi trường; cung cấp `.env.example` (không g
 - Chỉ đặt `AUDIT_PURGE_ENABLED=true` sau khi đã backup/lưu trữ audit log lâu dài; `AUDIT_RETENTION_MONTHS` tối thiểu 12.
 - Tạo Platform Admin đầu tiên: `php artisan agrihub:create-platform-admin <email>`; sau đó đăng nhập và onboard doanh nghiệp đầu tiên qua `POST /api/v1/platform/tenants` (mật khẩu tạm của Owner chỉ hiện một lần: chuyển cho khách qua kênh an toàn).
 - `SESSION_DRIVER=database` là **bắt buộc** (đăng xuất từ xa, khóa Tenant/người dùng và đổi mật khẩu đều thu hồi phiên bằng cách xóa hàng trong bảng `sessions`).
+- **Queue worker bắt buộc chạy** (`php artisan queue:work`, có sẵn service `queue` trong docker-compose): sao lưu/khôi phục chạy bằng job nền; thiếu worker thì bản sao lưu đứng ở `pending`.
+- Sao lưu: đặt `BACKUP_ENCRYPTION_KEY` (chuỗi ngẫu nhiên ≥ 32 ký tự) **và cất ở nơi tách khỏi file sao lưu**; mất khóa là không đọc lại được mọi bản sao lưu. Để trống thì dùng `APP_KEY` (khi đó đổi `APP_KEY` sẽ làm bản sao lưu cũ không dùng được). Thư mục `storage/app/backups` phải nằm trên volume bền vững và được sao chép offsite; PHP `upload_max_filesize`/`post_max_size` và `client_max_body_size` của Nginx phải ≥ `BACKUP_MAX_UPLOAD_MB`.
 
 ## Release
 Zero/low-downtime: build → migrate (tương thích ngược) → chuyển traffic. Có kế hoạch rollback. Ghi CHANGELOG.

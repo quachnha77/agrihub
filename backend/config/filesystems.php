@@ -38,6 +38,15 @@ return [
             'report' => false,
         ],
 
+        // File sao lưu: riêng tư, nằm ngoài thư mục public, không phục vụ trực tiếp qua URL.
+        'backups' => [
+            'driver' => 'local',
+            'root' => storage_path('app/backups'),
+            'serve' => false,
+            'throw' => true,
+            'report' => true,
+        ],
+
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),

@@ -2,12 +2,14 @@
 
 use App\Http\Controllers\Api\V1\AuditLogController;
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\BackupController;
 use App\Http\Controllers\Api\V1\BranchController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\PermissionController;
 use App\Http\Controllers\Api\V1\Platform\PlanController;
 use App\Http\Controllers\Api\V1\Platform\SubscriptionController as PlatformSubscriptionController;
 use App\Http\Controllers\Api\V1\Platform\SupportSessionController;
+use App\Http\Controllers\Api\V1\Platform\TenantBackupController;
 use App\Http\Controllers\Api\V1\Platform\TenantController;
 use App\Http\Controllers\Api\V1\Platform\UserController as PlatformUserController;
 use App\Http\Controllers\Api\V1\RoleController;
@@ -52,6 +54,14 @@ Route::middleware(['auth:sanctum', 'tenant.context'])->group(function () {
 
             Route::get('/audit-logs', [AuditLogController::class, 'platformIndex']);
 
+            Route::get('/tenants/{tenant}/backups', [TenantBackupController::class, 'index']);
+            Route::post('/tenants/{tenant}/backups', [TenantBackupController::class, 'store'])->middleware('throttle:sensitive');
+            Route::post('/tenants/{tenant}/backups/import', [TenantBackupController::class, 'import'])->middleware('throttle:sensitive');
+            Route::get('/tenants/{tenant}/backups/restores', [TenantBackupController::class, 'restores']);
+            Route::get('/tenants/{tenant}/backups/{backup}', [TenantBackupController::class, 'show']);
+            Route::get('/tenants/{tenant}/backups/{backup}/download', [TenantBackupController::class, 'download'])->middleware('throttle:sensitive');
+            Route::post('/tenants/{tenant}/backups/{backup}/restore', [TenantBackupController::class, 'restore'])->middleware('throttle:sensitive');
+
             Route::get('/plans', [PlanController::class, 'index']);
             Route::post('/plans', [PlanController::class, 'store']);
             Route::patch('/plans/{plan}', [PlanController::class, 'update']);
@@ -72,6 +82,14 @@ Route::middleware(['auth:sanctum', 'tenant.context'])->group(function () {
             Route::apiResource('branches', BranchController::class);
 
             Route::get('/audit-logs', [AuditLogController::class, 'index']);
+
+            Route::get('/backups', [BackupController::class, 'index']);
+            Route::post('/backups', [BackupController::class, 'store'])->middleware('throttle:sensitive');
+            Route::post('/backups/import', [BackupController::class, 'import'])->middleware('throttle:sensitive');
+            Route::get('/backups/restores', [BackupController::class, 'restores']);
+            Route::get('/backups/{backup}', [BackupController::class, 'show']);
+            Route::get('/backups/{backup}/download', [BackupController::class, 'download'])->middleware('throttle:sensitive');
+            Route::post('/backups/{backup}/restore', [BackupController::class, 'restore'])->middleware('throttle:sensitive');
 
             Route::get('/permissions', [PermissionController::class, 'index']);
             Route::apiResource('roles', RoleController::class);

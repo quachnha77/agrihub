@@ -18,6 +18,12 @@ Trạng thái: chính sách thiết kế; chưa triển khai.
 - Email là định danh duy nhất toàn hệ thống (kể cả tài khoản đã xóa mềm) và không đổi qua API; thông báo trùng email cố ý chung chung ("Email này không khả dụng"). Lưu ý: người có quyền tạo user vẫn có thể suy ra một email đã tồn tại trong hệ thống — chấp nhận được vì mô hình "1 user = 1 Tenant".
 - Phiên hỗ trợ của Platform Admin: xem docs/MULTI_TENANT_DESIGN.md mục 2c.
 
+### Sao lưu / khôi phục (đã triển khai)
+- File sao lưu được **mã hóa và xác thực** (libsodium secretstream) trước khi nằm trên disk; chỉ file do hệ thống tạo ra và còn nguyên vẹn mới được nhận khi Import. Lưu trên disk riêng tư, không có URL công khai; tải xuống qua API có kiểm quyền, ghi audit, `no-store`.
+- Chỉ Chủ doanh nghiệp (và Super Admin) có quyền; khôi phục cần nhập lại mật khẩu + gõ tên doanh nghiệp; có bản `pre_restore` để hoàn tác; Tenant ở chế độ bảo trì khi khôi phục.
+- Khôi phục **không bao giờ ghi sang Tenant khác** (kiểm tra Tenant trong file, ghi đè `tenant_id`, chỉ bảng trong danh sách cho phép, RLS) và không đụng tài khoản/mật khẩu/phân quyền/audit log. File sao lưu theo Tenant vì vậy không chứa mật khẩu băm của nhân viên.
+- Chống file độc hại/phình to: giới hạn dung lượng tải lên và sau giải nén, giới hạn độ dài dòng, từ chối giá trị lồng/kiểu lạ.
+
 ## Phân quyền & cô lập
 - Kiểm tra quyền ở backend (Policy) cho mọi action; Tenant isolation theo MULTI_TENANT_DESIGN (scope + RLS).
 - Phòng IDOR: tài nguyên khác Tenant trả 404.

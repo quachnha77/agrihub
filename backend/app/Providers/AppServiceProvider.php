@@ -38,7 +38,7 @@ class AppServiceProvider extends ServiceProvider
         });
 
         // Tham số route là uuid công khai; giá trị khác định dạng => 404 (không để PostgreSQL báo lỗi cú pháp uuid thành 500).
-        foreach (['tenant', 'user', 'branch', 'role', 'plan'] as $parameter) {
+        foreach (['tenant', 'user', 'branch', 'role', 'plan', 'backup'] as $parameter) {
             Route::pattern($parameter, '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}');
         }
 

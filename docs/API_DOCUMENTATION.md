@@ -47,6 +47,15 @@ Xác thực bằng cookie phiên (Sanctum stateful): gọi `GET /sanctum/csrf-co
 | `POST /platform/tenants/{id}/subscription/reopen` `{days, reason}` | Mở lại tạm thời Tenant đã hết hạn (1–30 ngày, lý do ≥ 10 ký tự, có audit); không đổi ngày hết hạn | 422 |
 | `POST /platform/tenants/{id}/subscription/contact` `{note}` | Ghi nhận đã liên hệ khách về việc gia hạn | 422 |
 | `GET /platform/subscriptions/renewals` | Việc cần liên hệ: sắp/đã hết hạn (`within_days`, `contacted=0\|1`, `per_page`) kèm Chủ doanh nghiệp | |
+| `GET /backups`, `GET /backups/{id}` | Danh sách / chi tiết bản sao lưu của Tenant (mới → cũ; lọc `kind`, `status`). Quyền `backup.backup.view` (chỉ Chủ doanh nghiệp) | 403, 404 |
+| `POST /backups` | Tạo bản sao lưu thủ công, chạy nền (202, `status=pending`, theo dõi bằng `GET /backups/{id}`). Quyền `…create` | 403, 429 |
+| `POST /backups/import` (multipart `file`) | Import file `.agbk`: giải mã + kiểm tra ngay; hợp lệ ⇒ 201 `kind=upload`. Quyền `…create` | 422 `backup_invalid`, 429 |
+| `GET /backups/{id}/download` | Export: tải file đã mã hóa (`attachment`, `no-store`). Quyền `…export`, có audit | 403, 404, 409 `backup_not_ready` |
+| `POST /backups/{id}/restore` `{password, confirm_name}` | Khôi phục từ bản này, chạy nền (202). Cần mật khẩu của chính mình + gõ đúng tên doanh nghiệp. Quyền `…restore` | 422 `confirmation_failed`, 409 `restore_in_progress` / `backup_not_ready`, 403, 404 |
+| `GET /backups/restores` | Lịch sử khôi phục (`status`, `pre_restore_backup_id`, `row_counts`, `error`) | 403 |
+| `GET/POST /platform/tenants/{id}/backups`, `POST …/backups/import`, `GET …/backups/{backup}`, `GET …/backups/{backup}/download`, `POST …/backups/{backup}/restore`, `GET …/backups/restores` | Super Admin: cùng chức năng cho một doanh nghiệp được chọn (xác nhận bằng mật khẩu của Super Admin + tên doanh nghiệp). Bản sao lưu của Tenant khác ⇒ 404 | 422, 404, 409 |
+
+Khi Tenant đang được khôi phục, mọi API của Tenant trả `503 tenant_restoring`.
 
 Mã lỗi thuê bao: `402 subscription_expired` (hết hạn → Tenant **không dùng được**: đăng nhập và mọi API đều bị chặn cho đến khi nhân viên AgriHub gia hạn/mở lại), `402 seat_limit_reached`, `402 branch_limit_reached`. `GET /auth/me` có thêm `subscription_notice` (xem SUBSCRIPTION_BILLING.md mục 6).
 

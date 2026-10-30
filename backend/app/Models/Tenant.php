@@ -32,7 +32,7 @@ class Tenant extends Model
 
     protected function casts(): array
     {
-        return ['suspended_at' => 'datetime'];
+        return ['suspended_at' => 'datetime', 'restoring_at' => 'datetime'];
     }
 
     public function isActive(): bool

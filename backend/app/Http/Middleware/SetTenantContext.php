@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Http\Problem;
 use App\Services\Audit\AuditLogger;
+use App\Services\Backup\BackupService;
 use App\Services\Billing\SubscriptionService;
 use App\Support\Platform\SupportSession;
 use App\Support\Tenancy\TenantContext;
@@ -69,6 +70,10 @@ class SetTenantContext
 
             if (! $user->tenant?->isActive()) {
                 return Problem::response(403, 'tenant_suspended', 'Doanh nghiệp đang bị tạm khóa. Vui lòng liên hệ AgriHub.');
+            }
+
+            if (app(BackupService::class)->isRestoring($user->tenant)) {
+                return Problem::response(503, 'tenant_restoring', 'Doanh nghiệp đang được khôi phục dữ liệu. Vui lòng thử lại sau ít phút.');
             }
 
             if ($this->billing->current((int) $user->tenant_id)?->isBlocked()) {
