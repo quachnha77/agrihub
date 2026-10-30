@@ -14,6 +14,9 @@
   3. Không sửa/xóa được vai trò mạnh hơn mình; Owner bất biến; vai trò hệ thống không xóa được; vai trò còn người dùng không xóa được (409).
   4. Không thể gỡ vai trò Owner cuối cùng đang hoạt động → `422 last_owner`.
 - Platform Admin không có quyền Tenant; quyền nền tảng (`platform.*`) làm ở bước Super Admin.
+- **Phân cấp vai trò**: Owner ⊃ Admin ⊃ {Branch Manager, Accountant, Warehouse, Sales, Delivery} (test `test_the_role_hierarchy_...` bảo vệ quan hệ này). Nhờ đó Admin quản lý được mọi nhân viên; chỉ Owner mới có thêm sao lưu/khôi phục và đổi gói dịch vụ.
+- **Quản lý người dùng**: người thao tác chỉ được tạo/gán/sửa/khóa/xóa/reset mật khẩu người dùng có quyền nằm trong phạm vi quyền của mình (`Catalog::covers`), không tự khóa/xóa/reset chính mình, và luôn còn ít nhất một Owner hoạt động. Người có phạm vi `branch` chỉ gán được chi nhánh của mình và không gỡ được chi nhánh ngoài phạm vi.
+- **Platform Admin trong phiên hỗ trợ**: chỉ có các quyền `*.view` ở phạm vi Tenant được hỗ trợ (chỉ đọc), xem MULTI_TENANT_DESIGN.md mục 2c.
 - **Audit**: mọi thay đổi vai trò/quyền/gán vai trò và mọi nỗ lực leo thang quyền đều được ghi audit log (xem MONITORING_LOGGING.md).
 - **Chưa làm**: cache quyền giữa các request.
 
@@ -50,10 +53,10 @@ Backend kiểm tra bằng Policy/Gate trên mọi endpoint; frontend chỉ ẩn/
 | Customers | VCUDE | VCUDE | VCUE | VE | – | VCU | V (được giao) | V (own) |
 | Suppliers | VCUDE | VCUDE | VCU | VE | V | – | – | – |
 | Products | VCUDE | VCUDE | VCU | V | V | V | – | – |
-| Inventory (movement) | VE | VE | VCAE | V | VC | V | – | – |
-| Stock adjust/count | VA | VA | VCA | – | VC | – | – | – |
+| Inventory (movement) | VCAE | VCAE | VCAE | V | VC | V | – | – |
+| Stock adjust/count | VCA | VCA | VCA | – | VC | – | – | – |
 | Purchase | VCUAXE | VCUAXE | VCUAX | VE | VC (nhập) | – | – | – |
-| Sales order | VCUXE | VCUXE | VCUAXE | VE | V | VCUX (own/branch) | V | V (own) |
+| Sales order | VCUAXE | VCUAXE | VCUAXE | VE | V | VCUX (own/branch) | V | V (own) |
 | Sales return/refund | VCAX | VCAX | VCAX | VCA | – | VC | – | – |
 | Receivables/Payments | VCAXE | VCAXE | VCAE | VCAXE | – | V | – | V (own) |
 | Cashbook | VCAXE | VCAXE | VCE | VCAXE | – | – | – | – |

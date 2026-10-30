@@ -10,18 +10,29 @@ Phân loại bảng:
 
 ## 2. Xác định Tenant
 - Tenant lấy từ **người dùng đã xác thực** (`users.tenant_id`) hoặc membership; không đọc tenant từ body/query/header do client gửi.
-- Super Admin muốn thao tác trong Tenant: dùng cơ chế "impersonation/context" tường minh, có audit log.
+- Super Admin muốn xem dữ liệu một Tenant: dùng **phiên hỗ trợ** tường minh (xem mục 2c), không bao giờ "đăng nhập thay" người dùng.
 - **Đã xác nhận (2026-10-30):** mỗi user thuộc đúng 1 Tenant; các Tenant hoàn toàn độc lập. `users.tenant_id` NOT NULL (trừ Super Admin).
 
 ## 2b. Hiện thực (đã triển khai)
 - `App\Support\Tenancy\TenantContext` (scoped theo request/job) giữ `tenantId` / chế độ nền tảng và đồng bộ sang PostgreSQL bằng `set_config('app.tenant_id' | 'app.is_platform', …)`. Không có context => RLS trả 0 dòng (fail closed).
 - Middleware `tenant.context` đặt context từ **user đã xác thực**, chạy sau xác thực và trước route-model-binding; luôn `clear()` ở cuối request. Từ chối user bị vô hiệu hóa / Tenant bị khóa kể cả khi phiên còn hiệu lực.
-- `tenant.user` chặn Platform Admin khỏi endpoint dữ liệu Tenant (cần impersonation có audit — chưa làm).
+- `tenant.user` chặn Platform Admin khỏi endpoint dữ liệu Tenant, trừ khi đang trong phiên hỗ trợ (mục 2c).
+- Platform Admin **không có context mặc định**: route `/platform/*` chạy trong `platform.admin` (chuyển sang chế độ nền tảng rồi khôi phục); route dữ liệu Tenant chỉ dùng được trong phiên hỗ trợ.
 - Trait `BelongsToTenant`: global scope + tự gán `tenant_id` từ context khi tạo (bỏ qua giá trị truyền vào); `tenant_id` không nằm trong `$fillable`.
 - RLS bật + FORCE trên `tenants`, `branches`, `users`, `user_branches` (policy `tenant_isolation`, có `WITH CHECK`). Nhờ FORCE, chính owner của bảng cũng bị áp dụng RLS; superuser/BYPASSRLS thì không — ứng dụng KHÔNG được kết nối bằng các role này.
 - `users` không có global scope vì xác thực phải tìm user trước khi biết Tenant: `TenantAwareUserProvider` tìm/cập nhật user ở chế độ nền tảng, sau đó context chuyển về Tenant của user.
 - Ràng buộc DB: user thuộc đúng 1 Tenant, trừ Platform Admin (`tenant_id IS NULL` và `is_platform_admin`), kiểm bằng CHECK.
 - Quy ước cho bảng Tenant-scoped mới: `tenant_id` NOT NULL + FK, unique theo `(tenant_id, …)`, thêm bảng vào RLS (migration mới), dùng `BelongsToTenant`; bảng pivot phải ghi `tenant_id`.
+
+## 2c. Phiên hỗ trợ (impersonation an toàn) — đã triển khai
+Platform Admin xem dữ liệu của MỘT Tenant để hỗ trợ khách, với các ràng buộc cứng:
+- **Chỉ đọc**: quyền hiệu lực chỉ gồm các quyền `*.view` ở phạm vi Tenant; mọi method ghi bị chặn thêm ở middleware (`403 support_session_read_only`).
+- **Bắt buộc có lý do** (≥ 10 ký tự), **có hạn** (mặc định 30 phút, tối đa 120), **một phiên tại một thời điểm**.
+- Trạng thái nằm trong **session phía server**, gắn với đúng admin và phiên đăng nhập đó (đăng xuất là hết; session của admin khác bị bác). Client không thể chọn Tenant bằng tham số/header.
+- **Không đăng nhập thay người dùng**: người thực hiện luôn là Platform Admin trong mọi audit log.
+- **Minh bạch với khách hàng**: `support_session_started/ended/expired` và từng `support_request` (method + đường dẫn, không ghi query string) được ghi với `tenant_id` của Tenant được hỗ trợ, nên **chủ doanh nghiệp thấy trong nhật ký của mình** ai của AgriHub đã vào xem, lúc nào và vì sao. Mọi audit trong phiên mang `metadata.support_session`.
+- Có thể hỗ trợ cả Tenant đang bị khóa.
+- Ghi dữ liệu thay mặt khách hàng (nếu sau này cần) phải là một cơ chế khác: có phê duyệt riêng, không nằm trong phiên này.
 
 ## 3. Phòng thủ nhiều lớp (thiết kế)
 1. **Application**: `TenantScope` (global scope) + trait `BelongsToTenant` tự gán `tenant_id` khi tạo; mọi query lọc theo tenant.

@@ -9,6 +9,15 @@ Trạng thái: chính sách thiết kế; chưa triển khai.
 - Khóa tạm thời sau N lần sai (theo tài khoản + IP), thông báo không tiết lộ tài khoản có tồn tại.
 - Rate limiting: `/auth/*` chặt; API chung theo user/IP.
 
+### Mật khẩu & tài khoản do quản trị cấp (đã triển khai)
+- Chính sách: tối thiểu 10 ký tự, có chữ và số, không nằm trong danh sách mật khẩu phổ biến, không chứa tên đăng nhập (email) khi đủ dài (≥ 4 ký tự). Platform Admin tạo bằng lệnh: tối thiểu 12 ký tự.
+- **Mật khẩu tạm** (khi onboarding, tạo user, reset): sinh bằng CSPRNG (16 ký tự, bỏ ký tự dễ nhầm), **chỉ hiển thị một lần** trong response (`Cache-Control: no-store`), không lưu bản rõ, không bao giờ vào audit log. Tài khoản đó có `must_change_password`: mọi API (trừ `/auth/me`, `/auth/logout`, `/auth/password`) trả `403 password_change_required` cho đến khi tự đổi.
+- Đổi mật khẩu: yêu cầu mật khẩu hiện tại, giới hạn 10 lần/phút, thu hồi **mọi phiên khác** và hủy mã phiên hiện tại. Reset/khóa/xóa người dùng cũng đăng xuất họ ngay.
+- Phiên gắn với hash mật khẩu (middleware `AuthenticateSession` của Sanctum): đổi mật khẩu ở đâu thì phiên cũ ở mọi nơi khác đều vô hiệu, kể cả khi hàng phiên chưa bị xóa.
+- Quy tắc chống chiếm quyền: không thao tác (sửa/khóa/xóa/reset mật khẩu/gán chi nhánh) trên người dùng có quyền vượt quá quyền của mình; không tự khóa/xóa/reset chính mình; luôn còn ít nhất một Owner hoạt động. Vi phạm được ghi audit `denied`.
+- Email là định danh duy nhất toàn hệ thống (kể cả tài khoản đã xóa mềm) và không đổi qua API; thông báo trùng email cố ý chung chung ("Email này không khả dụng"). Lưu ý: người có quyền tạo user vẫn có thể suy ra một email đã tồn tại trong hệ thống — chấp nhận được vì mô hình "1 user = 1 Tenant".
+- Phiên hỗ trợ của Platform Admin: xem docs/MULTI_TENANT_DESIGN.md mục 2c.
+
 ## Phân quyền & cô lập
 - Kiểm tra quyền ở backend (Policy) cho mọi action; Tenant isolation theo MULTI_TENANT_DESIGN (scope + RLS).
 - Phòng IDOR: tài nguyên khác Tenant trả 404.

@@ -10,7 +10,8 @@ Cập nhật: 2026-10-30 · Kết quả khảo sát: **repository trống** (kh�
 | Authentication / Session | **Completed** (đăng nhập cookie Sanctum, khóa tài khoản, rate limit, quản lý/đăng xuất từ xa). 2FA: Missing |
 | Multi-tenant / Branch | **Completed** (Tenant, Branch CRUD có phân quyền, context, RLS, test chéo Tenant) |
 | User & RBAC | **Completed** (catalog quyền, 7 vai trò hệ thống, vai trò tùy chỉnh, Policy, chống leo thang quyền). Tạo/sửa user: Missing |
-| Super Admin / Tenant onboarding | In Progress – có lệnh `agrihub:create-platform-admin`; API quản lý Tenant: Missing |
+| Super Admin / Tenant onboarding | **Completed** phần quản lý Tenant & người dùng (onboarding, sửa, khóa/mở khóa, phiên hỗ trợ chỉ đọc, quản lý user toàn hệ thống). Còn lại ở Subscription: gói, doanh thu, thông báo toàn hệ thống, cấu hình nền tảng |
+| Quản lý người dùng của Tenant | **Completed** (tạo/sửa/khóa/xóa mềm, gán vai trò + chi nhánh, mật khẩu tạm, đổi mật khẩu) |
 | Subscription & Billing | Missing |
 | Audit Log | **Completed** hạ tầng (append-only, phân vùng, RLS, API xem, retention); các module nghiệp vụ sẽ gắn sự kiện khi được làm |
 | Backup / Monitoring | Missing |
@@ -35,7 +36,7 @@ Completed: tài liệu · In Progress: khung dự án · Missing: toàn bộ mod
 3. ✅ Tenancy: Tenant, Branch, TenantScope + RLS, test cross-tenant.
 4. ✅ RBAC: roles/permissions/policies + vai trò mặc định theo ma trận.
 5. ✅ Audit Log (service dùng chung).
-6. Platform Admin: quản lý Tenant, onboarding.
+6. ✅ Platform Admin: quản lý Tenant, onboarding, quản lý người dùng, phiên hỗ trợ (impersonation chỉ đọc).
 7. Subscription & Billing + enforcement read-only/giới hạn + nhắc gia hạn.
 8. Backup (kèm UI quản trị import/export) + Monitoring/health + cảnh báo (kèm kiểm thử restore).
 9. Frontend shell: đăng nhập, layout, router, i18n, guard quyền.

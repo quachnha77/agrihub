@@ -27,10 +27,20 @@ Xác thực bằng cookie phiên (Sanctum stateful): gọi `GET /sanctum/csrf-co
 | `GET/POST /branches`, `GET/PATCH/DELETE /branches/{id}` | Chi nhánh (`?q=`, `?per_page=`). Quyền `tenant.branch.*`; scope `branch` chỉ thấy chi nhánh được gán. Xóa mềm; 409 `branch_in_use` nếu còn user | 403 `forbidden`, 404 (Tenant khác), 422, 403 `tenant_context_required` (Platform Admin) |
 | `GET /audit-logs` | Audit log của Tenant (quyền `audit.log.view`). Lọc `module, action, result, actor, branch, subject_type, subject_id, q, from, to`; cursor pagination (`per_page` ≤ 100, `links.next` giữ nguyên bộ lọc); thời gian UTC | 403, 422 |
 | `GET /platform/audit-logs` | Platform Admin: log toàn nền tảng, thêm `tenant=<uuid>\|none`; mỗi dòng có `tenant` | 403 `forbidden` |
+| `POST /auth/password` | Tự đổi mật khẩu `{current_password, password, password_confirmation}`; thu hồi phiên khác. Dùng được khi đang bị buộc đổi mật khẩu tạm | 422, 429 |
+| `GET/POST /users`, `PATCH/DELETE /users/{id}` | Người dùng của Tenant. `POST` nhận `{name, email, phone?, password?, role_ids?, branch_ids?}`; bỏ trống `password` ⇒ trả `temporary_password` (một lần). `PATCH` sửa `name`, `phone`, `status` (`active`/`disabled`), `reason`; `email` bị cấm. `DELETE` là xóa mềm | 403 `user_exceeds_privileges` / `role_exceeds_privileges`, 422 `cannot_modify_self` / `last_owner` / `validation_failed` |
+| `PUT /users/{id}/branches` | `{branch_ids:[uuid]}` thay danh sách chi nhánh | 403 `branch_exceeds_privileges`, 422 |
+| `POST /users/{id}/reset-password` | Cấp mật khẩu tạm mới (`temporary_password`, một lần), đăng xuất mọi thiết bị | 403, 422 `cannot_modify_self` |
+| `GET/POST /platform/tenants`, `GET/PATCH /platform/tenants/{id}` | Platform Admin: danh sách (`q`, `status`, `sort`, `per_page`), onboarding, chi tiết, sửa (`slug`/`status` bị cấm). `POST` nhận `{tenant:{name,slug?,phone?,address?,tax_code?}, owner:{name,email,phone?,password?}, branch?:{code?,name?}}` và tạo Tenant + 7 vai trò + chi nhánh + Owner trong một transaction | 422, 429 |
+| `POST /platform/tenants/{id}/suspend` `{reason}` / `POST …/activate` | Khóa (đăng xuất mọi người dùng của Tenant ngay) / mở khóa | 409 `tenant_already_suspended` / `tenant_not_suspended` |
+| `GET /platform/users`, `PATCH /platform/users/{id}`, `POST /platform/users/{id}/reset-password` | Người dùng toàn hệ thống: tìm (`q`, `tenant=<uuid>\|none`, `status`), khóa/mở khóa, cấp mật khẩu tạm | 422 `cannot_modify_self` / `not_allowed_for_platform_admin` |
+| `POST /platform/tenants/{id}/support-session` `{reason, minutes?}`, `GET` / `DELETE /platform/support-session` | Phiên hỗ trợ chỉ đọc (xem MULTI_TENANT_DESIGN.md mục 2c). `GET /auth/me` trả `support_session` để hiện banner | 409 `support_session_active`, 400 `stateful_request_required`; trong phiên: 403 `support_session_read_only` |
 | `GET /permissions` | Catalog quyền theo resource + các scope (để dựng UI phân quyền) | 403 |
 | `GET/POST /roles`, `GET/PUT/PATCH/DELETE /roles/{id}` | Vai trò của Tenant kèm danh sách `{key, scope}`. Body tạo/sửa: `{name, description?, permissions:[{key,scope}]}` | 403 `permission_exceeds_privileges`, 409 `role_in_use`, 404, 422 |
 | `GET /users`, `GET /users/{id}` | Người dùng của Tenant (scope `tenant`/`branch`/`own`) kèm vai trò | 403, 404 |
 | `PUT /users/{id}/roles` | `{role_ids:[uuid]}` – thay toàn bộ vai trò của user | 403 `role_exceeds_privileges`, 422 `last_owner` / `validation_failed`, 404 |
+
+Tham số `{id}` của các route trên là uuid; giá trị sai định dạng trả 404. Mã lỗi chung: `403 password_change_required` (đang dùng mật khẩu tạm; chỉ `/auth/me`, `/auth/logout`, `/auth/password` dùng được). Các thao tác nhạy cảm (đổi mật khẩu, tạo user/doanh nghiệp, cấp mật khẩu tạm) giới hạn 10 lần/phút/người dùng (`platform.rate_limits.sensitive`).
 
 Giới hạn tốc độ đăng nhập: 5 lần/phút theo cặp email+IP và 20 lần/phút theo IP; khóa tài khoản 15 phút sau 5 lần sai liên tiếp (phản hồi 429 giống nhau, không lộ tài khoản có tồn tại).
 
