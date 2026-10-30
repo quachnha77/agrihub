@@ -26,6 +26,7 @@ class BackupResource extends JsonResource
             'verify_status' => $this->verify_status,
             'verified_at' => $this->verified_at?->toIso8601String(),
             'verify_error' => $this->verify_error,
+            'downloaded_at' => $this->downloaded_at?->toIso8601String(),
             'created_at' => $this->created_at?->toIso8601String(),
             'completed_at' => $this->completed_at?->toIso8601String(),
         ];

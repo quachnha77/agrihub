@@ -43,3 +43,5 @@ Kênh đã chốt: **Zalo OA, SMS, thông báo trong web khi đăng nhập (in-a
 Sự cố `critical/down` → gửi ngay (email + kênh chat), chống spam (gộp/cooldown), có runbook cho từng cảnh báo.
 
 Công cụ đề xuất: Prometheus + Grafana + Alertmanager, Uptime check ngoài (*chờ xác nhận*).
+
+**Đã triển khai – cảnh báo sao lưu** (chi tiết: `BACKUP_DISASTER_RECOVERY.md` mục 9): thông báo **trong ứng dụng** (bảng `notices`, `GET /notifications`) và **email** cho Super Admin khi sao lưu thất bại / bị gián đoạn / quá hạn, khôi phục thử không đạt, lâu chưa khôi phục thử, chưa tải bản sao ra ngoài; người dùng Tenant được báo khi sao lưu / khôi phục của họ xong hoặc thất bại. Chống spam bằng cửa sổ 24 giờ cho cảnh báo theo trạng thái. Lệnh `agrihub:backup:check` chạy mỗi giờ và trả mã thoát 1 khi nghiêm trọng. **Chưa có:** Zalo OA/SMS, giám sát từ bên ngoài (nếu scheduler/queue chết thì không ai gửi cảnh báo), cảnh báo hạ tầng (đĩa đầy, DB chậm) — thuộc 8c.

@@ -35,6 +35,7 @@ class BackupService
         private BackupCrypto $crypto,
         private TenantExporter $exporter,
         private TenantRestorer $restorer,
+        private BackupAlerts $alerts,
     ) {}
 
     // --- Sao lưu --------------------------------------------------------------------------
@@ -85,7 +86,10 @@ class BackupService
                 @unlink($encrypted);
             }
 
-            return $backup->refresh();
+            $backup->refresh();
+            $this->alerts->tenantBackupFinished($backup);
+
+            return $backup;
         });
     }
 
@@ -137,6 +141,7 @@ class BackupService
     {
         $this->assertUsable($backup);
 
+        $backup->forceFill(['downloaded_at' => now()])->save();
         $this->record($backup, 'downloaded', $actor);
 
         $tenant = $this->tenantOf($backup);
@@ -234,7 +239,10 @@ class BackupService
             @unlink($plain);
         }
 
-        return $this->context->runAsPlatform(fn () => $run->refresh());
+        $run = $this->context->runAsPlatform(fn () => $run->refresh());
+        $this->alerts->tenantRestoreFinished($run);
+
+        return $run;
     }
 
     // --- Trợ giúp công khai ---------------------------------------------------------------

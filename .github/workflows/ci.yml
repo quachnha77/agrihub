@@ -69,6 +69,60 @@ jobs:
       - run: ./vendor/bin/pint --test
       - run: php artisan test
 
+  # Máy dev của dự án KHÔNG chạy được Docker (BIOS tắt ảo hóa), nên CI là nơi kiểm chứng cấu hình Docker thật:
+  # build image, khởi tạo database bằng đúng script init, migrate, sao lưu pg_dump + khôi phục thử TRONG container.
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Chuẩn bị .env cho backend (thư mục backend được mount vào container)
+        run: cp backend/.env.example backend/.env
+      - name: Build image
+        run: docker compose build app queue scheduler
+      - name: Cài thư viện PHP và tạo APP_KEY (trong container)
+        run: docker compose run --rm --no-deps app sh -c "composer install --no-interaction --prefer-dist --no-progress && php artisan key:generate"
+      - name: Khởi động PostgreSQL và Redis
+        run: docker compose up -d --wait postgres redis
+      - name: Role database đúng thiết kế (ứng dụng KHÔNG được bỏ qua RLS; tài khoản sao lưu có BYPASSRLS + CREATEDB)
+        run: |
+          rows=$(docker compose exec -T postgres psql -U postgres -tA -F, -c "select rolname,rolsuper,rolbypassrls,rolcreatedb from pg_roles where rolname in ('agrihub','agrihub_backup') order by 1")
+          echo "$rows"
+          echo "$rows" | grep -qx 'agrihub,f,f,f'
+          echo "$rows" | grep -qx 'agrihub_backup,f,t,t'
+      - name: Migrate
+        run: docker compose run --rm app php artisan migrate --force
+      - name: Khởi động web, queue worker và scheduler
+        run: docker compose up -d --wait nginx app queue scheduler
+      - name: API sẵn sàng
+        run: curl --retry 30 --retry-delay 2 --retry-connrefused -fsS http://localhost:8000/api/v1/health/ready
+      - name: Giới hạn tải lên khớp chức năng Import 512 MB
+        run: |
+          out=$(docker compose exec -T app php -r 'foreach (["upload_max_filesize","post_max_size","max_execution_time"] as $k) echo $k,"=",ini_get($k),"\n";')
+          echo "$out"
+          echo "$out" | grep -qx 'upload_max_filesize=520M'
+          echo "$out" | grep -qx 'post_max_size=530M'
+          docker compose exec -T nginx nginx -T 2>/dev/null | grep -q 'client_max_body_size 530m'
+      - name: Sao lưu pg_dump thật từ container queue (tài khoản sao lưu riêng), rồi khôi phục thử
+        run: |
+          docker compose exec -T queue php artisan agrihub:backup:platform
+          docker compose exec -T queue php artisan agrihub:backup:verify
+          docker compose exec -T queue php artisan agrihub:backup:check --no-notify
+      - name: Web (không có mật khẩu sao lưu) không tự sao lưu được
+        run: |
+          if docker compose exec -T app php artisan agrihub:backup:platform; then
+            echo "Tiến trình web không được phép chạy sao lưu toàn hệ thống" >&2
+            exit 1
+          fi
+      - name: Lịch chạy có đủ các lệnh sao lưu và thông báo
+        run: |
+          list=$(docker compose exec -T scheduler php artisan schedule:list)
+          echo "$list"
+          for cmd in backup:platform backup:prune backup:verify backup:check notices:prune; do echo "$list" | grep -q "agrihub:$cmd"; done
+      - name: Nhật ký container khi lỗi
+        if: failure()
+        run: docker compose logs --no-color --tail=150
+
   frontend:
     runs-on: ubuntu-latest
     defaults:

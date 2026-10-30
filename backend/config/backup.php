@@ -1,5 +1,8 @@
 <?php
 
+// Khóa .env để trống hoặc không có => dùng mặc định; "0" là giá trị hợp lệ (nghĩa là tắt) nên không dùng toán tử ?:.
+$int = static fn (string $key, int $default): int => in_array($raw = env($key), [null, ''], true) ? $default : (int) $raw;
+
 /**
  * Sao lưu / khôi phục (xem docs/BACKUP_DISASTER_RECOVERY.md).
  */
@@ -24,7 +27,36 @@ return [
     'restore_lock_minutes' => 120,
 
     /**
-     * Sao lưu TOÀN HỆ THỐNG (mọi Tenant) bằng pg_dump — dành cho khôi phục thảm họa, chỉ khôi phục qua dòng lệnh.
+     * Thông báo về trạng thái sao lưu (trong ứng dụng + email cho Super Admin). Xem docs/BACKUP_DISASTER_RECOVERY.md mục 9.
+     */
+    'alerts' => [
+        /** Múi giờ dùng để hiển thị giờ trong nội dung thông báo (hệ thống lưu giờ UTC). */
+        'timezone' => env('BACKUP_ALERT_TIMEZONE') ?: 'Asia/Ho_Chi_Minh',
+
+        /** Cùng một cảnh báo (vd. "quá hạn sao lưu") chỉ gửi lại sau số giờ này nếu vấn đề vẫn còn. */
+        'dedupe_hours' => max(1, $int('BACKUP_ALERT_DEDUPE_HOURS', 24)),
+
+        /**
+         * Email nhận cảnh báo NGOÀI các Super Admin (ngăn cách bằng dấu phẩy) — nên là hộp thư ngoài hệ thống,
+         * vì cảnh báo trong ứng dụng không đọc được khi cả hệ thống ngừng hoạt động.
+         *
+         * @var list<string>
+         */
+        'mail_to' => array_values(array_filter(array_map('trim', explode(',', (string) env('BACKUP_ALERT_EMAILS', ''))))),
+
+        /** Cảnh báo "quá hạn" khi bản sao lưu hoàn tất mới nhất cũ hơn số giờ này (lịch chạy mỗi 24 giờ). */
+        'overdue_hours' => max(1, $int('BACKUP_ALERT_OVERDUE_HOURS', 36)),
+
+        /** Cảnh báo khi quá số ngày chưa có lần khôi phục thử nào đạt (lịch chạy mỗi tuần). */
+        'verify_overdue_days' => max(1, $int('BACKUP_ALERT_VERIFY_OVERDUE_DAYS', 10)),
+
+        /** Nhắc tải một bản sao lưu ra nơi lưu riêng khi quá số ngày chưa có lần tải nào. 0 = không nhắc. */
+        'offsite_days' => max(0, $int('BACKUP_ALERT_OFFSITE_DAYS', 7)),
+    ],
+
+    /**
+     * Sao lưu TOÀN HỆ THỐNG (mọi Tenant) bằng pg_dump — dành cho khôi phục thảm họa. Khôi phục chỉ qua dòng lệnh;
+     * Super Admin được tải file về để lưu riêng (nhập lại mật khẩu, liên kết dùng một lần).
      *
      * Kết nối sao lưu phải dùng một role RIÊNG, không phải role của ứng dụng: role đó cần BYPASSRLS (hoặc superuser) để
      * pg_dump đọc được dữ liệu mọi Tenant (RLS đang bật FORCE), và CREATEDB để kiểm thử khôi phục vào database tạm.
@@ -110,5 +142,6 @@ return [
         'subscription_periods' => 'Sổ kỳ thuê bao, chỉ thêm.',
         'backups' => 'Chính danh sách sao lưu.',
         'restore_runs' => 'Nhật ký khôi phục.',
+        'notices' => 'Thông báo gửi cho từng người dùng (kết quả vận hành): khôi phục dữ liệu cũ không được làm sống lại thông báo cũ.',
     ],
 ];

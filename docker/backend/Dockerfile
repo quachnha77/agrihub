@@ -10,6 +10,9 @@ RUN apk add --no-cache git unzip icu-dev libzip-dev postgresql-dev postgresql16-
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
+# Giới hạn tải lên cho Import sao lưu (khớp BACKUP_MAX_UPLOAD_MB). Image không có php.ini nên mặc định chỉ 2 MB.
+COPY php-agrihub.ini /usr/local/etc/php/conf.d/zz-agrihub.ini
+
 WORKDIR /var/www/html
 
 # Dev: mã nguồn được mount từ máy host (xem docker-compose.yml).

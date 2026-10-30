@@ -2,7 +2,7 @@
 
 Trạng thái: **đã triển khai** phần gói dịch vụ, thuê bao, giới hạn, hết hạn/chỉ đọc, gia hạn thủ công, danh sách việc cần liên hệ và banner nhắc. **Chưa làm**: thanh toán tự động qua cổng (ngân hàng/MoMo), nhắc qua Zalo OA/SMS, báo cáo doanh thu (xem mục 7).
 
-> ✅ Đã chốt: **dùng thử 7 ngày miễn phí**; **hết hạn là dừng sử dụng, chỉ nhân viên AgriHub mở lại**. ⚠️ **Còn là GIẢ ĐỊNH, chưa chốt:** giá gói và giới hạn gói. Giá/giới hạn gói chỉnh qua API `/platform/plans`; dùng thử/ân hạn/mốc nhắc trong `backend/config/billing.php`.
+> ✅ Đã chốt: **dùng thử 7 ngày miễn phí**; **hết hạn là dừng sử dụng, chỉ nhân viên AgriHub mở lại**; **giá và giới hạn gói chỉ là giá TẠM (xác nhận 2026-10-30), Super Admin chỉnh sau** qua API `/platform/plans` — đổi giá không ảnh hưởng thuê bao đang có. Dùng thử/ân hạn/mốc nhắc trong `backend/config/billing.php`.
 
 ## 1. Gói dịch vụ (`plans`, dùng chung toàn hệ thống)
 Mỗi gói: `key` (cố định, duy nhất), tên, mô tả, **giá/user/tháng** và **giá/user/năm** (VND, số nguyên), giới hạn chi nhánh (`null` = không giới hạn), dung lượng lưu trữ (MB), `is_active`, `sort_order`.

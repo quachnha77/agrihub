@@ -42,6 +42,7 @@ class Backup extends Model
             'started_at' => 'datetime',
             'completed_at' => 'datetime',
             'verified_at' => 'datetime',
+            'downloaded_at' => 'datetime',
         ];
     }
 

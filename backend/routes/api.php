@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BackupController;
 use App\Http\Controllers\Api\V1\BranchController;
 use App\Http\Controllers\Api\V1\HealthController;
+use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\PermissionController;
 use App\Http\Controllers\Api\V1\Platform\PlanController;
 use App\Http\Controllers\Api\V1\Platform\PlatformBackupController;
@@ -36,6 +37,11 @@ Route::middleware(['auth:sanctum', 'tenant.context'])->group(function () {
         Route::delete('/auth/sessions', [SessionController::class, 'destroyOthers']);
         Route::delete('/auth/sessions/{handle}', [SessionController::class, 'destroy']);
 
+        // Hộp thông báo của chính người đăng nhập (Platform Admin hoặc người dùng Tenant).
+        Route::get('/notifications', [NotificationController::class, 'index']);
+        Route::post('/notifications/read-all', [NotificationController::class, 'readAll']);
+        Route::post('/notifications/{notice}/read', [NotificationController::class, 'read']);
+
         // Platform Admin: chạy ở chế độ nền tảng (thấy mọi Tenant).
         Route::middleware('platform.admin')->prefix('platform')->group(function () {
             Route::get('/tenants', [TenantController::class, 'index']);
@@ -56,8 +62,12 @@ Route::middleware(['auth:sanctum', 'tenant.context'])->group(function () {
             Route::get('/audit-logs', [AuditLogController::class, 'platformIndex']);
 
             Route::get('/backups', [PlatformBackupController::class, 'index']);
+            Route::get('/backups/status', [PlatformBackupController::class, 'status']);
             Route::post('/backups', [PlatformBackupController::class, 'store'])->middleware('throttle:sensitive');
             Route::get('/backups/{backup}', [PlatformBackupController::class, 'show']);
+            Route::post('/backups/{backup}/download-link', [PlatformBackupController::class, 'downloadLink'])->middleware('throttle:sensitive');
+            Route::get('/backups/{backup}/download', [PlatformBackupController::class, 'download'])
+                ->middleware(['signed:relative', 'throttle:sensitive'])->name('platform.backups.download');
 
             Route::get('/tenants/{tenant}/backups', [TenantBackupController::class, 'index']);
             Route::post('/tenants/{tenant}/backups', [TenantBackupController::class, 'store'])->middleware('throttle:sensitive');

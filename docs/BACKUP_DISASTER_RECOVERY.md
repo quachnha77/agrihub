@@ -78,7 +78,7 @@ Mục tiêu tham khảo: RTO ≤ 4 giờ, RPO ≤ 24 giờ (dump) / ≤ 15 phút
 
 **Mục đích**: khôi phục thảm họa (mất database hoặc máy chủ). Một bản chứa **dữ liệu của mọi Tenant**, nên được bảo vệ chặt hơn sao lưu theo Tenant:
 - Tenant không bao giờ thấy được: bản ghi `scope = 'platform'`, `tenant_id = NULL` (RLS chặn; ràng buộc CHECK `backups_scope_tenant_check` bảo đảm "platform ⇔ tenant_id NULL").
-- **Không có API tải về, không có API khôi phục.** Super Admin chỉ xem danh sách và yêu cầu chạy một bản mới (`/platform/backups`). Chép ra nơi lưu ngoài và khôi phục chỉ làm được trên máy chủ bằng dòng lệnh.
+- **Không có API khôi phục qua HTTP.** Super Admin xem danh sách/tình trạng, yêu cầu chạy một bản mới và **tải file (đã mã hóa) về để lưu riêng** (mục "Tải về nơi lưu riêng" bên dưới). Khôi phục chỉ làm được trên máy chủ bằng dòng lệnh.
 
 **Tài khoản database RIÊNG (bắt buộc)**: RLS đang bật FORCE nên tài khoản ứng dụng chỉ thấy dữ liệu của Tenant hiện tại; `pg_dump` bằng tài khoản đó sẽ lỗi hoặc cho bản rỗng. Hệ thống **từ chối chạy** nếu tài khoản sao lưu không có `BYPASSRLS` (hoặc superuser). Tạo role chuyên dụng, **không phải superuser**:
 ```sql
@@ -113,13 +113,42 @@ Quy trình khi mất database/máy chủ:
 4. Kiểm tra dữ liệu; đặt `DB_DATABASE=agrihub_restored`, khởi động lại ứng dụng + queue + scheduler; chạy `php artisan migrate --force` nếu mã nguồn mới hơn bản sao lưu.
 5. Chạy `php artisan agrihub:backup:platform` để có bản đầu tiên trên hệ thống mới; ghi kết quả vào sổ diễn tập.
 
-**Audit** (module `backup`, không thuộc Tenant nào, chỉ Super Admin xem): `platform_created|platform_failed|platform_verified|platform_verify_failed|platform_pruned|platform_restored|platform_restore_failed`. Việc khôi phục thảm họa vẫn hoàn tất nếu không ghi được audit (database ứng dụng có thể đã mất).
+**Audit** (module `backup`, không thuộc Tenant nào, chỉ Super Admin xem): `platform_created|platform_failed|platform_verified|platform_verify_failed|platform_pruned|platform_restored|platform_restore_failed`, và khi tải về: `platform_download_requested|platform_downloaded|platform_download_denied`. Việc khôi phục thảm họa vẫn hoàn tất nếu không ghi được audit (database ứng dụng có thể đã mất).
+
+**Tải về nơi lưu riêng** (bản sao NGOÀI máy chủ là bắt buộc — xem giới hạn bên dưới):
+1. `POST /platform/backups/{id}/download-link` với `{password}`: nhập lại **mật khẩu của chính Super Admin**. Sai ⇒ 422 và audit `platform_download_denied`. Đúng ⇒ nhận liên kết **tương đối, đã ký**, hết hạn sau **2 phút**, **dùng được đúng một lần**, chỉ đúng người và đúng bản đã xin (mã dùng một lần lưu ở cache, bị xóa ngay khi dùng).
+2. Mở liên kết đó (trình duyệt tải thẳng, không cần header đặc biệt): server trả file `.agbk` theo luồng với `Content-Disposition: attachment; filename=agrihub-platform-<ngày-giờ UTC>.agbk`, `Cache-Control: no-store` và `X-Content-SHA256: <checksum>`. Hệ thống ghi `downloaded_at` và audit `platform_downloaded` (kèm checksum).
+3. **Kiểm tra bản đã tải**: `sha256sum agrihub-platform-….agbk` phải bằng `checksum_sha256` trong API (hoặc header `X-Content-SHA256`); khác ⇒ tải lại. Hệ thống không băm lại file trước khi gửi (file lớn sẽ làm treo request); việc đó do khôi phục thử hằng tuần và bước kiểm tra này đảm nhiệm.
+
+**Khóa mã hóa — phần hay bị quên.** File tải về **vô dụng nếu thiếu khóa** (`BACKUP_ENCRYPTION_KEY`, hoặc `APP_KEY` nếu để trống), và ai có cả file lẫn khóa thì đọc được dữ liệu mọi khách hàng. Vì vậy: cất khóa **riêng** ở nơi khác với file (trình quản lý mật khẩu của công ty + bản giấy trong nơi cất giữ an toàn), ghi rõ khóa nào dùng cho bản nào khi xoay khóa, và **mỗi ~3 tháng diễn tập**: lấy một file đã tải + khóa đã cất, chạy `agrihub:backup:restore-platform --file=… --target=…` trên một máy khác để chắc chắn dùng được. Nên tải **mỗi tuần** (hệ thống nhắc sau 7 ngày chưa có lần tải nào — mục 9). File rất lớn (hàng GB) nên dùng sao chép tự động từ máy chủ thay vì trình duyệt.
 
 **Giới hạn đã biết — đọc trước khi tin vào hệ thống**
-- **Bản sao lưu hiện nằm cùng máy với database.** Chưa có sao chép offsite tự động: cần cron `rclone`/`rsync`/S3 từ `storage/app/backups/platform` sang nơi **độc lập** (nhà cung cấp/khu vực khác). Cho tới khi có, chưa chống được mất máy chủ. Disk S3 chưa được hỗ trợ trực tiếp (cần tải về thư mục tạm).
+- **Bản sao lưu trên máy chủ chỉ an toàn khi có bản sao NGOÀI máy chủ.** Hiện việc này là **thủ công** (Super Admin tải về; hệ thống nhắc nếu quá 7 ngày chưa có lần tải) nên an toàn dữ liệu phụ thuộc vào việc người thực hiện tải đều đặn. Chưa có sao chép tự động: cần cron `rclone`/`rsync`/S3 từ `storage/app/backups/platform` sang nơi **độc lập** (nhà cung cấp/khu vực khác). Disk S3 chưa được hỗ trợ trực tiếp (cần tải về thư mục tạm).
 - Chỉ là dump logic theo thời điểm: **RPO ≤ 24 giờ**. WAL archiving/PITR chưa có.
-- Chưa có cảnh báo chủ động khi sao lưu thất bại hoặc quá hạn (sẽ làm ở 8c); hiện chỉ có `backups.status=failed`, audit, log và mã thoát của lệnh.
+- Cảnh báo (mục 9) chỉ hoạt động khi **scheduler và queue worker còn sống**: nếu cả hai cùng chết thì không ai gửi cảnh báo "quá hạn". Cần giám sát từ bên ngoài (heartbeat/uptime — làm ở 8c). Email cần cấu hình `MAIL_*` thật ở production; Zalo OA/SMS chưa có.
 - Kiểm thử khôi phục mới đối chiếu **số dòng**; chưa đối chiếu nghiệp vụ (tổng công nợ, tồn kho) vì chưa có module — bổ sung khi có.
 - Đếm `count(*)` từng bảng khi sao lưu: chậm với bảng hàng chục triệu dòng; cần đo lại khi có dữ liệu thật.
 - Các bản `pre_restore` của Tenant (mục 7) chưa có chính sách dọn.
 - **Chưa diễn tập khôi phục thảm họa trên môi trường production thật.** Mới được kiểm thử tự động (database nguồn giả có RLS FORCE, phân vùng, UTF-8) và chạy thử trên database phát triển.
+
+
+## 9. Thông báo về trạng thái sao lưu (đã triển khai)
+
+**Kênh**: *trong ứng dụng* (hộp thông báo của từng người; giao diện sẽ lấy `GET /notifications?unread=1` khi đăng nhập) và *email* cho Super Admin (cộng thêm các địa chỉ trong `BACKUP_ALERT_EMAILS` — nên là hộp thư **ngoài hệ thống**, vì thông báo trong ứng dụng không đọc được khi cả hệ thống ngừng). Zalo OA/SMS sẽ thêm bằng một channel mới dùng chung nội dung `SystemAlert`, không phải sửa nơi phát sinh sự kiện. Thông báo **không chứa dữ liệu khách hàng** (chỉ trạng thái và lý do đã rút gọn) vì email đi ra ngoài hệ thống.
+
+| Khi nào | Mức | Gửi cho |
+|---|---|---|
+| Sao lưu toàn hệ thống **thất bại** (kèm giờ bản thành công gần nhất, theo giờ Việt Nam) | critical | mọi Super Admin đang hoạt động: trong ứng dụng + email |
+| Khôi phục thử **không đạt** | critical | như trên |
+| Sao lưu **bị treo/gián đoạn** (thường do queue worker tắt giữa chừng) | critical | như trên |
+| **Quá hạn**: bản hoàn tất gần nhất cũ hơn 36 giờ, hoặc hệ thống đã tồn tại > 36 giờ mà chưa có bản nào | critical | như trên; nhắc lại tối đa mỗi 24 giờ nếu chưa hết |
+| Lâu chưa khôi phục thử đạt (> 10 ngày) | warning | như trên |
+| Chưa tải bản sao lưu ra nơi lưu riêng (> 7 ngày) | warning | như trên |
+| Sao lưu thủ công của Tenant xong / thất bại | info / critical | người yêu cầu (chỉ trong ứng dụng) |
+| Khôi phục của Tenant xong / thất bại (dữ liệu hiện tại được giữ nguyên nếu thất bại) | info / critical | người yêu cầu (chỉ trong ứng dụng) |
+
+- **Sự kiện** (thất bại, gián đoạn) được báo **ngay lúc xảy ra**. **Trạng thái** (quá hạn, chưa khôi phục thử, chưa tải ra ngoài) do lệnh `agrihub:backup:check` kiểm tra **mỗi giờ** (phút 17); cùng một vấn đề chỉ báo lại sau `BACKUP_ALERT_DEDUPE_HOURS` (24) giờ. `--no-notify` chỉ in tình trạng; lệnh trả mã thoát 1 khi tình trạng nghiêm trọng nên công cụ giám sát bên ngoài (cron, Uptime Kuma…) cũng dùng được.
+- `GET /platform/backups/status` trả `state` (`ok|warning|critical|disabled`), bản hoàn tất/lần thử/lần khôi phục thử gần nhất, `last_downloaded_at`, danh sách `issues` và các ngưỡng — để màn hình quản trị hiện đèn trạng thái.
+- Cấu hình (`config/backup.php` → `alerts`, biến môi trường trong `.env.example`): `BACKUP_ALERT_EMAILS`, `BACKUP_ALERT_OVERDUE_HOURS` (36), `BACKUP_ALERT_VERIFY_OVERDUE_DAYS` (10), `BACKUP_ALERT_OFFSITE_DAYS` (7; `0` = tắt nhắc), `BACKUP_ALERT_DEDUPE_HOURS` (24), `BACKUP_ALERT_TIMEZONE` (Asia/Ho_Chi_Minh, chỉ để hiển thị giờ trong nội dung). Khi `BACKUP_PLATFORM_ENABLED=false` không đánh giá và không cảnh báo (`state=disabled`).
+- **Thông báo lỗi không được làm hỏng việc chính**: mỗi kênh gửi độc lập, lỗi (ví dụ máy chủ mail chết) chỉ ghi log, kênh còn lại vẫn đi và bản sao lưu vẫn hoàn tất.
+- Hộp thông báo: bảng `notices` (một dòng cho một người nhận, RLS; thông báo của Super Admin có `tenant_id NULL` nên Tenant không bao giờ thấy), API `GET /notifications`, `POST /notifications/{id}/read`, `POST /notifications/read-all`. Mỗi người chỉ thấy và chỉ sửa thông báo của chính mình. `agrihub:notices:prune` (03:45 hằng ngày) xóa thông báo đã đọc > 30 ngày và mọi thông báo > 90 ngày.

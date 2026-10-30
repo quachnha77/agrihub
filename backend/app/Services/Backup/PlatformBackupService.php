@@ -11,7 +11,12 @@ use App\Support\Tenancy\TenantContext;
 use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Str;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
 
 /**
@@ -20,11 +25,15 @@ use Throwable;
  */
 class PlatformBackupService
 {
+    /** Liên kết tải về có hiệu lực ngắn và chỉ dùng được MỘT lần. */
+    public const DOWNLOAD_LINK_SECONDS = 120;
+
     public function __construct(
         private TenantContext $context,
         private AuditLogger $audit,
         private PlatformDump $dump,
         private PgTools $pg,
+        private BackupAlerts $alerts,
     ) {}
 
     // --- Sao lưu --------------------------------------------------------------------------
@@ -161,7 +170,13 @@ class PlatformBackupService
         $this->record($backup, $error === null ? 'platform_verified' : 'platform_verify_failed', null,
             result: $error === null ? AuditLogger::SUCCESS : AuditLogger::FAILURE, reason: $error === null ? null : mb_substr($error, 0, 255));
 
-        return $this->context->runAsPlatform(fn () => $backup->refresh());
+        $backup = $this->context->runAsPlatform(fn () => $backup->refresh());
+
+        if ($error !== null) {
+            $this->alerts->platformVerifyFailed($backup);
+        }
+
+        return $backup;
     }
 
     /** Bản sao lưu toàn hệ thống hoàn tất mới nhất. */
@@ -302,11 +317,92 @@ class PlatformBackupService
     /** Bản "chờ/đang chạy" quá lâu là do worker bị tắt giữa chừng: đánh dấu lỗi để không chặn bản sao lưu kế tiếp. */
     public function markInterrupted(): int
     {
-        return $this->context->runAsPlatform(fn () => Backup::query()
+        $count = $this->context->runAsPlatform(fn () => Backup::query()
             ->where('scope', Backup::SCOPE_PLATFORM)
             ->whereIn('status', [Backup::STATUS_PENDING, Backup::STATUS_RUNNING])
             ->where('created_at', '<', now()->subHours((int) config('backup.platform.stale_hours')))
             ->update(['status' => Backup::STATUS_FAILED, 'error' => 'Bị gián đoạn: quá thời gian chờ mà chưa hoàn tất.', 'completed_at' => now()]));
+
+        if ($count > 0) {
+            $this->alerts->platformInterrupted($count);
+        }
+
+        return $count;
+    }
+
+    // --- Tải về nơi lưu riêng -------------------------------------------------------------
+
+    /**
+     * Bước 1: nhập lại mật khẩu của chính mình để nhận liên kết tải. Liên kết (tương đối, đã ký) hết hạn sau
+     * DOWNLOAD_LINK_SECONDS giây, chỉ dùng được một lần và chỉ đúng người, đúng bản sao lưu đã xin.
+     * Bản sao lưu chứa dữ liệu mọi khách hàng nên việc tải luôn được ghi audit.
+     *
+     * @return array{url: string, expires_at: string}
+     */
+    public function issueDownloadLink(User $actor, Backup $backup, string $password): array
+    {
+        $this->assertDownloadable($backup);
+
+        if (! Hash::check($password, $actor->password)) {
+            $this->record($backup, 'platform_download_denied', $actor, AuditLogger::DENIED, 'invalid_password');
+
+            throw new ApiProblemException(422, 'confirmation_failed', 'Mật khẩu không đúng.', ['errors' => ['password' => ['Mật khẩu không đúng.']]]);
+        }
+
+        $nonce = Str::random(40);
+        $expires = now()->addSeconds(self::DOWNLOAD_LINK_SECONDS);
+
+        Cache::put($this->grantKey($nonce), ['user' => $actor->id, 'backup' => $backup->id], $expires);
+
+        $this->record($backup, 'platform_download_requested', $actor);
+
+        return [
+            // Tương đối: đi qua proxy/tên miền nào cũng khớp chữ ký.
+            'url' => URL::temporarySignedRoute('platform.backups.download', $expires, ['backup' => $backup->uuid, 'nonce' => $nonce], absolute: false),
+            'expires_at' => $expires->toIso8601String(),
+        ];
+    }
+
+    /** Bước 2: trả file (đã mã hóa) theo luồng. Header X-Content-SHA256 để đối chiếu bản đã tải bằng `sha256sum`. */
+    public function download(Backup $backup, User $actor, string $nonce): StreamedResponse
+    {
+        $grant = Cache::pull($this->grantKey($nonce)); // pull = đọc và xóa: chỉ dùng một lần
+
+        if (! is_array($grant) || $grant['user'] !== $actor->id || $grant['backup'] !== $backup->id) {
+            $this->record($backup, 'platform_download_denied', $actor, AuditLogger::DENIED, 'invalid_or_used_link');
+
+            throw new ApiProblemException(403, 'download_link_invalid', 'Liên kết tải xuống không hợp lệ, đã hết hạn hoặc đã được dùng. Hãy yêu cầu liên kết mới.');
+        }
+
+        $this->assertDownloadable($backup);
+
+        $this->context->runAsPlatform(fn () => $backup->forceFill(['downloaded_at' => now()])->save());
+        $this->record($backup, 'platform_downloaded', $actor, metadata: ['size_bytes' => $backup->size_bytes, 'checksum_sha256' => $backup->checksum_sha256]);
+
+        $name = sprintf('agrihub-platform-%s.agbk', ($backup->completed_at ?? $backup->created_at)->copy()->utc()->format('Ymd-His'));
+
+        return $this->disk()->download($backup->path, $name, [
+            'Content-Type' => 'application/octet-stream',
+            'Cache-Control' => 'no-store',
+            'X-Content-Type-Options' => 'nosniff',
+            'X-Content-SHA256' => (string) $backup->checksum_sha256,
+        ]);
+    }
+
+    private function assertDownloadable(Backup $backup): void
+    {
+        if (! $backup->isCompleted() || $backup->path === null) {
+            throw new ApiProblemException(409, 'backup_not_ready', 'Bản sao lưu chưa hoàn tất hoặc đã lỗi.');
+        }
+
+        if (! $this->disk()->exists($backup->path)) {
+            throw new ApiProblemException(409, 'backup_file_missing', 'File sao lưu đã bị mất khỏi nơi lưu trữ.');
+        }
+    }
+
+    private function grantKey(string $nonce): string
+    {
+        return 'platform-backup-download:'.hash('sha256', $nonce);
     }
 
     // --- nội bộ ---------------------------------------------------------------------------
@@ -343,6 +439,7 @@ class PlatformBackupService
         ])->save());
 
         $this->record($backup, 'platform_failed', $actor, result: AuditLogger::FAILURE, reason: mb_substr($message, 0, 255));
+        $this->alerts->platformBackupFailed($this->context->runAsPlatform(fn () => $backup->refresh()));
     }
 
     private function record(Backup $backup, string $action, ?User $actor, string $result = AuditLogger::SUCCESS, ?string $reason = null, array $metadata = []): void

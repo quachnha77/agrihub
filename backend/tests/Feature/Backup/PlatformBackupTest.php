@@ -501,7 +501,8 @@ class PlatformBackupTest extends TestCase
 
         $this->spa()->actingAs($admin)->getJson('/api/v1/platform/backups')->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $uuid);
         $this->spa()->actingAs($admin)->getJson("/api/v1/platform/backups/{$uuid}")->assertOk()->assertJsonPath('data.verify_status', null);
-        $this->spa()->actingAs($admin)->getJson("/api/v1/platform/backups/{$uuid}/download")->assertNotFound();
+        // Tải về chỉ qua liên kết đã ký (xem PlatformBackupDownloadTest); gọi thẳng không chữ ký bị từ chối. Không có khôi phục qua HTTP.
+        $this->spa()->actingAs($admin)->getJson("/api/v1/platform/backups/{$uuid}/download")->assertForbidden();
         $this->spa()->actingAs($admin)->postJson("/api/v1/platform/backups/{$uuid}/restore")->assertStatus(404);
         $this->assertSame(1, $this->auditCount(['module' => 'backup', 'action' => 'platform_created', 'actor_id' => $admin->id]));
     }
