@@ -1,0 +1,17 @@
+.env
+.env.*
+!.env.example
+node_modules/
+vendor/
+dist/
+build/
+storage/*.key
+storage/app/private/
+*.log
+*.sql
+*.dump
+*.bak
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
