@@ -3,7 +3,7 @@ import { useMutation } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import { Navigate, useLocation } from 'react-router'
+import { Link, Navigate, useLocation } from 'react-router'
 import { z } from 'zod'
 import { Alert, Button, TextField } from '../../components/ui.tsx'
 import { ApiError, post } from '../../lib/api.ts'
@@ -142,6 +142,15 @@ export default function LoginPage() {
               {login.isPending ? t('auth.login.submitting') : t('auth.login.submit')}
             </Button>
           </form>
+
+          <div className="mt-4 flex items-center justify-between text-sm">
+            <Link to="/forgot-password" className="font-medium text-emerald-700 hover:underline">
+              {t('auth.login.forgotPassword')}
+            </Link>
+            <Link to="/forgot-account" className="text-slate-600 hover:underline">
+              {t('auth.login.forgotAccount')}
+            </Link>
+          </div>
         </div>
       </div>
     </main>

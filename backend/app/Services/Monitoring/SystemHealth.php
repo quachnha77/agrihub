@@ -250,7 +250,7 @@ class SystemHealth
             }
 
             if (in_array(config('mail.default'), ['log', 'array'], true)) {
-                $issues[] = [self::WARNING, 'MAIL_MAILER đang là "'.config('mail.default').'": email (kể cả cảnh báo) chưa gửi ra ngoài'];
+                $issues[] = [self::WARNING, 'MAIL_MAILER đang là "'.config('mail.default').'": email (cảnh báo, quên mật khẩu, quên tài khoản) chưa gửi ra ngoài'];
             }
 
             if (! in_array(config('session.driver'), ['database', 'redis'], true)) {

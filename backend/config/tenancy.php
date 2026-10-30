@@ -27,6 +27,12 @@ return [
     /** Cổng của địa chỉ công khai khi khác 80/443 (vd. 5173 lúc phát triển với Vite). */
     'url_port' => env('TENANT_URL_PORT') ?: null,
 
+    /**
+     * Địa chỉ của ứng dụng web khi CHƯA bật subdomain (FRONTEND_URL, mặc định APP_URL). Dùng dựng đường dẫn trong email
+     * (đặt lại mật khẩu, nhắc tài khoản). Luôn lấy từ cấu hình, không bao giờ từ header Host của request (chống giả mạo Host).
+     */
+    'fallback_url' => rtrim((string) (env('FRONTEND_URL') ?: env('APP_URL', 'http://localhost')), '/'),
+
     /** Tên máy chủ nội bộ vẫn được tin dù không thuộc tên miền gốc (regex, ngăn cách bằng dấu phẩy; vd. cân bằng tải gọi bằng IP). */
     'extra_trusted_hosts' => array_values(array_filter(array_map('trim', explode(',', (string) env('TENANT_EXTRA_TRUSTED_HOSTS', ''))))),
 ];

@@ -29,4 +29,12 @@ final class Phone
 
         return preg_match('/^0[2-9]\d{8,9}$/', $digits) ? $digits : null;
     }
+
+    /** Che phần giữa khi hiển thị trong email (0912345678 -> 091****678). */
+    public static function mask(string $phone): string
+    {
+        $length = strlen($phone);
+
+        return $length <= 6 ? $phone : substr($phone, 0, 3).str_repeat('*', $length - 6).substr($phone, -3);
+    }
 }

@@ -19,7 +19,7 @@ class UpdateUserRequest extends FormRequest
     {
         return [
             'name' => ['sometimes', 'required', 'string', 'max:255'],
-            'phone' => ['nullable', 'string', new VietnamesePhone, new UniquePhone($this->route('user')?->id)],
+            'phone' => ['nullable', 'string', new VietnamesePhone, new UniquePhone($this->route('user')?->tenant_id, $this->route('user')?->id)],
             'status' => ['sometimes', Rule::in([User::STATUS_ACTIVE, User::STATUS_DISABLED])],
             'reason' => ['nullable', 'string', 'max:255'],
             // Email là định danh đăng nhập: không đổi qua API này.

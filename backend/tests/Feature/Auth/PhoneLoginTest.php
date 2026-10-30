@@ -14,7 +14,7 @@ use Tests\Concerns\CreatesTenants;
 use Tests\Concerns\ReadsAuditLog;
 use Tests\TestCase;
 
-/** Đăng nhập bằng email HOẶC số điện thoại; số điện thoại là định danh duy nhất toàn hệ thống. */
+/** Đăng nhập bằng email HOẶC số điện thoại; số điện thoại là định danh duy nhất trong từng doanh nghiệp. */
 class PhoneLoginTest extends TestCase
 {
     use CreatesTenants, ReadsAuditLog, RefreshDatabase;
@@ -160,41 +160,44 @@ class PhoneLoginTest extends TestCase
         $this->assertStringNotContainsString('bi-mat-cua-toi', json_encode($log->metadata));
     }
 
-    // --- số điện thoại là định danh duy nhất -----------------------------------------------------
+    // --- số điện thoại duy nhất TRONG doanh nghiệp -----------------------------------------------
 
-    public function test_creating_users_stores_the_normalized_number_and_rejects_numbers_already_in_use_anywhere(): void
+    public function test_a_phone_can_be_used_in_another_business_but_not_twice_in_the_same_one(): void
     {
         [, $ownerA] = $this->makeTenant(['name' => 'A'], ['password' => self::PASSWORD]);
         [, $ownerB] = $this->makeTenant(['name' => 'B'], ['phone' => '0912345678', 'password' => self::PASSWORD]);
 
-        $create = fn (array $body) => $this->freshBrowser()->spa()->actingAs($ownerA)->postJson('/api/v1/users', $body + ['name' => 'Nhân viên']);
+        $create = fn ($owner, array $body) => $this->freshBrowser()->spa()->actingAs($owner)->postJson('/api/v1/users', $body + ['name' => 'Nhân viên']);
 
-        // Số của Tenant B (viết kiểu khác) không dùng lại được ở Tenant A; thông báo không lộ số thuộc ai.
-        $create(['email' => 'nv1@a.vn', 'phone' => '+84 912 345 678'])->assertStatus(422)->assertJsonPath('errors.phone.0', 'Số điện thoại này không khả dụng.');
+        // Số của doanh nghiệp B (viết kiểu khác) dùng được ở doanh nghiệp A: mỗi doanh nghiệp một subdomain nên không nhập nhằng.
+        $first = $create($ownerA, ['email' => 'nv1@a.vn', 'phone' => '+84 912 345 678'])->assertCreated()->assertJsonPath('data.phone', '0912345678');
+        $this->assertNotNull($first->json('data.id'));
 
-        $create(['email' => 'nv2@a.vn', 'phone' => 'khong-phai-so'])->assertStatus(422)->assertJsonPath('errors.phone.0', 'Số điện thoại không hợp lệ (ví dụ 0912 345 678).');
+        // Nhưng trong CÙNG doanh nghiệp thì không trùng được, kể cả viết kiểu khác.
+        $create($ownerA, ['email' => 'nv2@a.vn', 'phone' => '0912.345.678'])->assertStatus(422)
+            ->assertJsonPath('errors.phone.0', 'Số điện thoại này đã được dùng cho một tài khoản khác.');
+        $create($ownerB, ['email' => 'nv3@b.vn', 'phone' => '091 234 5678'])->assertStatus(422)
+            ->assertJsonPath('errors.phone.0', 'Số điện thoại này đã được dùng cho một tài khoản khác.');
 
-        $created = $create(['email' => 'nv3@a.vn', 'phone' => '0933 444 555'])->assertCreated()->assertJsonPath('data.phone', '0933444555');
-        $this->assertNotNull($created->json('data.id'));
-
-        // Chủ Tenant B không tạo trùng số vừa dùng ở Tenant A.
-        $this->freshBrowser()->spa()->actingAs($ownerB)->postJson('/api/v1/users', ['name' => 'X', 'email' => 'x@b.vn', 'phone' => '0933-444-555'])
-            ->assertStatus(422)->assertJsonPath('errors.phone.0', 'Số điện thoại này không khả dụng.');
+        $create($ownerA, ['email' => 'nv4@a.vn', 'phone' => 'khong-phai-so'])->assertStatus(422)
+            ->assertJsonPath('errors.phone.0', 'Số điện thoại không hợp lệ (ví dụ 0912 345 678).');
     }
 
-    public function test_updating_a_phone_allows_keeping_your_own_and_clearing_it_but_not_taking_anothers(): void
+    public function test_updating_a_phone_allows_keeping_your_own_and_clearing_it_but_not_taking_a_colleagues(): void
     {
         [$tenant, $owner] = $this->makeTenant(['name' => 'A'], ['phone' => '0911111111', 'password' => self::PASSWORD]);
         $other = $this->makeUserIn($tenant, [Role::OWNER], attributes: ['phone' => '0922222222']);
+        $this->makeTenant(['name' => 'B'], ['phone' => '0933333333']);
 
         $update = fn ($user, $phone) => $this->freshBrowser()->spa()->actingAs($owner)->patchJson("/api/v1/users/{$user->uuid}", ['phone' => $phone]);
 
         $update($owner, '0911 111 111')->assertOk()->assertJsonPath('data.phone', '0911111111'); // giữ nguyên số của chính mình
-        $update($owner, '0922222222')->assertStatus(422)->assertJsonPath('errors.phone.0', 'Số điện thoại này không khả dụng.');
+        $update($owner, '0922222222')->assertStatus(422)->assertJsonPath('errors.phone.0', 'Số điện thoại này đã được dùng cho một tài khoản khác.');
         $update($other, '0944 555 666')->assertOk()->assertJsonPath('data.phone', '0944555666');
         $update($other, null)->assertOk()->assertJsonPath('data.phone', null);
+        $update($other, '0933333333')->assertOk()->assertJsonPath('data.phone', '0933333333'); // số của doanh nghiệp B: không liên quan
 
-        // Số đã nhả ra thì người khác dùng được.
+        // Số đã nhả ra thì đồng nghiệp dùng được.
         $update($owner, '0944555666')->assertOk();
     }
 
@@ -208,20 +211,31 @@ class PhoneLoginTest extends TestCase
         ])->assertCreated();
 
         $this->login('0977 123 456', $response->json('temporary_password'))->assertOk()->assertJsonPath('data.must_change_password', true);
-
-        $this->freshBrowser()->spa()->actingAs($admin)->postJson('/api/v1/platform/tenants', [
-            'tenant' => ['name' => 'Cửa hàng Khác'],
-            'owner' => ['name' => 'Chủ Khác', 'email' => 'chu@khac.vn', 'phone' => '0977123456'],
-        ])->assertStatus(422)->assertJsonValidationErrors(['owner.phone' => 'Số điện thoại này không khả dụng.']);
     }
 
-    public function test_the_database_itself_refuses_two_accounts_with_the_same_phone(): void
+    public function test_the_database_refuses_two_accounts_with_the_same_phone_in_one_business_only(): void
     {
-        $this->makeTenant([], ['phone' => '0912345678']);
-        [, $second] = $this->makeTenant();
+        [$tenantA, $a1] = $this->makeTenant(['name' => 'A'], ['phone' => '0912345678']);
+        [, $b1] = $this->makeTenant(['name' => 'B']);
+        $second = $this->makeUserIn($tenantA, [Role::OWNER]);
+
+        // Khác doanh nghiệp: được. Khác nhóm quản trị nền tảng: được.
+        $this->platform(fn () => DB::table('users')->where('id', $b1->id)->update(['phone' => '0912345678']));
+        $admin = $this->makePlatformAdmin(['phone' => '0912345678']);
+        $this->assertNotNull($admin->id);
+        $this->assertNotSame($a1->id, $b1->id);
+
+        // Cùng doanh nghiệp: bị chặn.
+        $this->expectException(QueryException::class);
+        $this->platform(fn () => DB::table('users')->where('id', $second->id)->update(['phone' => '0912345678']));
+    }
+
+    public function test_platform_admins_form_their_own_group_for_phone_uniqueness(): void
+    {
+        $this->makePlatformAdmin(['phone' => '0988000111']);
+        $second = $this->makePlatformAdmin();
 
         $this->expectException(QueryException::class);
-
-        $this->platform(fn () => DB::table('users')->where('id', $second->id)->update(['phone' => '0912345678']));
+        $this->platform(fn () => DB::table('users')->where('id', $second->id)->update(['phone' => '0988000111']));
     }
 }

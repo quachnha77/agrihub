@@ -56,6 +56,38 @@ const vi = {
       passwordRequired: 'Vui lòng nhập mật khẩu.',
       submit: 'Đăng nhập',
       submitting: 'Đang đăng nhập…',
+      forgotPassword: 'Quên mật khẩu?',
+      forgotAccount: 'Quên tài khoản?',
+    },
+    recovery: {
+      password: {
+        title: 'Quên mật khẩu',
+        intro: 'Nhập email hoặc số điện thoại của tài khoản. Chúng tôi sẽ gửi liên kết đặt lại mật khẩu tới email đã đăng ký của tài khoản đó.',
+      },
+      account: {
+        title: 'Quên tài khoản',
+        intro:
+          'Không nhớ địa chỉ đăng nhập của doanh nghiệp hay đăng nhập bằng gì? Nhập email hoặc số điện thoại bạn nhớ. Chúng tôi sẽ gửi địa chỉ đăng nhập và thông tin tài khoản tới email đã đăng ký.',
+      },
+      tenantSubtitle: 'Doanh nghiệp: {{name}}',
+      submit: 'Gửi hướng dẫn',
+      submitting: 'Đang gửi…',
+      sentHelp:
+        'Chưa thấy email? Hãy kiểm tra thư rác hoặc đợi vài phút. Nếu bạn không còn truy cập được email đã đăng ký, hãy nhờ quản trị viên của doanh nghiệp cấp mật khẩu tạm.',
+      backToLogin: 'Quay lại đăng nhập',
+    },
+    reset: {
+      title: 'Đặt mật khẩu mới',
+      forAccount: 'Tài khoản: {{email}}',
+      confirmRequired: 'Vui lòng nhập lại mật khẩu mới.',
+      submit: 'Đặt mật khẩu',
+      submitting: 'Đang lưu…',
+      doneTitle: 'Đã đặt lại mật khẩu',
+      doneText: 'Hãy đăng nhập bằng mật khẩu mới. Mọi thiết bị đang đăng nhập bằng mật khẩu cũ đã bị đăng xuất.',
+      goLogin: 'Đăng nhập',
+      invalidTitle: 'Liên kết không dùng được',
+      invalidText: 'Liên kết đặt lại mật khẩu không hợp lệ hoặc đã hết hạn (mỗi liên kết chỉ dùng được một lần). Hãy yêu cầu liên kết mới.',
+      requestNew: 'Yêu cầu liên kết mới',
     },
     errors: {
       invalid_credentials: 'Tài khoản hoặc mật khẩu không đúng.',
@@ -163,7 +195,7 @@ const vi = {
     emailRequired: 'Vui lòng nhập email.',
     emailLocked: 'Email là tên đăng nhập nên không đổi được.',
     phone: 'Số điện thoại (tùy chọn)',
-    phoneHint: 'Có thể dùng để đăng nhập. Ví dụ 0912 345 678.',
+    phoneHint: 'Có thể dùng để đăng nhập. Mỗi số chỉ dùng cho một tài khoản trong doanh nghiệp. Ví dụ 0912 345 678.',
     phoneSavedAs: 'Sẽ lưu là {{phone}}',
     phoneInvalid: 'Số điện thoại không hợp lệ (ví dụ 0912 345 678).',
     contact: 'Liên hệ',

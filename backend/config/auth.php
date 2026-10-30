@@ -97,7 +97,8 @@ return [
         'users' => [
             'provider' => 'users',
             'table' => env('AUTH_PASSWORD_RESET_TOKEN_TABLE', 'password_reset_tokens'),
-            'expire' => 60,
+            // Liên kết đặt lại mật khẩu hết hạn sau bao nhiêu phút, và số giây tối thiểu giữa hai lần yêu cầu cho cùng tài khoản.
+            'expire' => (int) (env('AUTH_PASSWORD_RESET_EXPIRE') ?: 30),
             'throttle' => 60,
         ],
     ],

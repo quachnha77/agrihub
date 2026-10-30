@@ -6,13 +6,14 @@ use App\Http\Controllers\Controller;
 use App\Http\Problem;
 use App\Http\Requests\Api\V1\LoginRequest;
 use App\Http\Resources\Api\V1\UserResource;
-use App\Models\Tenant;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
+use App\Services\Auth\AccountLocator;
 use App\Services\Auth\SessionRevoker;
 use App\Services\Billing\SubscriptionService;
 use App\Support\Audit\AuditSuppression;
 use App\Support\Auth\LoginIdentifier;
+use App\Support\Auth\LoginScope;
 use App\Support\Auth\PasswordPolicy;
 use App\Support\Tenancy\HostTenant;
 use App\Support\Tenancy\TenantContext;
@@ -32,7 +33,14 @@ class AuthController extends Controller
 
     private const LOCK_MINUTES = 15;
 
-    public function __construct(private TenantContext $context, private AuditLogger $audit, private SessionRevoker $sessions, private SubscriptionService $billing, private HostTenant $host) {}
+    public function __construct(
+        private TenantContext $context,
+        private AuditLogger $audit,
+        private SessionRevoker $sessions,
+        private SubscriptionService $billing,
+        private HostTenant $host,
+        private AccountLocator $accounts,
+    ) {}
 
     public function login(LoginRequest $request): JsonResponse
     {
@@ -43,8 +51,8 @@ class AuthController extends Controller
         $identifier = $request->identifier(); // email hoặc số điện thoại đã chuẩn hóa
         $password = $request->validated('password');
 
-        // Tìm user trước khi biết Tenant => chạy ở chế độ nền tảng (RLS). Cột tra cứu do chính LoginIdentifier quyết định.
-        $user = $this->context->runAsPlatform(fn () => User::where($identifier->type, $identifier->value)->first());
+        // Email tra toàn hệ thống; số điện thoại chỉ duy nhất trong từng doanh nghiệp nên tra theo địa chỉ (subdomain) đang đăng nhập.
+        $user = $this->accounts->find($identifier, LoginScope::fromHost($this->host));
 
         // Phản hồi giống hệt nhau cho "khóa" và "bị giới hạn tốc độ": không lộ việc tài khoản có tồn tại.
         if ($user?->isLocked()) {
@@ -70,7 +78,7 @@ class AuthController extends Controller
             $this->loginFailed($user, $identifier, 'wrong_host');
 
             return Problem::response(403, 'wrong_host', 'Tài khoản này không đăng nhập tại địa chỉ này. Hãy dùng địa chỉ riêng của doanh nghiệp bạn.', null, [
-                'login_url' => $this->correctUrl($user),
+                'login_url' => $this->host->loginUrlFor($user),
             ]);
         }
 
@@ -198,17 +206,6 @@ class AuthController extends Controller
             HostTenant::PLATFORM => ! $user->is_platform_admin,
             default => false,
         };
-    }
-
-    private function correctUrl(User $user): ?string
-    {
-        if ($user->is_platform_admin) {
-            return $this->host->platformUrl();
-        }
-
-        $slug = $this->context->runAsPlatform(fn () => Tenant::query()->whereKey($user->tenant_id)->value('slug'));
-
-        return is_string($slug) ? $this->host->urlFor($slug) : null;
     }
 
     /** Đăng nhập thất bại: ghi cả khi email không tồn tại (không có chủ thể), không bao giờ ghi mật khẩu. */

@@ -3,6 +3,7 @@
 namespace App\Support\Tenancy;
 
 use App\Models\Tenant;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 
@@ -97,6 +98,25 @@ final class HostTenant
         $base = config('tenancy.base_domain');
 
         return is_string($base) && $base !== '' ? $this->url("{$slug}.{$base}") : null;
+    }
+
+    /**
+     * Địa chỉ đăng nhập riêng của một tài khoản: doanh nghiệp của họ, hoặc cổng quản trị nếu là Super Admin.
+     * Khi chưa bật subdomain là địa chỉ chung của ứng dụng. Dựng từ cấu hình + dữ liệu, không từ Host của request.
+     */
+    public function loginUrlFor(User $user): ?string
+    {
+        if (! is_string(config('tenancy.base_domain')) || config('tenancy.base_domain') === '') {
+            return config('tenancy.fallback_url');
+        }
+
+        if ($user->is_platform_admin) {
+            return $this->platformUrl();
+        }
+
+        $slug = app(TenantContext::class)->runAsPlatform(fn () => Tenant::query()->whereKey($user->tenant_id)->value('slug'));
+
+        return is_string($slug) ? $this->urlFor($slug) : null;
     }
 
     public function platformUrl(): ?string

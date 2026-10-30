@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
 use App\Support\Auth\LoginIdentifier;
+use App\Support\Auth\LoginScope;
 use App\Support\Platform\SupportSession;
 use App\Support\Rbac\Catalog;
 use App\Support\Tenancy\HostTenant;
@@ -57,12 +58,25 @@ class AppServiceProvider extends ServiceProvider
         // Chống dò mật khẩu: theo cặp (email hoặc số điện thoại) + IP. Áp dụng cả cho tài khoản không tồn tại để không lộ thông tin.
         // Khóa dùng dạng đã chuẩn hóa nên viết số điện thoại theo kiểu khác không né được giới hạn.
         RateLimiter::for('login', function (Request $request) {
-            $key = LoginIdentifier::throttleKey((string) $request->input('login', $request->input('email')));
+            $key = LoginIdentifier::throttleKey((string) $request->input('login', $request->input('email')), LoginScope::fromHost(app(HostTenant::class)));
 
             return [
                 Limit::perMinute(5)->by('login|'.$key.'|'.$request->ip()),
                 Limit::perMinute(20)->by('login-ip|'.$request->ip()),
             ];
         });
+
+        // Quên mật khẩu / quên tài khoản: mỗi lần chỉ gửi một email nên giới hạn chặt (chống dùng hệ thống để gửi thư rác cho người khác).
+        RateLimiter::for('recovery', function (Request $request) {
+            $key = LoginIdentifier::throttleKey((string) $request->input('login'), LoginScope::fromHost(app(HostTenant::class)));
+
+            return [
+                Limit::perMinute(3)->by('recovery|'.$key.'|'.$request->ip()),
+                Limit::perHour(20)->by('recovery-ip|'.$request->ip()),
+            ];
+        });
+
+        // Đặt lại mật khẩu bằng liên kết: mã trong liên kết dài và ngẫu nhiên nên không dò được; giới hạn để chặn lạm dụng.
+        RateLimiter::for('reset-password', fn (Request $request) => Limit::perMinute(10)->by('reset-password|'.$request->ip()));
     }
 }

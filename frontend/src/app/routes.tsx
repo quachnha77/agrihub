@@ -2,6 +2,8 @@ import type { RouteObject } from 'react-router'
 import ChangePasswordPage from '../features/auth/ChangePasswordPage.tsx'
 import { RequireAccess, RequireAuth } from '../features/auth/guards.tsx'
 import LoginPage from '../features/auth/LoginPage.tsx'
+import RecoveryRequestPage from '../features/auth/RecoveryRequestPage.tsx'
+import ResetPasswordPage from '../features/auth/ResetPasswordPage.tsx'
 import AppLayout from '../layout/AppLayout.tsx'
 import DashboardPage from '../pages/DashboardPage.tsx'
 import NotFoundPage from '../pages/NotFoundPage.tsx'
@@ -17,6 +19,9 @@ export const routes: RouteObject[] = [
     element: <AuthRoot />,
     children: [
       { path: '/login', element: <LoginPage /> },
+      { path: '/forgot-password', element: <RecoveryRequestPage mode="password" /> },
+      { path: '/forgot-account', element: <RecoveryRequestPage mode="account" /> },
+      { path: '/reset-password', element: <ResetPasswordPage /> },
       {
         element: <RequireAuth />,
         children: [

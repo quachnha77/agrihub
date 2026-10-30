@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\V1\BackupController;
 use App\Http\Controllers\Api\V1\BranchController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\NotificationController;
+use App\Http\Controllers\Api\V1\PasswordRecoveryController;
 use App\Http\Controllers\Api\V1\PermissionController;
 use App\Http\Controllers\Api\V1\Platform\HealthController as PlatformHealthController;
 use App\Http\Controllers\Api\V1\Platform\PlanController;
@@ -31,6 +32,11 @@ Route::get('/health/monitor', [HealthController::class, 'monitor'])->middleware(
 Route::get('/tenant-context', [TenantContextController::class, 'show'])->middleware('throttle:60,1');
 
 Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:login');
+
+// Quên mật khẩu / quên tài khoản (công khai). Hai API đầu luôn trả lời giống nhau để không lộ tài khoản có tồn tại hay không.
+Route::post('/auth/forgot-password', [PasswordRecoveryController::class, 'forgotPassword'])->middleware('throttle:recovery');
+Route::post('/auth/forgot-account', [PasswordRecoveryController::class, 'forgotAccount'])->middleware('throttle:recovery');
+Route::post('/auth/reset-password', [PasswordRecoveryController::class, 'reset'])->middleware('throttle:reset-password');
 
 Route::middleware(['auth:sanctum', 'tenant.context'])->group(function () {
     // Luôn dùng được, kể cả khi đang phải đổi mật khẩu tạm.
