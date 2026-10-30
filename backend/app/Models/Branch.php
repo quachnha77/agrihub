@@ -1,0 +1,22 @@
+<?php
+
+namespace App\Models;
+
+use App\Support\HasPublicUuid;
+use App\Support\Tenancy\BelongsToTenant;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
+
+class Branch extends Model
+{
+    use BelongsToTenant, HasFactory, HasPublicUuid, SoftDeletes;
+
+    protected $fillable = ['code', 'name', 'phone', 'address', 'status'];
+
+    public function users(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'user_branches')->withTimestamps();
+    }
+}

@@ -63,7 +63,8 @@ return [
 
     'providers' => [
         'users' => [
-            'driver' => 'eloquent',
+            // Driver tùy biến: tìm user ở chế độ nền tảng vì chưa biết Tenant (xem TenantAwareUserProvider).
+            'driver' => 'tenant-eloquent',
             'model' => env('AUTH_MODEL', User::class),
         ],
 
