@@ -5,6 +5,8 @@ namespace App\Services\Backup;
 use App\Models\Backup;
 use App\Models\Notice;
 use App\Models\RestoreRun;
+use App\Models\Role;
+use App\Models\Tenant;
 use App\Models\User;
 use App\Notifications\SystemAlert;
 use App\Services\Notifications\AlertService;
@@ -66,6 +68,7 @@ class BackupAlerts
             'backup_overdue' => 'Quá hạn sao lưu toàn hệ thống',
             'verify_overdue' => 'Lâu chưa khôi phục thử bản sao lưu',
             'offsite_overdue' => 'Hãy tải một bản sao lưu về nơi lưu riêng',
+            'key_not_dedicated' => 'Chưa dùng khóa mã hóa sao lưu riêng',
         ];
 
         return (int) $this->safely(fn () => $this->alerts->toPlatformAdmins(
@@ -79,6 +82,12 @@ class BackupAlerts
     /** Chỉ cho bản do người dùng yêu cầu (thủ công): tự động/điểm quay lại/tải lên đã có kết quả ngay ở nơi gọi. */
     public function tenantBackupFinished(Backup $backup): void
     {
+        if ($backup->kind === Backup::KIND_AUTO) {
+            $this->tenantAutoBackupFinished($backup);
+
+            return;
+        }
+
         if ($backup->kind !== Backup::KIND_MANUAL) {
             return;
         }
@@ -93,6 +102,35 @@ class BackupAlerts
                 $ok ? 'Bản sao lưu đã hoàn tất ('.$this->size((int) $backup->size_bytes).'). Vào mục Sao lưu để tải về và lưu riêng.' : "Lý do: {$backup->error}",
                 ['backup' => $backup->uuid],
             ));
+        });
+    }
+
+    /** Sao lưu tự động: thành công thì im lặng; thất bại thì báo Chủ doanh nghiệp và nhân viên AgriHub (mỗi bên tối đa 1 lần/ngày). */
+    private function tenantAutoBackupFinished(Backup $backup): void
+    {
+        if ($backup->isCompleted()) {
+            return;
+        }
+
+        $this->safely(function () use ($backup) {
+            $tenant = $this->context->runAsPlatform(fn () => Tenant::find($backup->tenant_id));
+            $owners = $this->context->runAsPlatform(fn () => User::query()
+                ->where('tenant_id', $backup->tenant_id)->where('status', User::STATUS_ACTIVE)
+                ->whereHas('roles', fn ($q) => $q->where('roles.key', Role::OWNER))->get());
+
+            foreach ($owners as $owner) {
+                $this->alerts->toUser($owner, new SystemAlert(
+                    'backup.tenant.auto_failed', Notice::LEVEL_CRITICAL, 'Sao lưu tự động thất bại',
+                    "Lý do: {$backup->error}\nHệ thống sẽ thử lại vào lần sao lưu tự động kế tiếp; bạn cũng có thể tạo bản sao lưu thủ công.",
+                    ['backup' => $backup->uuid],
+                ), dedupeKey: "backup.tenant.auto_failed:{$backup->tenant_id}:{$owner->id}");
+            }
+
+            $this->alerts->toPlatformAdmins(new SystemAlert(
+                'backup.tenant.auto_failed', Notice::LEVEL_CRITICAL, 'Sao lưu tự động của một doanh nghiệp thất bại',
+                'Doanh nghiệp: '.($tenant?->name ?? "#{$backup->tenant_id}")."\nLý do: {$backup->error}",
+                ['backup' => $backup->uuid, 'tenant' => $tenant?->uuid],
+            ), dedupeKey: "backup.tenant.auto_failed.platform:{$backup->tenant_id}");
         });
     }
 

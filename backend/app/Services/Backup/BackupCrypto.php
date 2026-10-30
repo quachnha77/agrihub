@@ -32,6 +32,21 @@ class BackupCrypto
         return hash_hkdf('sha256', $secret, SODIUM_CRYPTO_SECRETSTREAM_XCHACHA20POLY1305_KEYBYTES, 'agrihub.backup.v1');
     }
 
+    /**
+     * Dấu vân tay của khóa hiện tại (16 ký tự hex): HMAC một chiều của một nhãn cố định, cắt ngắn. Không suy ngược ra khóa.
+     * Dùng để ghi lại mỗi bản sao lưu được mã hóa bằng khóa nào và để người quản trị đối chiếu khóa họ đã cất.
+     */
+    public function keyFingerprint(): string
+    {
+        return substr(hash_hmac('sha256', 'agrihub.backup.key-id', $this->key()), 0, 16);
+    }
+
+    /** Khóa riêng cho sao lưu (BACKUP_ENCRYPTION_KEY) hay đang dùng chung APP_KEY. */
+    public function hasDedicatedKey(): bool
+    {
+        return (string) config('backup.encryption_key') !== '';
+    }
+
     /** Mã hóa $plainPath thành $destPath. */
     public function encryptFile(string $plainPath, string $destPath): void
     {

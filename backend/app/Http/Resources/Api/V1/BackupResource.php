@@ -18,6 +18,7 @@ class BackupResource extends JsonResource
             'status' => $this->status,
             'size_bytes' => $this->size_bytes,
             'checksum_sha256' => $this->checksum_sha256,
+            'key_fingerprint' => $this->key_fingerprint,
             'format_version' => $this->format_version,
             'schema_version' => $this->schema_version,
             'row_counts' => $this->row_counts === null ? null : (object) $this->row_counts,

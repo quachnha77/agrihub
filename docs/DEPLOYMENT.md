@@ -42,6 +42,8 @@ Mọi cấu hình qua biến môi trường; cung cấp `.env.example` (không g
   - Sau mỗi lần triển khai nên chạy `php artisan agrihub:backup:platform` rồi `php artisan agrihub:backup:verify` và xem kết quả trước khi coi bản mới là an toàn.
   - **Tải bản sao về lưu riêng** (Super Admin, `POST /platform/backups/{id}/download-link`, nhập lại mật khẩu): làm đều đặn (hệ thống nhắc sau 7 ngày) và **cất `BACKUP_ENCRYPTION_KEY` ở nơi khác với file** — thiếu khóa thì file vô dụng.
   - **Thông báo trạng thái sao lưu**: cần cấu hình `MAIL_*` thật (SMTP) để Super Admin nhận email cảnh báo; đặt `BACKUP_ALERT_EMAILS` là hộp thư **ngoài hệ thống**. Scheduler chạy thêm `agrihub:backup:check` (mỗi giờ) và `agrihub:notices:prune` (03:45). Chi tiết: `docs/BACKUP_DISASTER_RECOVERY.md` mục 9.
+  - **Sao lưu tự động theo Tenant** (`BACKUP_TENANT_AUTO_ENABLED`, mặc định bật ở production; `BACKUP_TENANT_AT`, `BACKUP_TENANT_KEEP_DAYS`, `BACKUP_TENANT_MIN_KEEP`) cần queue worker chạy; chi tiết `docs/BACKUP_DISASTER_RECOVERY.md` mục 10. **Đặt `BACKUP_ENCRYPTION_KEY` riêng** (`php artisan agrihub:backup:key --generate`) và ghi lại dấu vân tay; ở production dùng chung `APP_KEY` sẽ bị cảnh báo.
+  - **SMTP theo Tenant do Super Admin cấu hình sau** (chưa làm). Hiện chỉ có `MAIL_*` của nền tảng cho cảnh báo gửi Super Admin.
   - Giới hạn tải lên của Import sao lưu phải khớp ở cả ba lớp: `BACKUP_MAX_UPLOAD_MB` (mặc định 512), PHP (`upload_max_filesize`/`post_max_size`, xem `docker/backend/php-agrihub.ini`) và Nginx (`client_max_body_size`). Mặc định của PHP chỉ 2 MB và Nginx 1 MB nên **phải** đặt khi lên production.
 
 ## Release

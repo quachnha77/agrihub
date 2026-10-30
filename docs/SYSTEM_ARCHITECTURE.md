@@ -52,7 +52,9 @@ Phụ thuộc theo chiều: Identity/Tenancy → Access → Catalog/Customer/Sup
 `Controller (mỏng) → FormRequest (validate) → Service/Action (nghiệp vụ, transaction) → Repository (khi thực sự cần) → Model`. Policy kiểm quyền ở backend cho mọi action.
 
 ## 6. Frontend
-React + TS + Tailwind; routing theo module; data fetching có cache (TanStack Query); form validation (Zod) đồng bộ với backend; i18n (mặc định `vi`); mọi màn hình có loading/empty/error; không chứa secrets.
+React 19 + TypeScript + Vite + Tailwind 4. **Đã triển khai (bước 9):** khung ứng dụng đăng nhập bằng cookie phiên Sanctum (không lưu token ở localStorage; CSRF qua `/sanctum/csrf-cookie` + header `X-XSRF-TOKEN`), `react-router` (route + guard theo quyền, trang tải theo nhu cầu), TanStack Query (cache/refetch), `react-hook-form` + `zod` (kiểm tra dữ liệu; **mọi thông báo mặc định của zod đã được Việt hóa**, lỗi 422 của API cũng tiếng Việt và hiển thị đúng ô), `react-i18next` (chữ giao diện nằm ở `src/i18n/vi.ts`, thêm ngôn ngữ = thêm một file), chuông thông báo + trang Thông báo, banner gói dịch vụ/phiên hỗ trợ, lý do rõ ràng khi bị đưa ra khỏi phiên (hết phiên, gói hết hạn, doanh nghiệp bị khóa), trang Sao lưu hệ thống (Super Admin: tình trạng, danh sách, sao lưu ngay, tải về có nhập lại mật khẩu) và Sao lưu dữ liệu (Chủ doanh nghiệp: danh sách, tạo, tải về).
+
+Cấu trúc `frontend/src`: `app/` (route, gốc), `features/<module>/` (api hooks + trang + component của module), `layout/`, `pages/`, `components/ui.tsx` (Button, TextField, Alert, Modal… dùng chung), `lib/` (api client, định dạng, form), `i18n/`. Module nghiệp vụ mới thêm thư mục trong `features/`, một route lazy trong `app/routes.tsx` dưới `<RequireAccess permission="…">` và mục menu trong `layout/AppLayout.tsx`. **Ẩn menu/trang theo quyền chỉ để dẫn đường; việc chặn thật nằm ở API (Policy + RLS).** Mọi màn hình có trạng thái đang tải, rỗng và lỗi; hỗ trợ bàn phím (liên kết bỏ qua menu, Esc đóng hộp thoại) và nhãn cho trình đọc màn hình.
 
 ## 7. Môi trường
 Dev / Staging / Production tách biệt (DB, secrets, storage, domain). Xem DEPLOYMENT.md.

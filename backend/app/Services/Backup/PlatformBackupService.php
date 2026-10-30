@@ -34,6 +34,7 @@ class PlatformBackupService
         private PlatformDump $dump,
         private PgTools $pg,
         private BackupAlerts $alerts,
+        private BackupCrypto $crypto,
     ) {}
 
     // --- Sao lưu --------------------------------------------------------------------------
@@ -106,6 +107,7 @@ class PlatformBackupService
                 'path' => $path,
                 'size_bytes' => filesize($encrypted),
                 'checksum_sha256' => hash_file('sha256', $encrypted),
+                'key_fingerprint' => $this->crypto->keyFingerprint(),
                 'schema_version' => $manifest['schema_version'],
                 'row_counts' => $manifest['row_counts'],
                 'completed_at' => now(),
@@ -386,6 +388,7 @@ class PlatformBackupService
             'Cache-Control' => 'no-store',
             'X-Content-Type-Options' => 'nosniff',
             'X-Content-SHA256' => (string) $backup->checksum_sha256,
+            'X-Backup-Key-Fingerprint' => (string) $backup->key_fingerprint,
         ]);
     }
 

@@ -27,6 +27,19 @@ return [
     'restore_lock_minutes' => 120,
 
     /**
+     * Sao lưu TỰ ĐỘNG hằng ngày dữ liệu nghiệp vụ của TỪNG Tenant (loại `auto`, Chủ doanh nghiệp xem/tải/khôi phục như bản thủ công).
+     * Chạy qua queue worker. Mặc định chỉ bật ở production.
+     */
+    'tenant_auto' => [
+        'enabled' => filter_var(env('BACKUP_TENANT_AUTO_ENABLED'), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? env('APP_ENV') === 'production',
+        'at' => env('BACKUP_TENANT_AT') ?: '02:00',
+        /** Giữ mọi bản tự động trong số ngày này; bản thủ công, tải lên và điểm quay lại không bao giờ tự xóa. */
+        'keep_days' => max(1, $int('BACKUP_TENANT_KEEP_DAYS', 30)),
+        /** Luôn giữ ít nhất số bản tự động mới nhất của mỗi Tenant (lịch ngừng chạy cũng không bị xóa sạch). */
+        'min_keep' => max(1, $int('BACKUP_TENANT_MIN_KEEP', 3)),
+    ],
+
+    /**
      * Thông báo về trạng thái sao lưu (trong ứng dụng + email cho Super Admin). Xem docs/BACKUP_DISASTER_RECOVERY.md mục 9.
      */
     'alerts' => [

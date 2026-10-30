@@ -72,6 +72,7 @@ class BackupService
                     'path' => $path,
                     'size_bytes' => filesize($encrypted),
                     'checksum_sha256' => hash_file('sha256', $encrypted),
+                    'key_fingerprint' => $this->crypto->keyFingerprint(),
                     'schema_version' => TenantExporter::schemaVersion(),
                     'row_counts' => $counts,
                     'completed_at' => now(),
@@ -114,6 +115,7 @@ class BackupService
                     'path' => $path,
                     'size_bytes' => filesize($uploaded),
                     'checksum_sha256' => hash_file('sha256', $uploaded),
+                    'key_fingerprint' => $this->crypto->keyFingerprint(),
                     'schema_version' => $meta['schema'],
                     'row_counts' => $meta['row_counts'],
                     'completed_at' => now(),
@@ -151,7 +153,125 @@ class BackupService
             'Content-Type' => 'application/octet-stream',
             'Cache-Control' => 'no-store',
             'X-Content-Type-Options' => 'nosniff',
+            'X-Backup-Key-Fingerprint' => (string) $backup->key_fingerprint,
         ]);
+    }
+
+    // --- Sao lưu tự động hằng ngày --------------------------------------------------------
+
+    /** Tenant đang có bản sao lưu chờ/đang chạy chưa quá hạn (không chạy chồng). */
+    public function hasInFlight(Tenant $tenant): bool
+    {
+        return $this->context->runAsPlatform(fn () => Backup::withoutGlobalScopes()
+            ->where('scope', Backup::SCOPE_TENANT)->where('tenant_id', $tenant->id)
+            ->whereIn('status', [Backup::STATUS_PENDING, Backup::STATUS_RUNNING])
+            ->where('created_at', '>', now()->subHours((int) config('backup.platform.stale_hours')))
+            ->exists());
+    }
+
+    /** Bản của Tenant "chờ/đang chạy" quá lâu là do worker bị tắt giữa chừng: đánh dấu lỗi để không chặn bản sau. */
+    public function markInterrupted(): int
+    {
+        return $this->context->runAsPlatform(fn () => Backup::withoutGlobalScopes()
+            ->where('scope', Backup::SCOPE_TENANT)
+            ->whereIn('status', [Backup::STATUS_PENDING, Backup::STATUS_RUNNING])
+            ->where('created_at', '<', now()->subHours((int) config('backup.platform.stale_hours')))
+            ->update(['status' => Backup::STATUS_FAILED, 'error' => 'Bị gián đoạn: quá thời gian chờ mà chưa hoàn tất.', 'completed_at' => now()]));
+    }
+
+    /**
+     * Yêu cầu sao lưu tự động cho mọi Tenant (qua queue). Bỏ qua Tenant đang được khôi phục hoặc đang có bản chưa xong.
+     *
+     * @return array{queued: int, skipped: int}
+     */
+    public function requestAutoForAll(): array
+    {
+        $this->markInterrupted();
+
+        $tenants = $this->context->runAsPlatform(fn () => Tenant::query()->orderBy('id')->get());
+        $queued = 0;
+        $skipped = 0;
+
+        foreach ($tenants as $tenant) {
+            if ($this->isRestoring($tenant) || $this->hasInFlight($tenant)) {
+                $skipped++;
+
+                continue;
+            }
+
+            $this->request($tenant, null, Backup::KIND_AUTO);
+            $queued++;
+        }
+
+        return ['queued' => $queued, 'skipped' => $skipped];
+    }
+
+    /**
+     * Dọn bản TỰ ĐỘNG của từng Tenant: giữ mọi bản trong `keep_days` ngày và luôn giữ `min_keep` bản mới nhất; bản lỗi quá hạn cũng dọn.
+     * Bản thủ công / tải lên / điểm quay lại không bao giờ bị xóa; bản đang là nguồn hay điểm quay lại của một lần khôi phục được giữ.
+     *
+     * @return array{kept: int, deleted: int, protected: int}
+     */
+    public function pruneAuto(bool $dryRun = false): array
+    {
+        $cut = now()->subDays((int) config('backup.tenant_auto.keep_days'));
+        $minKeep = (int) config('backup.tenant_auto.min_keep');
+
+        $auto = $this->context->runAsPlatform(fn () => Backup::withoutGlobalScopes()
+            ->where('scope', Backup::SCOPE_TENANT)->where('kind', Backup::KIND_AUTO)
+            ->whereIn('status', [Backup::STATUS_COMPLETED, Backup::STATUS_FAILED])
+            ->orderByDesc('created_at')->orderByDesc('id')->get());
+
+        $referenced = $this->context->runAsPlatform(fn () => RestoreRun::withoutGlobalScopes()
+            ->get(['backup_id', 'pre_backup_id'])->flatMap(fn ($r) => [$r->backup_id, $r->pre_backup_id])->filter()->flip());
+
+        $kept = 0;
+        $deleted = 0;
+        $protected = 0;
+
+        foreach ($auto->groupBy('tenant_id') as $group) {
+            $completedRank = 0;
+
+            foreach ($group as $backup) {
+                $isCompleted = $backup->isCompleted();
+                $completedRank += $isCompleted ? 1 : 0;
+
+                if ($backup->created_at->greaterThanOrEqualTo($cut) || ($isCompleted && $completedRank <= $minKeep)) {
+                    $kept += $isCompleted ? 1 : 0;
+
+                    continue;
+                }
+
+                if ($referenced->has($backup->id)) {
+                    $protected++;
+
+                    continue;
+                }
+
+                if ($dryRun || $this->removeFile($backup)) {
+                    $deleted++;
+                }
+            }
+        }
+
+        return ['kept' => $kept, 'deleted' => $deleted, 'protected' => $protected];
+    }
+
+    private function removeFile(Backup $backup): bool
+    {
+        try {
+            if ($backup->path !== null) {
+                $this->disk()->delete($backup->path);
+            }
+
+            $this->context->runAsPlatform(fn () => $backup->delete());
+
+            return true;
+        } catch (Throwable $e) {
+            report($e); // giữ bản ghi để lần dọn sau thử lại
+
+            return false;
+        }
     }
 
     // --- Khôi phục ------------------------------------------------------------------------

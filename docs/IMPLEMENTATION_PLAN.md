@@ -23,7 +23,7 @@ Cập nhật: 2026-10-30 · Kết quả khảo sát: **repository trống** (kh�
 | Đặt hàng online + cổng thanh toán | Missing |
 | Hóa đơn điện tử | Missing |
 | Thông báo đa kênh (Zalo OA/SMS/in-app) | **In-app + email: nền tảng đã có** (bảng `notices`, `SystemAlert`, dùng cho cảnh báo sao lưu); Zalo OA/SMS: Missing |
-| Backup/restore UI (import/export) | API Completed (8a); giao diện làm ở bước frontend |
+| Backup/restore UI (import/export) | API Completed (8a). Giao diện: danh sách + tạo + tải về (Export) **Completed**; Import và Khôi phục (xác nhận 2 bước): chưa làm |
 | Tài liệu (16 file theo prompt) | **Completed** (bản khởi tạo; ADR/ERD ở mức khái niệm) |
 
 Completed: tài liệu · In Progress: khung dự án · Missing: toàn bộ module nghiệp vụ.
@@ -39,7 +39,7 @@ Completed: tài liệu · In Progress: khung dự án · Missing: toàn bộ mod
 6. ✅ Platform Admin: quản lý Tenant, onboarding, quản lý người dùng, phiên hỗ trợ (impersonation chỉ đọc).
 7. ✅ Subscription & Billing + enforcement read-only/giới hạn + nhắc gia hạn (thanh toán tự động và nhắc qua Zalo/SMS làm sau cùng với Notification/Payment Gateway).
 8. Backup + Monitoring, chia nhỏ: **8a ✅ sao lưu/khôi phục theo Tenant (API import/export)**; **8b ✅ sao lưu toàn hệ thống (`pg_dump`), lịch tự động, retention, kiểm thử restore**; **thông báo trạng thái sao lưu ✅ (in-app + email) và tải bản sao về lưu riêng ✅**; 8c monitoring/health hạ tầng + giám sát từ bên ngoài (heartbeat).
-9. Frontend shell: đăng nhập, layout, router, i18n, guard quyền.
+9. ✅ Frontend shell: đăng nhập, layout, router, i18n (kể cả thông báo kiểm tra dữ liệu tiếng Việt), guard quyền, banner gói dịch vụ, lý do khi hết phiên, chuông thông báo, trang Sao lưu (Super Admin + Chủ doanh nghiệp). **Còn lại của giao diện sao lưu:** Import và Khôi phục cho Chủ doanh nghiệp (API đã xong từ 8a).
 
 **Giai đoạn 2 – Business Core** (thứ tự): Catalog → Customers/Suppliers → Inventory (sổ kho) → Purchase → Sales (chứng từ/hóa đơn nội bộ) → Receivables/Payments → Cashbook. Nền tảng Notification (in-app + SMS) làm sớm ở Giai đoạn 1 vì billing/cảnh báo dùng chung.
 
@@ -75,6 +75,7 @@ Mỗi bước: phân tích → liệt kê file/DB/API → (xác nhận nếu r�
 3. Hosting production — **dự kiến iNet hoặc Hostinger** (chưa chọn/mua). Phải là VPS/Cloud Server có quyền root (cần PostgreSQL 16, queue worker, scheduler); shared hosting không đủ — xem `docs/DEPLOYMENT.md` mục Hosting. Cần chốt trước khi lên staging/production.
 4. ✅ **Đã chốt:** hết hạn gói thì **không được dùng**, chỉ khi nhân viên AgriHub mở lại (gia hạn hoặc reopen); dùng thử **7 ngày** miễn phí.
 5. ✅ **Giá gói: để TẠM (đã xác nhận 2026-10-30), Super Admin cấu hình sau** qua `/platform/plans` (hiện: Tiêu chuẩn 150.000 và Nâng cao 250.000 đồng/user/tháng; giá năm = 10 tháng; giới hạn 3/10 chi nhánh, 5/50 GB). Đổi giá không ảnh hưởng thuê bao đang có.
+6. ✅ **SMTP (xác nhận 2026-10-30): Super Admin cấu hình SAU, riêng cho từng Tenant** (email gửi cho khách/nhân viên của doanh nghiệp đó). Chưa làm: bảng cấu hình SMTP theo Tenant (mật khẩu mã hóa), nút gửi thử, bộ gửi mail chọn cấu hình theo Tenant — làm cùng module Notification (Giai đoạn 1). Cảnh báo hệ thống gửi cho Super Admin vẫn dùng `MAIL_*` của nền tảng.
 
 ## 4. Rủi ro
 - Rò dữ liệu chéo Tenant → giảm bằng scope + RLS + test tự động.

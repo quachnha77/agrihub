@@ -30,7 +30,7 @@ docs/       Tài liệu
 
 ## Chạy môi trường dev
 
-**Cách 1 – Docker** (Postgres 16, Redis, Nginx, queue, scheduler; *chưa được kiểm thử trên máy dev hiện tại vì chưa cài Docker*):
+**Cách 1 – Docker** (Postgres 16, Redis, Nginx, queue, scheduler; *được job `docker` trong CI kiểm chứng; máy dev của dự án không chạy được Docker*):
 ```
 cp .env.example .env          # đổi POSTGRES_PASSWORD
 docker compose up -d --build
@@ -47,11 +47,17 @@ API: http://localhost:8000/api/v1/health · Frontend: http://localhost:5173
 cd backend && composer install && cp .env.example .env && php artisan key:generate && php artisan serve
 cd frontend && npm install && npm run dev
 ```
+Sau khi `php artisan migrate && php artisan db:seed --class=DevSeeder`, mở http://localhost:5173 và đăng nhập (mật khẩu dev: `password`):
+- `root@agrihub.test` – Super Admin (quản trị nền tảng: sao lưu toàn hệ thống, thông báo)
+- `owner@nong-phat.test`, `owner@vat-tu-xanh.test` – Chủ doanh nghiệp (hai Tenant demo độc lập); `admin@…`, `sales@…`, `kho@…` là các vai trò khác
+- Super Admin tạo `root@agrihub.test` bằng `php artisan agrihub:create-platform-admin root@agrihub.test` nếu chưa có.
+- `backend/.env` cần `SANCTUM_STATEFUL_DOMAINS` có `localhost:5173` (đã có sẵn trong `.env.example`).
+```
 
 ## Kiểm thử
 ```
 cd backend && php artisan test && ./vendor/bin/pint --test
-cd frontend && npm run lint && npm run build
+cd frontend && npm run lint && npm test && npm run build
 ```
 CI (GitHub Actions) chạy các lệnh trên với PostgreSQL thật.
 

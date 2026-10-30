@@ -26,6 +26,7 @@ class PlatformBackupMonitor
         private TenantContext $context,
         private PlatformBackupService $backups,
         private BackupAlerts $alerts,
+        private BackupCrypto $crypto,
     ) {}
 
     /**
@@ -124,6 +125,11 @@ class PlatformBackupMonitor
             }
         }
 
+        // Khóa mã hóa: dùng chung APP_KEY ở production là rủi ro (đổi APP_KEY => mọi bản sao lưu cũ không đọc lại được).
+        if ($enabled && app()->environment('production') && ! $this->crypto->hasDedicatedKey()) {
+            $issues[] = $this->issue('key_not_dedicated', self::WARNING, 'Đang dùng chung APP_KEY làm khóa mã hóa sao lưu: đổi APP_KEY sẽ làm mọi bản sao lưu cũ không đọc lại được. Hãy đặt BACKUP_ENCRYPTION_KEY riêng (php artisan agrihub:backup:key --generate) và cất ở nơi khác với file sao lưu.', true);
+        }
+
         $state = ! $enabled ? self::DISABLED : match (true) {
             in_array(self::CRITICAL, array_column($issues, 'level'), true) => self::CRITICAL,
             $issues !== [] => self::WARNING,
@@ -155,6 +161,11 @@ class PlatformBackupMonitor
                     'id' => $lastVerified->uuid, 'status' => $lastVerified->verify_status, 'at' => $lastVerified->verified_at->toIso8601String(), 'error' => $lastVerified->verify_error,
                 ],
                 'last_downloaded_at' => $lastDownloadedAt?->toIso8601String(),
+                'encryption' => [
+                    'algorithm' => 'XChaCha20-Poly1305 (libsodium secretstream)',
+                    'dedicated_key' => $this->crypto->hasDedicatedKey(),
+                    'key_fingerprint' => $this->fingerprint(),
+                ],
                 'issues' => array_values(array_map(fn (array $i) => ['code' => $i['code'], 'level' => $i['level'], 'message' => $i['message']], $issues)),
                 'schedule' => [
                     'backup_at' => config('backup.platform.at'),
@@ -175,6 +186,15 @@ class PlatformBackupMonitor
     private function issue(string $code, string $level, string $message, bool $notify): array
     {
         return ['code' => $code, 'level' => $level, 'message' => $message, 'notify' => $notify];
+    }
+
+    private function fingerprint(): ?string
+    {
+        try {
+            return $this->crypto->keyFingerprint();
+        } catch (\Throwable) {
+            return null; // chưa cấu hình khóa nào
+        }
     }
 
     private function ageHours(Carbon $from, Carbon $to): int
