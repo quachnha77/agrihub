@@ -44,6 +44,8 @@ services:
       DB_USERNAME: ${POSTGRES_USER:-agrihub}
       DB_PASSWORD: ${POSTGRES_PASSWORD:-agrihub_dev_only}
       REDIS_HOST: redis
+      BACKUP_DB_USERNAME: ${BACKUP_DB_USER:-agrihub_backup}
+      BACKUP_DB_PASSWORD: ${BACKUP_DB_PASSWORD:-agrihub_backup_dev_only}
     depends_on:
       - app
 
@@ -61,6 +63,8 @@ services:
       DB_USERNAME: ${POSTGRES_USER:-agrihub}
       DB_PASSWORD: ${POSTGRES_PASSWORD:-agrihub_dev_only}
       REDIS_HOST: redis
+      BACKUP_DB_USERNAME: ${BACKUP_DB_USER:-agrihub_backup}
+      BACKUP_DB_PASSWORD: ${BACKUP_DB_PASSWORD:-agrihub_backup_dev_only}
     depends_on:
       - app
 
@@ -85,6 +89,9 @@ services:
       APP_DB_NAME: ${POSTGRES_DB:-agrihub}
       APP_DB_USER: ${POSTGRES_USER:-agrihub}
       APP_DB_PASSWORD: ${POSTGRES_PASSWORD:-agrihub_dev_only}
+      # Tài khoản sao lưu toàn hệ thống (BYPASSRLS, CREATEDB): chỉ queue + scheduler dùng.
+      BACKUP_DB_USER: ${BACKUP_DB_USER:-agrihub_backup}
+      BACKUP_DB_PASSWORD: ${BACKUP_DB_PASSWORD:-agrihub_backup_dev_only}
     ports:
       - "127.0.0.1:5432:5432"
     volumes:

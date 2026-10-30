@@ -54,6 +54,8 @@ Xác thực bằng cookie phiên (Sanctum stateful): gọi `GET /sanctum/csrf-co
 | `POST /backups/{id}/restore` `{password, confirm_name}` | Khôi phục từ bản này, chạy nền (202). Cần mật khẩu của chính mình + gõ đúng tên doanh nghiệp. Quyền `…restore` | 422 `confirmation_failed`, 409 `restore_in_progress` / `backup_not_ready`, 403, 404 |
 | `GET /backups/restores` | Lịch sử khôi phục (`status`, `pre_restore_backup_id`, `row_counts`, `error`) | 403 |
 | `GET/POST /platform/tenants/{id}/backups`, `POST …/backups/import`, `GET …/backups/{backup}`, `GET …/backups/{backup}/download`, `POST …/backups/{backup}/restore`, `GET …/backups/restores` | Super Admin: cùng chức năng cho một doanh nghiệp được chọn (xác nhận bằng mật khẩu của Super Admin + tên doanh nghiệp). Bản sao lưu của Tenant khác ⇒ 404 | 422, 404, 409 |
+| `GET /platform/backups`, `GET /platform/backups/{id}` | Super Admin: danh sách / chi tiết bản sao lưu **toàn hệ thống** (`scope=platform`, mọi Tenant). Có thêm `verify_status` (`passed`/`failed`/null), `verified_at`, `verify_error` (kết quả khôi phục thử). Tenant không thấy được (403 ở đường dẫn platform, 404 ở `/backups/{id}`) | 403, 404 |
+| `POST /platform/backups` | Super Admin: yêu cầu sao lưu toàn hệ thống ngay (202, chạy nền bằng queue). Mỗi lúc chỉ một bản chạy. **Cố ý không có tải về và không có khôi phục qua HTTP** (khôi phục: `php artisan agrihub:backup:restore-platform`) | 409 `backup_in_progress`, 403, 429 |
 
 Khi Tenant đang được khôi phục, mọi API của Tenant trả `503 tenant_restoring`.
 

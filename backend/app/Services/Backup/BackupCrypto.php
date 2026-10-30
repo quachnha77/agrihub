@@ -36,25 +36,65 @@ class BackupCrypto
     public function encryptFile(string $plainPath, string $destPath): void
     {
         $in = $this->open($plainPath, 'rb');
+
+        try {
+            $this->encryptStream($in, $destPath);
+        } finally {
+            fclose($in);
+        }
+    }
+
+    /**
+     * Mã hóa dữ liệu đọc từ $in (file hoặc pipe, vd. đầu ra của pg_dump) thành $destPath, không bao giờ ghi bản rõ ra đĩa.
+     * $prefix được đặt TRƯỚC dữ liệu (vd. dòng mô tả). Không đóng $in. Dữ liệu được gom đủ từng khối nên pipe trả về
+     * từng mẩu nhỏ cũng cho ra file giống file thường.
+     *
+     * @param  resource  $in
+     */
+    public function encryptStream($in, string $destPath, string $prefix = ''): void
+    {
         $out = $this->open($destPath, 'wb');
 
         try {
             [$state, $header] = sodium_crypto_secretstream_xchacha20poly1305_init_push($this->key());
             $this->write($out, self::MAGIC.$header);
 
-            $current = (string) fread($in, self::CHUNK);
+            $pending = $prefix;
+            $current = $this->readChunk($in, $pending);
             do {
-                $next = feof($in) ? '' : (string) fread($in, self::CHUNK);
-                $last = $next === '' && feof($in);
+                $next = $this->readChunk($in, $pending);
+                $last = $next === '';
                 $tag = $last ? SODIUM_CRYPTO_SECRETSTREAM_XCHACHA20POLY1305_TAG_FINAL : SODIUM_CRYPTO_SECRETSTREAM_XCHACHA20POLY1305_TAG_MESSAGE;
                 $cipher = sodium_crypto_secretstream_xchacha20poly1305_push($state, $current, '', $tag);
                 $this->write($out, pack('N', strlen($cipher)).$cipher);
                 $current = $next;
             } while (! $last);
         } finally {
-            fclose($in);
             fclose($out);
         }
+    }
+
+    /**
+     * Lấy một khối đầy đủ từ $pending (bổ sung từ $in khi thiếu); chỉ trả chuỗi rỗng khi đã hết dữ liệu.
+     *
+     * @param  resource  $in
+     */
+    private function readChunk($in, string &$pending): string
+    {
+        while (strlen($pending) < self::CHUNK && ! feof($in)) {
+            $piece = fread($in, self::CHUNK);
+
+            if ($piece === false) {
+                throw new RuntimeException('Không đọc được dữ liệu nguồn khi mã hóa.');
+            }
+
+            $pending .= $piece;
+        }
+
+        $chunk = substr($pending, 0, self::CHUNK);
+        $pending = (string) substr($pending, self::CHUNK);
+
+        return $chunk;
     }
 
     /**
@@ -63,8 +103,25 @@ class BackupCrypto
      */
     public function decryptFile(string $srcPath, string $destPath, int $maxBytes): void
     {
-        $in = $this->open($srcPath, 'rb');
         $out = $this->open($destPath, 'wb');
+
+        try {
+            $this->decryptStream($srcPath, fn (string $plain) => $this->write($out, $plain), $maxBytes);
+        } finally {
+            fclose($out);
+        }
+    }
+
+    /**
+     * Giải mã theo luồng: gọi $sink với từng đoạn dữ liệu đã được xác thực. Đoạn nào chưa qua xác thực thì không bao giờ
+     * được đưa ra; nhưng nếu file bị cắt/sửa ở phần sau thì lỗi chỉ xuất hiện khi tới đó — muốn chắc chắn trước khi dùng
+     * thì chạy một lượt với $sink rỗng để xác thực toàn bộ file.
+     *
+     * @param  callable(string): void  $sink
+     */
+    public function decryptStream(string $srcPath, callable $sink, int $maxBytes): void
+    {
+        $in = $this->open($srcPath, 'rb');
         $invalid = new BackupException('File sao lưu không hợp lệ, đã bị chỉnh sửa hoặc không do hệ thống này tạo ra.');
 
         try {
@@ -109,7 +166,7 @@ class BackupCrypto
                     throw new BackupException('File sao lưu quá lớn sau khi giải nén.');
                 }
 
-                $this->write($out, $plain);
+                $sink($plain);
                 $final = $tag === SODIUM_CRYPTO_SECRETSTREAM_XCHACHA20POLY1305_TAG_FINAL;
             }
 
@@ -118,7 +175,6 @@ class BackupCrypto
             }
         } finally {
             fclose($in);
-            fclose($out);
         }
     }
 

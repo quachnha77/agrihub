@@ -39,6 +39,7 @@ Trạng thái: chính sách thiết kế; chưa triển khai.
 - Token Zalo/cổng thanh toán mã hóa tại cột (Laravel encrypted cast, khóa tách riêng) và chỉ dùng ở backend.
 - Log không chứa mật khẩu/token/PII nhạy cảm (redaction).
 - TLS 1.2+ mọi nơi; DB và backup mã hóa.
+- Sao lưu toàn hệ thống (chứa dữ liệu mọi Tenant): dùng **tài khoản database riêng** (`BYPASSRLS`, không phải superuser, không dùng cho web); mã hóa + xác thực ngay từ đầu ra `pg_dump` (không có bản rõ ra đĩa); **không có API tải về/khôi phục** (chỉ dòng lệnh trên máy chủ); mật khẩu chỉ truyền qua biến môi trường của tiến trình con, lệnh chạy không qua shell; Tenant không thấy được (RLS + CHECK `tenant_id` NULL); khôi phục **không bao giờ ghi đè database đang chạy** và loại bỏ phiên/token/hàng đợi cũ; lỗi hiển thị cho Super Admin chỉ gồm một dòng chẩn đoán đã rút gọn, không có mật khẩu.
 
 ## Vận hành
 - Cập nhật phụ thuộc định kỳ (composer/npm audit, Dependabot), quét ảnh Docker.

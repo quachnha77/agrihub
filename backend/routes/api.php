@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\V1\BranchController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\PermissionController;
 use App\Http\Controllers\Api\V1\Platform\PlanController;
+use App\Http\Controllers\Api\V1\Platform\PlatformBackupController;
 use App\Http\Controllers\Api\V1\Platform\SubscriptionController as PlatformSubscriptionController;
 use App\Http\Controllers\Api\V1\Platform\SupportSessionController;
 use App\Http\Controllers\Api\V1\Platform\TenantBackupController;
@@ -53,6 +54,10 @@ Route::middleware(['auth:sanctum', 'tenant.context'])->group(function () {
             Route::post('/users/{user}/reset-password', [PlatformUserController::class, 'resetPassword'])->middleware('throttle:sensitive');
 
             Route::get('/audit-logs', [AuditLogController::class, 'platformIndex']);
+
+            Route::get('/backups', [PlatformBackupController::class, 'index']);
+            Route::post('/backups', [PlatformBackupController::class, 'store'])->middleware('throttle:sensitive');
+            Route::get('/backups/{backup}', [PlatformBackupController::class, 'show']);
 
             Route::get('/tenants/{tenant}/backups', [TenantBackupController::class, 'index']);
             Route::post('/tenants/{tenant}/backups', [TenantBackupController::class, 'store'])->middleware('throttle:sensitive');

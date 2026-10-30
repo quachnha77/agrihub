@@ -14,6 +14,9 @@ class Backup extends Model
 
     public const SCOPE_TENANT = 'tenant';
 
+    /** Toàn hệ thống (pg_dump): không thuộc Tenant nào, Tenant không bao giờ thấy được (RLS). */
+    public const SCOPE_PLATFORM = 'platform';
+
     public const KIND_MANUAL = 'manual';
 
     public const KIND_AUTO = 'auto';
@@ -38,7 +41,19 @@ class Backup extends Model
             'row_counts' => 'array',
             'started_at' => 'datetime',
             'completed_at' => 'datetime',
+            'verified_at' => 'datetime',
         ];
+    }
+
+    /** Chỉ bản sao lưu toàn hệ thống được phép không có tenant_id (xem BelongsToTenant). */
+    public function allowsNullTenant(): bool
+    {
+        return $this->scope === self::SCOPE_PLATFORM;
+    }
+
+    public function isPlatform(): bool
+    {
+        return $this->scope === self::SCOPE_PLATFORM;
     }
 
     public function isCompleted(): bool

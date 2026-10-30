@@ -1,6 +1,6 @@
 # AgriHub – Backup & Disaster Recovery
 
-Trạng thái: **Sao lưu/khôi phục theo Tenant (bước 8a) đã triển khai và có test** — xem mục 7. **Chưa làm:** sao lưu toàn hệ thống bằng `pg_dump`, lịch tự động + retention, kiểm thử restore vào môi trường tạm, WAL/PITR, offsite (bước 8b). **Chưa có backup production nào được thiết lập; không được tuyên bố đạt chuẩn DR cho đến khi có bản ghi kiểm thử restore thành công (mục 5).**
+Trạng thái: **Sao lưu/khôi phục theo Tenant (bước 8a, mục 7) và sao lưu toàn hệ thống bằng `pg_dump` kèm lịch tự động, retention, kiểm thử restore (bước 8b, mục 8) đã triển khai và có test.** **Chưa làm:** WAL/PITR, sao chép offsite tự động, cảnh báo khi sao lưu thất bại/quá hạn (8c). **Chưa có backup production nào được thiết lập; không được tuyên bố đạt chuẩn DR cho đến khi có bản ghi kiểm thử restore thành công trên môi trường thật (mục 5).**
 
 ## 1. Phạm vi backup
 Database PostgreSQL; ảnh/file/chứng từ/chữ ký (object storage); cấu hình cần thiết (không gồm secrets dạng rõ – secrets lưu trong secret manager có quy trình riêng).
@@ -72,4 +72,54 @@ Mục tiêu tham khảo: RTO ≤ 4 giờ, RPO ≤ 24 giờ (dump) / ≤ 15 phút
 - Cột nhị phân (`bytea`) chưa được hỗ trợ: sao lưu sẽ báo lỗi rõ ràng; module cần lưu file phải dùng bảng `files` (đường dẫn) thay vì bytea.
 - Danh sách `tenant_tables` rỗng cho đến khi có module nghiệp vụ ⇒ hiện bản sao lưu chỉ chứa phần đầu/cuối (đã kiểm thử khuôn khổ bằng bảng giả có khóa ngoại + RLS).
 - Dung lượng lớn: job đọc/ghi theo luồng (bộ nhớ không phụ thuộc kích thước) nhưng thời gian khôi phục tỉ lệ với dữ liệu; cần đo lại khi có dữ liệu thật.
-- Chưa tự động hóa lịch (`auto`), retention (daily 30 ngày / weekly 12 tuần / monthly 12 tháng) và kiểm thử restore định kỳ: bước 8b.
+- Lịch tự động, retention và kiểm thử restore định kỳ hiện chỉ có cho sao lưu **toàn hệ thống** (mục 8, bao trùm mọi Tenant); sao lưu theo Tenant chưa có lịch riêng — sẽ cân nhắc khi có dữ liệu nghiệp vụ.
+
+## 8. Sao lưu toàn hệ thống bằng pg_dump (bước 8b – đã triển khai)
+
+**Mục đích**: khôi phục thảm họa (mất database hoặc máy chủ). Một bản chứa **dữ liệu của mọi Tenant**, nên được bảo vệ chặt hơn sao lưu theo Tenant:
+- Tenant không bao giờ thấy được: bản ghi `scope = 'platform'`, `tenant_id = NULL` (RLS chặn; ràng buộc CHECK `backups_scope_tenant_check` bảo đảm "platform ⇔ tenant_id NULL").
+- **Không có API tải về, không có API khôi phục.** Super Admin chỉ xem danh sách và yêu cầu chạy một bản mới (`/platform/backups`). Chép ra nơi lưu ngoài và khôi phục chỉ làm được trên máy chủ bằng dòng lệnh.
+
+**Tài khoản database RIÊNG (bắt buộc)**: RLS đang bật FORCE nên tài khoản ứng dụng chỉ thấy dữ liệu của Tenant hiện tại; `pg_dump` bằng tài khoản đó sẽ lỗi hoặc cho bản rỗng. Hệ thống **từ chối chạy** nếu tài khoản sao lưu không có `BYPASSRLS` (hoặc superuser). Tạo role chuyên dụng, **không phải superuser**:
+```sql
+CREATE ROLE agrihub_backup LOGIN PASSWORD '<mật khẩu mạnh>' NOSUPERUSER CREATEDB BYPASSRLS;
+GRANT pg_read_all_data TO agrihub_backup;      -- đọc mọi bảng
+GRANT <role_của_ứng_dụng> TO agrihub_backup;   -- để tạo database đích thuộc sở hữu của ứng dụng khi khôi phục
+```
+Đặt `BACKUP_DB_USERNAME` / `BACKUP_DB_PASSWORD` (và `BACKUP_PG_BIN` nếu `pg_dump` không nằm trong PATH). Chỉ **queue worker, scheduler và dòng lệnh** cần các biến này; tiến trình web không cần và không nên có. `pg_dump`/`pg_restore` phải **cùng phiên bản chính** với máy chủ PostgreSQL.
+
+**Cách sao lưu** (`PlatformDump`): mở một transaction `REPEATABLE READ`, xuất snapshot, **đếm số dòng từng bảng trong chính snapshot đó**, rồi chạy `pg_dump --format=custom --no-owner --no-acl --snapshot=…` — nên số dòng đối chiếu là chính xác dù hệ thống đang chạy. Nội dung `AGRIHUB-PLATFORM-DUMP/1` + một dòng JSON mô tả (manifest: thời điểm, phiên bản máy chủ, migration mới nhất, bảng bỏ dữ liệu, số dòng từng bảng) + kho `pg_dump`, được **mã hóa theo luồng ngay từ đầu ra của `pg_dump`** (cùng cơ chế và khóa như mục 7; **không có bản rõ nào ra đĩa**). Manifest nằm trong file nên **chỉ cần file + khóa** là khôi phục và đối chiếu được, kể cả khi database đã mất. Lưu ở `platform/YYYY/MM/<uuid>.agbk` trên disk `backups`, kèm checksum SHA-256. `pg_dump` thoát mã khác 0 thì bản ghi `failed`, **không có file nào được lưu**.
+
+**Dữ liệu bỏ có chủ đích** (giữ cấu trúc, bỏ dữ liệu; cấu hình `backup.platform.exclude_table_data`): `sessions`, `password_reset_tokens`, `personal_access_tokens`, `cache`, `cache_locks`, `jobs`, `job_batches`, `failed_jobs`. Lý do: sau khôi phục, phiên/token cũ (kể cả đã bị thu hồi sau thời điểm sao lưu) không được sống lại, hàng đợi không chạy lại việc đã làm. **Hệ quả: sau khôi phục mọi người phải đăng nhập lại.**
+
+**Lịch tự động** (scheduler phải chạy; chỉ hoạt động khi `BACKUP_PLATFORM_ENABLED=true`, mặc định bật ở production):
+| Giờ | Lệnh | Việc |
+|---|---|---|
+| 01:30 hằng ngày | `agrihub:backup:platform --scheduled` | sao lưu, loại `auto` |
+| 03:30 hằng ngày | `agrihub:backup:prune --scheduled` | dọn bản cũ theo retention |
+| 04:30 Chủ nhật | `agrihub:backup:verify --scheduled` | khôi phục thử bản mới nhất |
+
+Giờ/ngày đổi qua `BACKUP_PLATFORM_AT`, `BACKUP_PRUNE_AT`, `BACKUP_VERIFY_AT`, `BACKUP_VERIFY_DAY`. Các lệnh luôn được đăng ký (thấy trong `schedule:list`); cờ `--scheduled` làm chúng bỏ qua khi tắt, còn chạy tay không cờ thì luôn chạy. Không chạy chồng: một bản "chờ/đang chạy" chưa quá `stale_hours` (12 giờ) chặn bản mới (`409 backup_in_progress` / lệnh báo lỗi); quá hạn thì được đánh dấu "bị gián đoạn".
+
+**Giữ bản (retention)** — chỉ áp cho bản **tự động** đã hoàn tất, cấu hình ở `backup.platform.retention`: mọi bản trong **30 ngày**; sau đó **mỗi tuần một bản** (mới nhất của tuần) trong **12 tuần**; sau đó **mỗi tháng một bản** trong **12 tháng**; còn lại bị xóa (cả file lẫn bản ghi). **Luôn giữ ít nhất 3 bản mới nhất** (lịch ngừng chạy cũng không bị xóa sạch). **Bản thủ công không bao giờ tự xóa.** Bản lỗi quá 30 ngày được dọn. Có `--dry-run` để xem trước; mỗi lần xóa ghi audit `backup.platform_pruned`.
+
+**Kiểm thử khôi phục** (`agrihub:backup:verify [uuid]`): kiểm tra checksum file, tạo database tạm `agrihub_verify_<ngẫu nhiên>`, xác thực **toàn bộ** file rồi nạp bằng `pg_restore --exit-on-error`, **đối chiếu số dòng từng bảng với manifest** (đủ bảng, không thừa bảng, bảng bỏ dữ liệu phải rỗng), rồi xóa database tạm (chỉ xóa được tên mang tiền tố `agrihub_verify_` hoặc database đích do chính lần chạy tạo ra; từ chối xóa database đang chạy). Kết quả lưu vào `backups.verify_status` (`passed|failed`), `verified_at`, `verify_error` và audit `platform_verified|platform_verify_failed`; lệnh trả mã thoát ≠ 0 khi không đạt.
+
+**Khôi phục thảm họa** (chỉ dòng lệnh, trên máy chủ): `php artisan agrihub:backup:restore-platform {uuid | --file=<đường dẫn .agbk>} --target=<tên database MỚI> [--owner=<role>|--no-owner] [--yes]`. Lệnh **không bao giờ ghi đè database đang chạy**: từ chối nếu `--target` trùng database của ứng dụng/đang sao lưu hoặc đã tồn tại; tạo database mới (mặc định thuộc role của ứng dụng), nạp, đối chiếu số dòng, và **xóa database vừa tạo nếu bất kỳ bước nào thất bại** (không để lại bản khôi phục dở dang). `--file` dùng được khi mất cả bảng `backups`.
+Quy trình khi mất database/máy chủ:
+1. Dựng PostgreSQL cùng phiên bản chính, tạo role ứng dụng và role sao lưu (SQL ở trên), cài ứng dụng với **đúng `BACKUP_ENCRYPTION_KEY` / `APP_KEY` đã dùng lúc sao lưu**.
+2. Chép file `.agbk` mới nhất từ nơi lưu ngoài về máy chủ.
+3. `php artisan agrihub:backup:restore-platform --file=/đường/dẫn/x.agbk --target=agrihub_restored`.
+4. Kiểm tra dữ liệu; đặt `DB_DATABASE=agrihub_restored`, khởi động lại ứng dụng + queue + scheduler; chạy `php artisan migrate --force` nếu mã nguồn mới hơn bản sao lưu.
+5. Chạy `php artisan agrihub:backup:platform` để có bản đầu tiên trên hệ thống mới; ghi kết quả vào sổ diễn tập.
+
+**Audit** (module `backup`, không thuộc Tenant nào, chỉ Super Admin xem): `platform_created|platform_failed|platform_verified|platform_verify_failed|platform_pruned|platform_restored|platform_restore_failed`. Việc khôi phục thảm họa vẫn hoàn tất nếu không ghi được audit (database ứng dụng có thể đã mất).
+
+**Giới hạn đã biết — đọc trước khi tin vào hệ thống**
+- **Bản sao lưu hiện nằm cùng máy với database.** Chưa có sao chép offsite tự động: cần cron `rclone`/`rsync`/S3 từ `storage/app/backups/platform` sang nơi **độc lập** (nhà cung cấp/khu vực khác). Cho tới khi có, chưa chống được mất máy chủ. Disk S3 chưa được hỗ trợ trực tiếp (cần tải về thư mục tạm).
+- Chỉ là dump logic theo thời điểm: **RPO ≤ 24 giờ**. WAL archiving/PITR chưa có.
+- Chưa có cảnh báo chủ động khi sao lưu thất bại hoặc quá hạn (sẽ làm ở 8c); hiện chỉ có `backups.status=failed`, audit, log và mã thoát của lệnh.
+- Kiểm thử khôi phục mới đối chiếu **số dòng**; chưa đối chiếu nghiệp vụ (tổng công nợ, tồn kho) vì chưa có module — bổ sung khi có.
+- Đếm `count(*)` từng bảng khi sao lưu: chậm với bảng hàng chục triệu dòng; cần đo lại khi có dữ liệu thật.
+- Các bản `pre_restore` của Tenant (mục 7) chưa có chính sách dọn.
+- **Chưa diễn tập khôi phục thảm họa trên môi trường production thật.** Mới được kiểm thử tự động (database nguồn giả có RLS FORCE, phân vùng, UTF-8) và chạy thử trên database phát triển.

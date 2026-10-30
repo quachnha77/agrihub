@@ -34,6 +34,12 @@ Mọi cấu hình qua biến môi trường; cung cấp `.env.example` (không g
 - `SESSION_DRIVER=database` là **bắt buộc** (đăng xuất từ xa, khóa Tenant/người dùng và đổi mật khẩu đều thu hồi phiên bằng cách xóa hàng trong bảng `sessions`).
 - **Queue worker bắt buộc chạy** (`php artisan queue:work`, có sẵn service `queue` trong docker-compose): sao lưu/khôi phục chạy bằng job nền; thiếu worker thì bản sao lưu đứng ở `pending`.
 - Sao lưu: đặt `BACKUP_ENCRYPTION_KEY` (chuỗi ngẫu nhiên ≥ 32 ký tự) **và cất ở nơi tách khỏi file sao lưu**; mất khóa là không đọc lại được mọi bản sao lưu. Để trống thì dùng `APP_KEY` (khi đó đổi `APP_KEY` sẽ làm bản sao lưu cũ không dùng được). Thư mục `storage/app/backups` phải nằm trên volume bền vững và được sao chép offsite; PHP `upload_max_filesize`/`post_max_size` và `client_max_body_size` của Nginx phải ≥ `BACKUP_MAX_UPLOAD_MB`.
+- **Sao lưu toàn hệ thống (8b)** — chi tiết ở `docs/BACKUP_DISASTER_RECOVERY.md` mục 8:
+  - Cài client PostgreSQL **cùng phiên bản chính** với máy chủ (`pg_dump`, `pg_restore`) trên máy chạy queue worker/scheduler; nếu không nằm trong PATH thì đặt `BACKUP_PG_BIN`. Docker dev: image `docker/backend` đã thêm `postgresql16-client` (**chưa chạy thử** vì môi trường phát triển hiện không có Docker).
+  - Tạo role `agrihub_backup` (`NOSUPERUSER CREATEDB BYPASSRLS` + `pg_read_all_data` + là thành viên role của ứng dụng) và đặt `BACKUP_DB_USERNAME` / `BACKUP_DB_PASSWORD` **chỉ cho queue worker và scheduler**, không cho tiến trình web. Docker dev: `docker/postgres/init-app-role.sh` tạo sẵn role này khi khởi tạo volume mới; volume cũ phải tạo tay.
+  - Bật `BACKUP_PLATFORM_ENABLED=true` (mặc định đã bật khi `APP_ENV=production`). Scheduler bắt buộc chạy: 01:30 sao lưu, 03:30 dọn bản cũ, Chủ nhật 04:30 khôi phục thử.
+  - **Sao chép `storage/app/backups/platform` sang nơi lưu độc lập** (nhà cung cấp/khu vực khác) bằng cron `rclone`/`rsync`/S3. Hệ thống chưa tự làm việc này; không có nó thì bản sao lưu cùng chung số phận với máy chủ.
+  - Sau mỗi lần triển khai nên chạy `php artisan agrihub:backup:platform` rồi `php artisan agrihub:backup:verify` và xem kết quả trước khi coi bản mới là an toàn.
 
 ## Release
 Zero/low-downtime: build → migrate (tương thích ngược) → chuyển traffic. Có kế hoạch rollback. Ghi CHANGELOG.

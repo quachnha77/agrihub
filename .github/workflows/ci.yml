@@ -29,6 +29,9 @@ jobs:
       DB_DATABASE: agrihub_test
       DB_USERNAME: agrihub
       DB_PASSWORD: ci_only_password
+      # Tài khoản sao lưu RIÊNG (BYPASSRLS + CREATEDB, không phải superuser) để kiểm thử sao lưu toàn hệ thống bằng pg_dump.
+      BACKUP_DB_USERNAME: agrihub_backup
+      BACKUP_DB_PASSWORD: ci_backup_password
     steps:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2
@@ -43,7 +46,16 @@ jobs:
         run: |
           psql -h 127.0.0.1 -U postgres -v ON_ERROR_STOP=1 \
             -c "CREATE ROLE agrihub LOGIN PASSWORD 'ci_only_password' NOSUPERUSER NOBYPASSRLS" \
-            -c "CREATE DATABASE agrihub_test OWNER agrihub"
+            -c "CREATE DATABASE agrihub_test OWNER agrihub" \
+            -c "CREATE ROLE agrihub_backup LOGIN PASSWORD 'ci_backup_password' NOSUPERUSER CREATEDB BYPASSRLS" \
+            -c "GRANT pg_read_all_data TO agrihub_backup" \
+            -c "GRANT agrihub TO agrihub_backup"
+      - name: Bảo đảm pg_dump / pg_restore cùng phiên bản với máy chủ PostgreSQL 16
+        working-directory: .
+        run: |
+          pg_dump --version
+          pg_dump --version | grep -q ' 16\.' || { sudo apt-get update && sudo apt-get install -y postgresql-client-16; }
+          pg_dump --version | grep ' 16\.'
       - run: composer install --no-interaction --prefer-dist --no-progress
       - run: cp .env.example .env && php artisan key:generate
       - run: ./vendor/bin/pint --test

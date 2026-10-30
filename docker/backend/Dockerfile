@@ -1,6 +1,8 @@
 FROM php:8.4-fpm-alpine
 
-RUN apk add --no-cache git unzip icu-dev libzip-dev postgresql-dev $PHPIZE_DEPS \
+# postgresql16-client: pg_dump/pg_restore cho sao lưu toàn hệ thống. Phải CÙNG phiên bản chính với image postgres trong
+# docker-compose (pg_dump mới hơn máy chủ tạo ra bản dump mà máy chủ cũ không nạp được).
+RUN apk add --no-cache git unzip icu-dev libzip-dev postgresql-dev postgresql16-client $PHPIZE_DEPS \
     && docker-php-ext-install pdo_pgsql intl zip bcmath pcntl opcache \
     && pecl install redis \
     && docker-php-ext-enable redis \

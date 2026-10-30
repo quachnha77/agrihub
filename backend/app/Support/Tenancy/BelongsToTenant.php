@@ -20,7 +20,10 @@ trait BelongsToTenant
             $context = app(TenantContext::class);
 
             if ($context->isPlatform()) {
-                if ($model->tenant_id === null) {
+                // Ngoại lệ có chủ đích: bản ghi thuộc toàn nền tảng (vd. sao lưu toàn hệ thống) khai báo qua allowsNullTenant().
+                $global = method_exists($model, 'allowsNullTenant') && $model->allowsNullTenant();
+
+                if ($model->tenant_id === null && ! $global) {
                     throw new LogicException('Cần gán tenant_id rõ ràng khi tạo bản ghi ở chế độ nền tảng.');
                 }
 

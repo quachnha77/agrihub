@@ -23,6 +23,9 @@ class BackupResource extends JsonResource
             'row_counts' => $this->row_counts === null ? null : (object) $this->row_counts,
             'original_name' => $this->original_name,
             'error' => $this->error,
+            'verify_status' => $this->verify_status,
+            'verified_at' => $this->verified_at?->toIso8601String(),
+            'verify_error' => $this->verify_error,
             'created_at' => $this->created_at?->toIso8601String(),
             'completed_at' => $this->completed_at?->toIso8601String(),
         ];

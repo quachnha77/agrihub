@@ -34,7 +34,7 @@
 | Audit/Monitoring | `audit_logs` (partition theo tháng), `system_health_checks`, `backup_runs`, `integration_events` |
 | Online order | `online_orders` (hoặc `sales_orders.channel='online'`), `order_confirmations` (người gọi, thời điểm, ghi chú), `payment_intents`, `payment_events` (IPN thô, chữ ký đã xác minh, idempotent theo mã giao dịch) |
 | E-invoice | `einvoice_providers` (cấu hình mã hóa theo Tenant), `einvoices` (số, ký hiệu, mã tra cứu, trạng thái, XML/PDF), `einvoice_events` |
-| Backup | **Đã có:** `backups` (scope `tenant`/`platform`, loại `manual\|auto\|upload\|pre_restore`, trạng thái, đường dẫn trên disk riêng tư, kích thước, `checksum_sha256`, `format_version`, `schema_version`, `row_counts` jsonb, người tạo; RLS), `restore_runs` (bản nguồn, điểm quay lại `pre_backup_id`, người thực hiện, kết quả, lỗi; RLS), cột `tenants.restoring_at` (cờ bảo trì khi khôi phục). Bản ghi `tenant_id = NULL` (toàn hệ thống) dành cho bước 8b |
+| Backup | **Đã có:** `backups` (scope `tenant`/`platform`, loại `manual\|auto\|upload\|pre_restore`, trạng thái, đường dẫn trên disk riêng tư, kích thước, `checksum_sha256`, `format_version`, `schema_version`, `row_counts` jsonb, người tạo; RLS), `restore_runs` (bản nguồn, điểm quay lại `pre_backup_id`, người thực hiện, kết quả, lỗi; RLS), cột `tenants.restoring_at` (cờ bảo trì khi khôi phục). Bản **toàn hệ thống** (8b): `scope='platform'` và `tenant_id = NULL` (ràng buộc CHECK `backups_scope_tenant_check`: platform ⇔ tenant_id NULL; RLS khiến Tenant không thấy); thêm cột `verify_status` (`passed\|failed`), `verified_at`, `verify_error` ghi kết quả khôi phục thử; index `(scope, kind, status, created_at)` |
 | Files | `files` (đường dẫn private, checksum, owner) |
 
 ## 3. Quy tắc kho (quan trọng)

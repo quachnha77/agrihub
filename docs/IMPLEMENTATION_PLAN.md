@@ -14,7 +14,7 @@ Cập nhật: 2026-10-30 · Kết quả khảo sát: **repository trống** (kh�
 | Quản lý người dùng của Tenant | **Completed** (tạo/sửa/khóa/xóa mềm, gán vai trò + chi nhánh, mật khẩu tạm, đổi mật khẩu) |
 | Subscription & Billing | **Completed** phần gói/thuê bao, giới hạn user & chi nhánh, hết hạn → **dừng sử dụng, chỉ nhân viên AgriHub mở lại** (gia hạn hoặc reopen tạm thời), dùng thử 7 ngày, gia hạn thủ công, hàng đợi liên hệ, banner nhắc. Còn lại: cổng thanh toán tự động, nhắc Zalo/SMS, báo cáo doanh thu, kiểm tra dung lượng. **Giá gói là giả định, chờ xác nhận** |
 | Audit Log | **Completed** hạ tầng (append-only, phân vùng, RLS, API xem, retention); các module nghiệp vụ sẽ gắn sự kiện khi được làm |
-| Backup / Monitoring | **In Progress** – 8a **Completed**: sao lưu/khôi phục theo Tenant (mã hóa, Export/Import, điểm quay lại, xác nhận 2 bước, bảo trì, Owner + Super Admin). Còn lại: 8b sao lưu toàn hệ thống `pg_dump` + lịch tự động + retention + kiểm thử restore tự động; 8c monitoring/health/cảnh báo |
+| Backup / Monitoring | **In Progress** – 8a **Completed**: sao lưu/khôi phục theo Tenant (mã hóa, Export/Import, điểm quay lại, xác nhận 2 bước, bảo trì, Owner + Super Admin). 8b **Completed**: sao lưu toàn hệ thống `pg_dump` (tài khoản riêng, mã hóa theo luồng, đối chiếu số dòng theo snapshot), lịch tự động, retention 30 ngày/12 tuần/12 tháng, khôi phục thử vào database tạm hằng tuần, khôi phục thảm họa bằng dòng lệnh vào database mới. **Còn thiếu:** sao chép offsite, WAL/PITR, diễn tập trên production. Còn lại: 8c monitoring/health/cảnh báo |
 | Customers, Suppliers, Products | Missing |
 | Inventory, Purchase, Sales | Missing |
 | Receivables / Payments / Cashbook | Missing |
@@ -38,7 +38,7 @@ Completed: tài liệu · In Progress: khung dự án · Missing: toàn bộ mod
 5. ✅ Audit Log (service dùng chung).
 6. ✅ Platform Admin: quản lý Tenant, onboarding, quản lý người dùng, phiên hỗ trợ (impersonation chỉ đọc).
 7. ✅ Subscription & Billing + enforcement read-only/giới hạn + nhắc gia hạn (thanh toán tự động và nhắc qua Zalo/SMS làm sau cùng với Notification/Payment Gateway).
-8. Backup + Monitoring, chia nhỏ: **8a ✅ sao lưu/khôi phục theo Tenant (API import/export)**; 8b sao lưu toàn hệ thống (`pg_dump`), lịch tự động, retention, kiểm thử restore; 8c monitoring/health/cảnh báo.
+8. Backup + Monitoring, chia nhỏ: **8a ✅ sao lưu/khôi phục theo Tenant (API import/export)**; **8b ✅ sao lưu toàn hệ thống (`pg_dump`), lịch tự động, retention, kiểm thử restore**; 8c monitoring/health/cảnh báo (gồm cảnh báo khi sao lưu thất bại/quá hạn).
 9. Frontend shell: đăng nhập, layout, router, i18n, guard quyền.
 
 **Giai đoạn 2 – Business Core** (thứ tự): Catalog → Customers/Suppliers → Inventory (sổ kho) → Purchase → Sales (chứng từ/hóa đơn nội bộ) → Receivables/Payments → Cashbook. Nền tảng Notification (in-app + SMS) làm sớm ở Giai đoạn 1 vì billing/cảnh báo dùng chung.
