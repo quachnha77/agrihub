@@ -29,7 +29,7 @@
 | `/portal/*` | Cổng khách hàng (guard riêng) | 3 |
 | `/shop/{tenant}/*` | Đặt hàng online công khai (rate limit + captcha) | 3 |
 | `/payments/webhooks/{gateway}` | IPN/webhook ngân hàng, MoMo: xác minh chữ ký, idempotent | 3 |
-| `/einvoices/*` | Phát hành/tra cứu/thay thế HĐĐT | 2 |
+| `/einvoices/*` | Phát hành/tra cứu/thay thế HĐĐT (Tenant tự cấu hình nhà cung cấp) | 4 |
 | `/backups/*` | Danh sách, tạo, export, import/restore (quyền quản trị) | 1 |
 | `/notifications/*` | In-app, mẫu, lịch sử Zalo/SMS | 1 |
 | `/reports/*`, `/exports/*` | Báo cáo, xuất file (job bất đồng bộ) | 3 |

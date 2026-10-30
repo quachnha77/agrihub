@@ -34,7 +34,7 @@ Mục tiêu tham khảo: RTO ≤ 4 giờ, RPO ≤ 24 giờ (dump) / ≤ 15 phút
 ## 6. Giao diện Backup/Restore cho quản trị viên (đã chốt 2026-10-30)
 - Màn hình danh sách backup **theo ngày/giờ** (loại, kích thước, checksum, trạng thái, người tạo).
 - **Tạo backup thủ công**, **Export** (tải file đã mã hóa), **Import** (tải lên file backup để restore).
-- Phạm vi: Super Admin → toàn hệ thống; Tenant Owner → chỉ dữ liệu Tenant của mình (đề xuất, *chờ xác nhận*).
+- Phạm vi (đã chốt: cả hai): Super Admin → toàn hệ thống hoặc chọn một Tenant; Tenant Owner → chỉ dữ liệu Tenant của mình.
 - Quy tắc an toàn khi Import/Restore:
   1. Chỉ chấp nhận file do AgriHub tạo (chữ ký + checksum + phiên bản schema); từ chối file hỏng/không khớp.
   2. Tự động tạo **backup trước khi restore** (điểm quay lại).

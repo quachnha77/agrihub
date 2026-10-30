@@ -28,7 +28,7 @@ Thực thể tổ chức: **Platform Admin → Tenant → Branch → User**; **C
 | 5.17 | Backup & DR | 1 | Xem BACKUP_DISASTER_RECOVERY.md |
 | 5.18 | Audit/Log/Monitoring | 1 | Xem MONITORING_LOGGING.md |
 | 5.20 | Đặt hàng online | 3 | Khách đặt hàng qua cổng; chọn thanh toán ngay (ngân hàng/MoMo) hoặc ghi công nợ; cửa hàng gọi điện xác nhận. Xem mục 6 |
-| 5.21 | Hóa đơn điện tử | 2 | Phát hành HĐĐT qua nhà cung cấp được kết nối. Xem mục 7 |
+| 5.21 | Hóa đơn điện tử | 4 (làm sau) | Mỗi Tenant tự kết nối nhà cung cấp HĐĐT bất kỳ qua adapter. Xem mục 7 |
 | 5.19 | Báo cáo | 3 | Doanh thu, lợi nhuận dự kiến, NXT, công nợ, thu chi, top KH/SP, theo nhân viên/chi nhánh; xuất Excel/PDF |
 
 ## 3. Nguyên tắc nghiệp vụ bất biến
@@ -45,7 +45,11 @@ Thực thể tổ chức: **Platform Admin → Tenant → Branch → User**; **C
 - **Không cho phép tồn kho âm** (kiểm tra trong transaction, CHECK `>= 0`).
 - **Kênh cảnh báo/thông báo**: Zalo OA, SMS, thông báo trong web khi đăng nhập (in-app).
 - **Thanh toán**: cổng ngân hàng + MoMo.
-- **Hóa đơn điện tử**: bắt buộc hỗ trợ.
+- **Hóa đơn điện tử**: hỗ trợ mọi nhà cung cấp, do từng Tenant tự cấu hình; **phát triển sau** (không chặn các giai đoạn đầu).
+- **Giá subscription**: tính theo user, theo tháng hoặc năm; **thanh toán năm rẻ hơn** thanh toán tháng.
+- **Hết hạn/gia hạn**: hệ thống chỉ **thông báo**; nhân viên AgriHub liên hệ khách để gia hạn/hỗ trợ (Super Admin gia hạn thủ công).
+- **Backup/Restore**: cả Super Admin và Tenant Owner.
+- Đây là hệ thống mới, không cần import dữ liệu từ phần mềm cũ.
 - **Backup/Restore**: có giao diện cho quản trị viên (xem BACKUP_DISASTER_RECOVERY.md).
 
 ## 5. Phi chức năng
@@ -61,13 +65,13 @@ Hình thức thanh toán khi đặt:
 Quy tắc:
 - Số điện thoại bắt buộc, được kiểm tra định dạng; ghi nhận thời điểm và người gọi xác nhận (audit).
 - Đơn chờ quá thời hạn cấu hình tự hết hạn; nếu đã thanh toán mà bị từ chối thì đi quy trình hoàn tiền (không tự động xóa).
-- Tồn kho: giữ chỗ (reserve) khi cửa hàng xác nhận (mặc định, cấu hình được); không bao giờ để tồn âm.
+- Tồn kho: **chỉ trừ kho khi cửa hàng xác nhận đơn** (đã chốt). Đơn chưa xác nhận không giữ chỗ, không ảnh hưởng tồn. Nếu lúc xác nhận không đủ hàng → không cho xác nhận (hoặc xác nhận một phần có sự đồng ý của khách); không bao giờ để tồn âm. Đơn đã thanh toán online mà bị từ chối/thiếu hàng → hoàn tiền.
 - Chống spam/đặt trùng: rate limit, captcha, Idempotency-Key.
 - Khách đặt qua trang cửa hàng của Tenant (`/shop/{tenant}`) hoặc cổng khách hàng; Tenant xác định từ cửa hàng được truy cập, các thao tác nội bộ vẫn lấy Tenant từ phiên đăng nhập.
 - Thông báo xác nhận qua Zalo OA/SMS.
 
 ## 7. Hóa đơn điện tử (5.21)
-Tuân thủ NĐ 123/2020/NĐ-CP, TT 78/2021/TT-BTC. Không tự ký/phát hành: tích hợp qua **adapter** với nhà cung cấp HĐĐT (VNPT, Viettel, MISA, MatBao… – chọn sau). Lưu mã tra cứu, số/ký hiệu, trạng thái (nháp, đã phát hành, thay thế, điều chỉnh, hủy) và file XML/PDF. Hóa đơn đã phát hành không sửa; dùng thay thế/điều chỉnh.
+Tuân thủ NĐ 123/2020/NĐ-CP, TT 78/2021/TT-BTC. Không tự ký/phát hành: tích hợp qua **adapter chung (interface `EInvoiceProvider`)** để hỗ trợ **mọi nhà cung cấp** (VNPT, Viettel, MISA, MatBao, …). **Mỗi Tenant tự chọn nhà cung cấp và nhập thông tin kết nối** (lưu mã hóa). Thêm nhà cung cấp mới = thêm một adapter, không đổi lõi. Phát triển ở giai đoạn sau; trước đó bán hàng dùng chứng từ/hóa đơn nội bộ. Lưu mã tra cứu, số/ký hiệu, trạng thái (nháp, đã phát hành, thay thế, điều chỉnh, hủy) và file XML/PDF. Hóa đơn đã phát hành không sửa; dùng thay thế/điều chỉnh.
 
 ## 8. Câu hỏi mở (cần chủ sản phẩm xác nhận)
 Xem mục "Quyết định cần xác nhận" trong [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).

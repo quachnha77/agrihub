@@ -39,7 +39,7 @@
 
 ## 3. Quy tắc kho (quan trọng)
 - `stock_movements`: `tenant_id, branch_id, warehouse_id, product_id, batch_id, quantity_delta, unit_cost, movement_type, source_type/source_id, performed_by, performed_at, note`. **Chỉ INSERT**; chặn UPDATE/DELETE bằng trigger.
-- `stock_balances` cập nhật trong cùng transaction với movement (khóa dòng `SELECT … FOR UPDATE`), có CHECK `>= 0`. **Không cho phép tồn âm** (đã chốt); thêm `reserved_quantity` cho đơn online đã xác nhận.
+- `stock_balances` cập nhật trong cùng transaction với movement (khóa dòng `SELECT … FOR UPDATE`), có CHECK `>= 0`. **Không cho phép tồn âm** (đã chốt).
 - Xuất kho ưu tiên FEFO theo HSD (cấu hình).
 
 ## 4. Quy tắc công nợ

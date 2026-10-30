@@ -40,11 +40,11 @@ Completed: 1 · In Progress: 0 · Missing: toàn bộ source code.
 8. Backup (kèm UI quản trị import/export) + Monitoring/health + cảnh báo (kèm kiểm thử restore).
 9. Frontend shell: đăng nhập, layout, router, i18n, guard quyền.
 
-**Giai đoạn 2 – Business Core** (thứ tự): Catalog → Customers/Suppliers → Inventory (sổ kho) → Purchase → Sales → Hóa đơn điện tử → Receivables/Payments → Cashbook. Nền tảng Notification (in-app + SMS) làm sớm ở Giai đoạn 1 vì billing/cảnh báo dùng chung.
+**Giai đoạn 2 – Business Core** (thứ tự): Catalog → Customers/Suppliers → Inventory (sổ kho) → Purchase → Sales (chứng từ/hóa đơn nội bộ) → Receivables/Payments → Cashbook. Nền tảng Notification (in-app + SMS) làm sớm ở Giai đoạn 1 vì billing/cảnh báo dùng chung.
 
 **Giai đoạn 3 – Advanced**: Seasons → Delivery → Customer Portal → Payment Gateway (ngân hàng/MoMo) → Đặt hàng online → Reports → Promotions → Zalo OA.
 
-**Giai đoạn 4 – Expansion**: Bank/đối soát, Financing, SMS/Email, tối ưu hiệu năng, scaling.
+**Giai đoạn 4 – Expansion**: Hóa đơn điện tử (adapter đa nhà cung cấp, Tenant tự cấu hình), Bank/đối soát, Financing, SMS/Email, tối ưu hiệu năng, scaling.
 
 Mỗi bước: phân tích → liệt kê file/DB/API → (xác nhận nếu rủi ro) → code nhỏ → test → review bảo mật → cập nhật docs → báo cáo.
 
@@ -60,14 +60,20 @@ Mỗi bước: phân tích → liệt kê file/DB/API → (xác nhận nếu r�
 - Hóa đơn điện tử (5.21).
 - Backup/restore có giao diện cho quản trị viên: lưu theo ngày, import/export.
 
+**Đã xác nhận (lượt 3, 2026-10-30):**
+- Thanh toán qua **ngân hàng và MoMo**.
+- HĐĐT: hỗ trợ tất cả nhà cung cấp, do từng Tenant cấu hình; **làm sau**.
+- Giá theo user, tháng hoặc năm; **năm rẻ hơn**. Hết hạn chỉ thông báo, nhân viên liên hệ gia hạn.
+- Đơn online **chỉ trừ kho khi được xác nhận**.
+- Backup/restore: Super Admin và Tenant Owner.
+- Hệ thống mới, **không import dữ liệu cũ**.
+
 **Còn chờ xác nhận:**
-1. Cổng ngân hàng cụ thể: VNPay, hay cổng khác / chuyển khoản VietQR có đối soát?
-2. Nhà cung cấp hóa đơn điện tử (VNPT, Viettel, MISA, MatBao…) và nhà cung cấp SMS (eSMS, SpeedSMS, Stringee…).
-3. Hosting production.
-4. Chính sách hết hạn subscription: grace period bao lâu; prorate khi đổi gói?
-5. Đơn online chưa xác nhận có giữ chỗ tồn kho không (đề xuất: chỉ giữ khi cửa hàng xác nhận).
-6. Backup/restore: "quản trị viên" là Super Admin (toàn hệ thống), Tenant Owner (dữ liệu riêng Tenant), hay cả hai? (đề xuất: cả hai, xem BACKUP_DISASTER_RECOVERY.md mục 6).
-7. Import dữ liệu từ phần mềm cũ (nếu có)?
+1. Cổng ngân hàng cụ thể (VNPay, hay chuyển khoản VietQR + đối soát, hay cả hai) — cần khi làm Payment Gateway (Giai đoạn 3), chưa chặn.
+2. Nhà cung cấp SMS (eSMS, SpeedSMS, Stringee…) — cần khi làm Notification (Giai đoạn 1).
+3. Hosting production — cần trước khi lên staging/production.
+4. Sau khi hết hạn gói: mặc định chỉ đọc có ổn không, thời gian ân hạn (nếu có)?
+5. Mức giảm giá khi trả theo năm (ví dụ 15–20%) và giá gói cụ thể.
 
 ## 4. Rủi ro
 - Rò dữ liệu chéo Tenant → giảm bằng scope + RLS + test tự động.
