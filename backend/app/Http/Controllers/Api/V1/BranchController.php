@@ -7,6 +7,7 @@ use App\Http\Problem;
 use App\Http\Requests\Api\V1\BranchRequest;
 use App\Http\Resources\Api\V1\BranchResource;
 use App\Models\Branch;
+use App\Services\Billing\SubscriptionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -20,6 +21,8 @@ use Illuminate\Support\Facades\Gate;
  */
 class BranchController extends Controller
 {
+    public function __construct(private SubscriptionService $billing) {}
+
     public function index(Request $request): AnonymousResourceCollection
     {
         Gate::authorize('viewAny', Branch::class);
@@ -55,6 +58,7 @@ class BranchController extends Controller
     public function store(BranchRequest $request): JsonResponse
     {
         Gate::authorize('create', Branch::class);
+        $this->billing->assertCanAddBranch((int) $request->user()->tenant_id);
 
         $branch = new Branch($request->validated());
         $branch->save(); // tenant_id lấy từ context, không từ request

@@ -5,11 +5,14 @@ use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BranchController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\PermissionController;
+use App\Http\Controllers\Api\V1\Platform\PlanController;
+use App\Http\Controllers\Api\V1\Platform\SubscriptionController as PlatformSubscriptionController;
 use App\Http\Controllers\Api\V1\Platform\SupportSessionController;
 use App\Http\Controllers\Api\V1\Platform\TenantController;
 use App\Http\Controllers\Api\V1\Platform\UserController as PlatformUserController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\SessionController;
+use App\Http\Controllers\Api\V1\SubscriptionController;
 use App\Http\Controllers\Api\V1\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -48,11 +51,23 @@ Route::middleware(['auth:sanctum', 'tenant.context'])->group(function () {
             Route::post('/users/{user}/reset-password', [PlatformUserController::class, 'resetPassword'])->middleware('throttle:sensitive');
 
             Route::get('/audit-logs', [AuditLogController::class, 'platformIndex']);
+
+            Route::get('/plans', [PlanController::class, 'index']);
+            Route::post('/plans', [PlanController::class, 'store']);
+            Route::patch('/plans/{plan}', [PlanController::class, 'update']);
+
+            Route::get('/subscriptions/renewals', [PlatformSubscriptionController::class, 'renewals']);
+            Route::get('/tenants/{tenant}/subscription', [PlatformSubscriptionController::class, 'show']);
+            Route::patch('/tenants/{tenant}/subscription', [PlatformSubscriptionController::class, 'update']);
+            Route::post('/tenants/{tenant}/subscription/renew', [PlatformSubscriptionController::class, 'renew']);
+            Route::post('/tenants/{tenant}/subscription/contact', [PlatformSubscriptionController::class, 'contact']);
         });
 
         // Dữ liệu của Tenant. Platform Admin chỉ vào được trong phiên hỗ trợ (chỉ đọc).
         // Quyền chi tiết do Policy kiểm tra trong từng controller.
-        Route::middleware('tenant.user')->group(function () {
+        Route::middleware(['tenant.user', 'subscription.writable'])->group(function () {
+            Route::get('/subscription', [SubscriptionController::class, 'show']);
+
             Route::apiResource('branches', BranchController::class);
 
             Route::get('/audit-logs', [AuditLogController::class, 'index']);

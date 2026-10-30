@@ -1,29 +1,61 @@
 # AgriHub – Subscription & Billing
 
-## 1. Gói dịch vụ
-Thuộc tính gói: giá/user/tháng, giá/user/năm (**giá năm rẻ hơn 12× giá tháng**, mức giảm cấu hình được), giới hạn user, chi nhánh, dung lượng lưu trữ, bật/tắt tính năng (feature flags), thời gian dùng thử.
+Trạng thái: **đã triển khai** phần gói dịch vụ, thuê bao, giới hạn, hết hạn/chỉ đọc, gia hạn thủ công, danh sách việc cần liên hệ và banner nhắc. **Chưa làm**: thanh toán tự động qua cổng (ngân hàng/MoMo), nhắc qua Zalo OA/SMS, báo cáo doanh thu (xem mục 7).
 
-## 2. Vòng đời Subscription
-`trialing → active → past_due → expired(read_only) → cancelled`
-- **Trial**: thời hạn cấu hình; không cần thanh toán.
-- **Gia hạn**: tạo kỳ mới (`subscription_periods`) khi **giao dịch thanh toán được xác minh**.
-- **Hết hạn**: hệ thống **chỉ thông báo**; nhân viên AgriHub chủ động liên hệ khách để gia hạn/hỗ trợ. Gia hạn do Super Admin ghi nhận (kèm chứng từ, có audit). Hành vi sau hết hạn (chỉ đọc hay vẫn dùng trong thời gian ân hạn) là **cấu hình nền tảng**; mặc định chỉ đọc. **Không tự xóa dữ liệu.** *Chờ xác nhận mặc định.*
-- Đổi gói / thêm user: ghi `subscription_changes`; do nhân viên xử lý thủ công khi cần (không prorate tự động ở giai đoạn đầu).
+> ⚠️ **Các con số mặc định dưới đây là GIẢ ĐỊNH, chưa được chủ sản phẩm chốt** (giá, ngày dùng thử, ân hạn, giới hạn). Tất cả cấu hình được: giá/giới hạn gói qua API `/platform/plans`, còn dùng thử/ân hạn/mốc nhắc trong `backend/config/billing.php`.
 
-## 3. Snapshot theo kỳ
-Mỗi `subscription_period` lưu: `plan_id, unit_price, user_count (snapshot), amount, currency, period_start, period_end, status`. Thay đổi giá gói sau này không ảnh hưởng kỳ cũ.
+## 1. Gói dịch vụ (`plans`, dùng chung toàn hệ thống)
+Mỗi gói: `key` (cố định, duy nhất), tên, mô tả, **giá/user/tháng** và **giá/user/năm** (VND, số nguyên), giới hạn chi nhánh (`null` = không giới hạn), dung lượng lưu trữ (MB), `is_active`, `sort_order`.
+- Giá năm do Super Admin đặt, mặc định bằng **10 tháng** (rẻ hơn 12×; tương đương giảm ~16,7%).
+- Không có xóa gói: gói đã bán còn được thuê bao tham chiếu, chỉ **ngừng bán** (`is_active=false`). Không gán được gói đã ngừng bán cho thuê bao.
+- Gói mặc định được tạo bởi migration (**giá giả định**):
 
-## 4. Thanh toán
-- `payment_transactions` trạng thái: `pending → verified | failed | refunded`.
-- **Không tự đánh dấu đã thanh toán**: chỉ khi xác minh qua webhook ký chữ ký của cổng thanh toán, hoặc Super Admin xác nhận thủ công kèm chứng từ (có audit).
-- Webhook idempotent (khóa theo mã giao dịch).
-- Cổng thanh toán: **ngân hàng + MoMo** (cổng ngân hàng cụ thể, ví dụ VNPay, *chờ xác nhận*), dùng adapter chung với thanh toán đơn online. Webhook phải xác minh chữ ký.
+| key | Tên | VND/user/tháng | VND/user/năm | Chi nhánh | Lưu trữ |
+|---|---|---|---|---|---|
+| `standard` | Tiêu chuẩn | 150.000 | 1.500.000 | 3 | 5 GB |
+| `pro` | Nâng cao | 250.000 | 2.500.000 | 10 | 50 GB |
 
-## 5. Enforcement giới hạn
-Middleware `EnforceSubscription` + kiểm tra khi tạo user/branch/upload: vượt giới hạn → từ chối rõ ràng (HTTP 402/403 với mã lỗi `plan_limit_exceeded`). Chế độ read-only chặn mọi method ghi (trừ thanh toán/gia hạn).
+## 2. Thuê bao (`subscriptions`) – mỗi Tenant đúng một
+Lưu **bản chụp** tại thời điểm cấu hình: `plan_id`, `billing_cycle` (`monthly|yearly`), `seats` (số user đã mua), `unit_price` (VND/user/kỳ), `max_branches`, `storage_mb`, `is_trial`, `period_start`, `period_end`. Đổi giá/giới hạn của gói sau này **không** đổi thuê bao đang có.
 
-## 6. Nhắc gia hạn
-Mặc định popup + thông báo (in-app, Zalo OA, SMS) ở T-15, T-7, T-3, T-1 và ngày hết hạn; cấu hình trong `platform_settings`. Scheduler hàng ngày tạo thông báo cho Tenant, đồng thời tạo **danh sách việc cần liên hệ** cho nhân viên AgriHub (tenant sắp/đã hết hạn).
+**Trạng thái được suy ra từ thời gian** (không lưu, nên không bao giờ lệch):
 
-## 7. Báo cáo Super Admin
-Doanh thu theo kỳ/gói, MRR, tenant sắp hết hạn, churn.
+| Trạng thái | Điều kiện | Hành vi |
+|---|---|---|
+| `trial` | còn hạn, `is_trial` | dùng đầy đủ |
+| `active` | còn hạn | dùng đầy đủ |
+| `grace` | quá hạn ≤ `grace_days` (mặc định **7 ngày**) | **vẫn dùng đầy đủ**, banner nhắc |
+| `expired` | quá ân hạn | **chỉ đọc**: mọi request ghi bị `402 subscription_expired`; vẫn xem được dữ liệu, đăng nhập/đăng xuất/đổi mật khẩu bình thường. **Không khóa, không xóa dữ liệu** |
+
+- Tenant mới (onboarding) tự có thuê bao **dùng thử**: `trial_days` = 14, `trial_seats` = 5, gói mặc định `standard`.
+- Tenant **chưa có thuê bao** (dữ liệu cũ/môi trường dev) không bị hạn chế.
+- Việc chặn ghi nằm ở middleware `EnforceSubscription` (alias `subscription.writable`) áp cho nhóm route dữ liệu Tenant; các route `/auth/*` nằm ngoài nên luôn dùng được. Phiên hỗ trợ của Platform Admin vốn đã chỉ đọc nên không bị ảnh hưởng.
+- Việc ghi nhận đổi gói / gia hạn **chỉ do Platform Admin** thực hiện; Tenant chỉ xem (`GET /subscription`, quyền `billing.subscription.view`, có ở Owner và Admin).
+
+## 3. Giới hạn gói (enforcement)
+- **Số user**: user `active` và chưa xóa chiếm một suất (`seats`). Tạo user mới hoặc **mở khóa** user khi đã đủ suất → `402 seat_limit_reached`. Khóa/xóa user làm trống suất.
+- **Chi nhánh**: tạo chi nhánh vượt `max_branches` → `402 branch_limit_reached`.
+- **Hạ cấu hình**: không giảm `seats` xuống dưới số user đang hoạt động, không đổi sang gói có `max_branches` thấp hơn số chi nhánh hiện có → `422 subscription_limit_exceeded`.
+- **Dung lượng** (`storage_mb`): đã lưu trong thuê bao; sẽ kiểm tra khi có module upload file (chưa có).
+
+## 4. Sổ kỳ (`subscription_periods`) – chỉ thêm, không sửa
+Mỗi lần dùng thử / gia hạn / đổi gói thêm một dòng bản chụp: `kind` (`trial|renewal|change`), gói, chu kỳ, `seats`, `unit_price`, `amount`, `period_start/end`, `paid_at`, `payment_method` (`bank_transfer|momo|cash|other`), `payment_ref`, `note`, `recorded_by`. Thay đổi giá sau này không ảnh hưởng dòng cũ.
+
+## 5. Gia hạn thủ công
+Chưa có cổng thanh toán tự động. Nhân viên AgriHub liên hệ khách, nhận tiền (chuyển khoản/MoMo/tiền mặt) rồi ghi nhận bằng `POST /platform/tenants/{id}/subscription/renew`:
+- `periods` (1..24, mặc định 1) kỳ theo chu kỳ hiện tại: tháng → +N tháng, năm → +12N tháng.
+- Còn hạn → nối tiếp từ ngày hết hạn; đã hết hạn → tính từ hôm nay (không tính bù thời gian đã ngừng dùng).
+- `amount` mặc định = `unit_price × seats × periods`; có thể nhập số khác (giảm giá/thu thiếu), ghi kèm `payment_method`, `payment_ref`, `note`.
+- Mọi thao tác ghi audit (`billing.renewed`, `billing.plan_changed`, `billing.trial_started`, `billing.contacted`); các sự kiện này thuộc Tenant nên **chủ doanh nghiệp thấy trong audit log của mình**.
+- Đổi gói / số user / chu kỳ / giá thương lượng (`PATCH …/subscription`) có hiệu lực ngay, **không đổi ngày hết hạn và không tính tiền** (không prorate tự động ở giai đoạn đầu; khoản tiền ghi khi gia hạn).
+
+## 6. Nhắc gia hạn & việc cần liên hệ
+- **Trong ứng dụng**: `GET /auth/me` trả `subscription_notice` cho người dùng Tenant – `null` khi còn xa hạn; có dữ liệu (`state`, `days_left`, `period_end`, `read_only`, `is_trial`) khi đang dùng thử, chạm mốc **15/7/3/1 ngày**, đang ân hạn hoặc đã hết hạn. Frontend dùng để hiện banner/popup khi đăng nhập.
+- **Cho nhân viên AgriHub**: `GET /platform/subscriptions/renewals` liệt kê thuê bao sắp hết hạn (trong `within_days`, mặc định 15 ngày) và đã hết hạn, hạn gần nhất lên trước, kèm điện thoại/Chủ doanh nghiệp để gọi; lọc `contacted=0|1`. Doanh nghiệp đang bị khóa không nằm trong danh sách. `POST …/subscription/contact {note}` ghi nhận đã liên hệ (đánh dấu trong danh sách); gia hạn xong thì dấu liên hệ tự xóa.
+- **Chưa làm**: gửi nhắc qua Zalo OA/SMS (chờ nền tảng Notification và chọn nhà cung cấp SMS).
+
+## 7. Còn lại (chưa triển khai)
+- Thanh toán tự động: cổng ngân hàng + MoMo, adapter chung với thanh toán đơn online; **webhook phải xác minh chữ ký, idempotent theo mã giao dịch**, không tự đánh dấu đã thanh toán khi chưa xác minh. Cổng ngân hàng cụ thể (VNPay…) *chờ xác nhận*.
+- Hóa đơn SaaS (`invoices_saas`), `payment_transactions`.
+- Báo cáo Super Admin: doanh thu theo kỳ/gói, MRR, churn.
+- Feature flags theo gói; kiểm tra `storage_mb`.

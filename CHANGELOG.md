@@ -5,6 +5,7 @@
 ## [Unreleased]
 
 ### Added
+- Subscription & Billing: `plans` (Super Admin cấu hình), `subscriptions` (bản chụp giá/giới hạn, RLS) và sổ kỳ `subscription_periods`; Tenant mới tự dùng thử 14 ngày; trạng thái trial/active/grace/expired, hết ân hạn thì **chỉ đọc** (402 `subscription_expired`); giới hạn số user và chi nhánh; gia hạn thủ công (tháng/năm), đổi gói, giá thương lượng; hàng đợi việc cần liên hệ cho nhân viên AgriHub; `subscription_notice` trong `/auth/me`; chủ doanh nghiệp thấy sự kiện billing trong audit log; 302 test. **Giá/ân hạn/dùng thử là giá trị giả định chờ xác nhận.**
 - Giai đoạn 0: khởi tạo repository và bộ tài liệu AgriHub (README, docs/*). Chưa có source code.
 - Ghi nhận quyết định: 1 user thuộc 1 Tenant; xác nhận stack và mô hình multi-tenant.
 - Chốt: không tồn kho âm, HĐĐT, cổng thanh toán ngân hàng/MoMo, kênh cảnh báo Zalo/SMS/in-app, UI backup/restore; thêm tính năng đặt hàng online.

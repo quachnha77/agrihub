@@ -19,7 +19,7 @@
 | Platform | `plans`, `plan_features`, `tenants`, `platform_settings`, `announcements` |
 | Identity/Access | `users`, `user_sessions`, `login_attempts`, `roles`, `permissions`, `role_permissions`, `user_roles`, `user_branches`, `two_factor_secrets` |
 | Tenancy | `branches`, `tenant_settings` |
-| Subscription/Billing | `subscriptions`, `subscription_periods` (snapshot số user + giá), `subscription_changes`, `invoices_saas`, `payment_transactions` (trạng thái xác minh) |
+| Subscription/Billing | **Đã có:** `plans` (toàn cục, không `tenant_id`), `subscriptions` (1 dòng/Tenant, `tenant_id` UNIQUE, bản chụp giá/giới hạn, RLS), `subscription_periods` (sổ kỳ chỉ-thêm gồm dùng thử/gia hạn/đổi gói, RLS; tiền là `bigint` VND). **Chưa có:** `invoices_saas`, `payment_transactions` (trạng thái xác minh). Trạng thái thuê bao suy ra từ `period_end`, không lưu cột |
 | Customer | `customer_groups`, `customers`, `customer_addresses`, `customer_contacts`, `customer_accounts` (portal) |
 | Supplier | `suppliers`, `supplier_contacts` |
 | Catalog | `categories`, `brands`, `units`, `products`, `product_unit_conversions`, `product_barcodes`, `product_images`, `product_prices`, `product_attributes` (JSONB cho đặc thù phân bón/thuốc BVTV/hạt giống) |

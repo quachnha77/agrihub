@@ -8,6 +8,7 @@ use App\Models\Role;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
 use App\Services\Auth\SessionRevoker;
+use App\Services\Billing\SubscriptionService;
 use App\Services\Rbac\RoleAssignmentGuard;
 use App\Support\Audit\AuditSuppression;
 use App\Support\Auth\TempPassword;
@@ -27,6 +28,7 @@ class UserService
         private RoleAssignmentGuard $roles,
         private SessionRevoker $sessions,
         private AuditLogger $audit,
+        private SubscriptionService $billing,
     ) {}
 
     /**
@@ -38,6 +40,8 @@ class UserService
      */
     public function create(User $actor, array $data): array
     {
+        $this->billing->assertCanAddUser((int) $actor->tenant_id); // hết số người dùng của gói thì dừng sớm
+
         $roles = $this->roles->resolve($data['role_ids'] ?? []);
         $this->roles->assertAssignable($actor, $roles, new Collection);
         $branches = $this->resolveBranches($data['branch_ids'] ?? []);
@@ -87,6 +91,10 @@ class UserService
 
         if ($before === $status) {
             return;
+        }
+
+        if ($status === User::STATUS_ACTIVE && $target->tenant_id !== null) {
+            $this->billing->assertCanAddUser((int) $target->tenant_id); // mở khóa cũng chiếm một suất người dùng
         }
 
         DB::transaction(function () use ($actor, $target, $status, $before, $reason) {

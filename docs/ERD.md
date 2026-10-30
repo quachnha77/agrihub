@@ -3,7 +3,7 @@
 ```mermaid
 erDiagram
   PLAN ||--o{ SUBSCRIPTION : "áp dụng"
-  TENANT ||--o{ SUBSCRIPTION : có
+  TENANT ||--o| SUBSCRIPTION : "có đúng một"
   SUBSCRIPTION ||--o{ SUBSCRIPTION_PERIOD : "kỳ thanh toán"
   TENANT ||--o{ BRANCH : có
   TENANT ||--o{ USER : có

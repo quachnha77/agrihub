@@ -12,7 +12,7 @@ Cập nhật: 2026-10-30 · Kết quả khảo sát: **repository trống** (kh�
 | User & RBAC | **Completed** (catalog quyền, 7 vai trò hệ thống, vai trò tùy chỉnh, Policy, chống leo thang quyền). Tạo/sửa user: Missing |
 | Super Admin / Tenant onboarding | **Completed** phần quản lý Tenant & người dùng (onboarding, sửa, khóa/mở khóa, phiên hỗ trợ chỉ đọc, quản lý user toàn hệ thống). Còn lại ở Subscription: gói, doanh thu, thông báo toàn hệ thống, cấu hình nền tảng |
 | Quản lý người dùng của Tenant | **Completed** (tạo/sửa/khóa/xóa mềm, gán vai trò + chi nhánh, mật khẩu tạm, đổi mật khẩu) |
-| Subscription & Billing | Missing |
+| Subscription & Billing | **Completed** phần gói/thuê bao, giới hạn user & chi nhánh, hết hạn → chỉ đọc (sau ân hạn), gia hạn thủ công, hàng đợi liên hệ, banner nhắc. Còn lại: cổng thanh toán tự động, nhắc Zalo/SMS, báo cáo doanh thu, kiểm tra dung lượng. **Giá/ân hạn/dùng thử là giả định, chờ xác nhận** |
 | Audit Log | **Completed** hạ tầng (append-only, phân vùng, RLS, API xem, retention); các module nghiệp vụ sẽ gắn sự kiện khi được làm |
 | Backup / Monitoring | Missing |
 | Customers, Suppliers, Products | Missing |
@@ -37,7 +37,7 @@ Completed: tài liệu · In Progress: khung dự án · Missing: toàn bộ mod
 4. ✅ RBAC: roles/permissions/policies + vai trò mặc định theo ma trận.
 5. ✅ Audit Log (service dùng chung).
 6. ✅ Platform Admin: quản lý Tenant, onboarding, quản lý người dùng, phiên hỗ trợ (impersonation chỉ đọc).
-7. Subscription & Billing + enforcement read-only/giới hạn + nhắc gia hạn.
+7. ✅ Subscription & Billing + enforcement read-only/giới hạn + nhắc gia hạn (thanh toán tự động và nhắc qua Zalo/SMS làm sau cùng với Notification/Payment Gateway).
 8. Backup (kèm UI quản trị import/export) + Monitoring/health + cảnh báo (kèm kiểm thử restore).
 9. Frontend shell: đăng nhập, layout, router, i18n, guard quyền.
 
@@ -73,8 +73,8 @@ Mỗi bước: phân tích → liệt kê file/DB/API → (xác nhận nếu r�
 1. Cổng ngân hàng cụ thể (VNPay, hay chuyển khoản VietQR + đối soát, hay cả hai) — cần khi làm Payment Gateway (Giai đoạn 3), chưa chặn.
 2. Nhà cung cấp SMS (eSMS, SpeedSMS, Stringee…) — cần khi làm Notification (Giai đoạn 1).
 3. Hosting production — cần trước khi lên staging/production.
-4. Sau khi hết hạn gói: mặc định chỉ đọc có ổn không, thời gian ân hạn (nếu có)?
-5. Mức giảm giá khi trả theo năm (ví dụ 15–20%) và giá gói cụ thể.
+4. **Đang dùng giả định, cần chốt:** sau khi hết hạn gói có **7 ngày ân hạn** (vẫn dùng đầy đủ), sau đó **chỉ đọc**; dùng thử **14 ngày / 5 user**. Đổi trong `backend/config/billing.php`.
+5. **Đang dùng giả định, cần chốt:** giá gói (Tiêu chuẩn 150.000 và Nâng cao 250.000 đồng/user/tháng; giá năm = 10 tháng) – chỉnh được qua `/platform/plans`.
 
 ## 4. Rủi ro
 - Rò dữ liệu chéo Tenant → giảm bằng scope + RLS + test tự động.

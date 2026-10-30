@@ -3,6 +3,7 @@
 namespace App\Http\Resources\Api\V1;
 
 use App\Models\User;
+use App\Services\Billing\SubscriptionService;
 use App\Support\Platform\SupportSession;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -44,6 +45,11 @@ class UserResource extends JsonResource
             'support_session' => $this->when(
                 $this->withPermissions && $this->is_platform_admin,
                 fn () => app(SupportSession::class)->active() ? SupportSession::present(app(SupportSession::class)->data()) : null,
+            ),
+            // Banner nhắc gia hạn / dùng thử / hết hạn cho người dùng của Tenant (null khi không cần nhắc).
+            'subscription_notice' => $this->when(
+                $this->withPermissions && ! $this->is_platform_admin && $this->tenant_id !== null,
+                fn () => ($s = app(SubscriptionService::class)->current((int) $this->tenant_id)) === null ? null : SubscriptionResource::notice($s),
             ),
             'last_login_at' => $this->last_login_at?->toIso8601String(),
         ];

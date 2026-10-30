@@ -7,6 +7,7 @@ use App\Models\Role;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
+use App\Services\Billing\SubscriptionService;
 use App\Support\Auth\TempPassword;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\Arr;
@@ -15,11 +16,11 @@ use Illuminate\Support\Str;
 
 /**
  * Onboarding một doanh nghiệp mới trong MỘT transaction: Tenant (kèm 7 vai trò hệ thống qua observer),
- * chi nhánh đầu tiên và Chủ doanh nghiệp (Owner). Lỗi ở bất kỳ bước nào thì không tạo gì cả.
+ * chi nhánh đầu tiên và Chủ doanh nghiệp (Owner) và gói dùng thử. Lỗi ở bất kỳ bước nào thì không tạo gì cả.
  */
 class TenantOnboarding
 {
-    public function __construct(private TenantContext $context, private AuditLogger $audit) {}
+    public function __construct(private TenantContext $context, private AuditLogger $audit, private SubscriptionService $billing) {}
 
     /**
      * @param  array{tenant: array<string, mixed>, owner: array<string, mixed>, branch?: ?array<string, mixed>}  $data  đã validate
@@ -55,6 +56,8 @@ class TenantOnboarding
             $owner->branches()->attach($branch->id, ['tenant_id' => $tenant->id]);
             $ownerRole = Role::where('tenant_id', $tenant->id)->where('key', Role::OWNER)->firstOrFail();
             $owner->roles()->attach($ownerRole->id, ['tenant_id' => $tenant->id]);
+
+            $this->billing->startTrial($tenant, $admin);
 
             $this->audit->record(
                 'tenant', 'onboarded', subject: $tenant, actor: $admin,
