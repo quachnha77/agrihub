@@ -42,6 +42,7 @@ docker compose exec app php artisan migrate
 API: http://localhost:8000/api/v1/health · Frontend: http://localhost:5173
 
 **Cách 2 – Chạy trực tiếp** (cần PHP 8.4 với `pdo_pgsql`, Composer, Node 24, PostgreSQL 16):
+> Không có Docker/quyền Administrator: dùng PostgreSQL bản zip ("binaries") của EDB, chạy `initdb` + `pg_ctl` trong thư mục người dùng, tạo role/database `agrihub` và `agrihub_test`. Test chạy trên PostgreSQL bằng cách đặt biến môi trường `DB_CONNECTION=pgsql`, `DB_DATABASE=agrihub_test`, … (phpunit.xml mặc định SQLite).
 ```
 cd backend && composer install && cp .env.example .env && php artisan key:generate && php artisan serve
 cd frontend && npm install && npm run dev
