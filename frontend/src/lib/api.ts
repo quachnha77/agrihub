@@ -14,14 +14,17 @@ export class ApiError extends Error {
   errors: Record<string, string[]>
   /** Số giây nên chờ trước khi thử lại (HTTP 429). */
   retryAfter: number | null
+  /** Toàn bộ nội dung lỗi của máy chủ (vd. `login_url` khi đăng nhập sai địa chỉ). */
+  extra: Record<string, unknown>
 
-  constructor(status: number, code: string, message: string, errors: Record<string, string[]> = {}, retryAfter: number | null = null) {
+  constructor(status: number, code: string, message: string, errors: Record<string, string[]> = {}, retryAfter: number | null = null, extra: Record<string, unknown> = {}) {
     super(message)
     this.name = 'ApiError'
     this.status = status
     this.code = code
     this.errors = errors
     this.retryAfter = retryAfter
+    this.extra = extra
   }
 }
 
@@ -103,6 +106,7 @@ export async function api<T = unknown>(method: string, path: string, body?: unkn
       problem.detail ?? problem.title ?? 'Có lỗi xảy ra.',
       problem.errors ?? {},
       problem.retry_after ?? (Number(response.headers.get('Retry-After')) || null),
+      (payload ?? {}) as Record<string, unknown>,
     )
 
     if (!options.silent && isSessionProblem(error.code)) {

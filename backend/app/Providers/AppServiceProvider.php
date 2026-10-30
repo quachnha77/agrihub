@@ -7,6 +7,7 @@ use App\Services\Audit\AuditLogger;
 use App\Support\Auth\LoginIdentifier;
 use App\Support\Platform\SupportSession;
 use App\Support\Rbac\Catalog;
+use App\Support\Tenancy\HostTenant;
 use App\Support\Tenancy\TenantAwareUserProvider;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -25,6 +26,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->scoped(TenantContext::class);
         $this->app->scoped(AuditLogger::class);
         $this->app->scoped(SupportSession::class);
+        $this->app->scoped(HostTenant::class);
     }
 
     public function boot(): void
@@ -45,6 +47,12 @@ class AppServiceProvider extends ServiceProvider
 
         // Thao tác nhạy cảm sinh/đổi mật khẩu (đổi mật khẩu, cấp mật khẩu tạm, tạo người dùng/doanh nghiệp): 10 lần/phút/người dùng.
         RateLimiter::for('sensitive', fn (Request $request) => Limit::perMinute((int) config('platform.rate_limits.sensitive'))->by('sensitive|'.($request->user()?->getAuthIdentifier() ?? $request->ip())));
+
+        // Mỗi doanh nghiệp một subdomain: mọi subdomain của tên miền gốc đều được coi là ứng dụng web (cookie phiên Sanctum).
+        $stateful = HostTenant::statefulDomains(config('tenancy.base_domain'), config('tenancy.url_port'));
+        if ($stateful !== []) {
+            config(['sanctum.stateful' => array_values(array_unique(array_merge((array) config('sanctum.stateful'), $stateful)))]);
+        }
 
         // Chống dò mật khẩu: theo cặp (email hoặc số điện thoại) + IP. Áp dụng cả cho tài khoản không tồn tại để không lộ thông tin.
         // Khóa dùng dạng đã chuẩn hóa nên viết số điện thoại theo kiểu khác không né được giới hạn.

@@ -3,10 +3,12 @@
 namespace App\Http\Middleware;
 
 use App\Http\Problem;
+use App\Models\User;
 use App\Services\Audit\AuditLogger;
 use App\Services\Backup\BackupService;
 use App\Services\Billing\SubscriptionService;
 use App\Support\Platform\SupportSession;
+use App\Support\Tenancy\HostTenant;
 use App\Support\Tenancy\TenantContext;
 use Closure;
 use Illuminate\Http\Request;
@@ -26,6 +28,7 @@ class SetTenantContext
         private SupportSession $support,
         private AuditLogger $audit,
         private SubscriptionService $billing,
+        private HostTenant $host,
     ) {}
 
     public function handle(Request $request, Closure $next): Response
@@ -34,6 +37,12 @@ class SetTenantContext
 
         if ($user === null) {
             return $next($request);
+        }
+
+        // Mỗi doanh nghiệp một subdomain: phiên của người dùng chỉ dùng được ở đúng địa chỉ của họ (cookie vốn chỉ theo host; đây là lớp bảo vệ thứ hai
+        // phòng khi cấu hình làm cookie bị dùng chung giữa các subdomain).
+        if ($this->mismatchesHost($user)) {
+            return Problem::response(403, 'wrong_host', 'Phiên đăng nhập này không dùng được ở địa chỉ hiện tại.');
         }
 
         try {
@@ -85,5 +94,14 @@ class SetTenantContext
             // Không để context rò sang request/job kế tiếp trên cùng kết nối.
             $this->context->clear();
         }
+    }
+
+    private function mismatchesHost(User $user): bool
+    {
+        return match ($this->host->kind()) {
+            HostTenant::TENANT => $user->is_platform_admin || $user->tenant_id !== $this->host->tenantId(),
+            HostTenant::PLATFORM => ! $user->is_platform_admin,
+            default => false,
+        };
     }
 }

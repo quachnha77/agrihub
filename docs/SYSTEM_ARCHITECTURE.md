@@ -56,5 +56,7 @@ React 19 + TypeScript + Vite + Tailwind 4. **Đã triển khai (bước 9):** kh
 
 Cấu trúc `frontend/src`: `app/` (route, gốc), `features/<module>/` (api hooks + trang + component của module), `layout/`, `pages/`, `components/ui.tsx` (Button, TextField, Alert, Modal… dùng chung), `lib/` (api client, định dạng, form), `i18n/`. Module nghiệp vụ mới thêm thư mục trong `features/`, một route lazy trong `app/routes.tsx` dưới `<RequireAccess permission="…">` và mục menu trong `layout/AppLayout.tsx`. **Ẩn menu/trang theo quyền chỉ để dẫn đường; việc chặn thật nằm ở API (Policy + RLS).** Mọi màn hình có trạng thái đang tải, rỗng và lỗi; hỗ trợ bàn phím (liên kết bỏ qua menu, Esc đóng hộp thoại) và nhãn cho trình đọc màn hình.
 
+**Quản lý doanh nghiệp (đã có giao diện):** *Người dùng* (tìm, thêm với email/số điện thoại, sửa, gán vai trò và chi nhánh, khóa/mở khóa, cấp mật khẩu tạm hiển thị một lần kèm địa chỉ đăng nhập, xóa; mọi thao tác nguy hiểm có hộp xác nhận và lý do lỗi của máy chủ hiện ngay trong hộp), *Chi nhánh* (thêm/sửa/đổi trạng thái/xóa) và *Vai trò & phân quyền* (chỉ xem; tạo/sửa vai trò tùy chỉnh làm sau). Nút và menu ẩn theo quyền; máy chủ vẫn kiểm tra lại từng thao tác (chống leo thang quyền nằm ở API). **Mỗi doanh nghiệp một subdomain:** trang đăng nhập hiển thị tên doanh nghiệp theo địa chỉ (`GET /tenant-context`), đăng nhập nhầm địa chỉ được chỉ đúng đường dẫn, subdomain không tồn tại hiện trang "Không tìm thấy doanh nghiệp".
+
 ## 7. Môi trường
 Dev / Staging / Production tách biệt (DB, secrets, storage, domain). Xem DEPLOYMENT.md.

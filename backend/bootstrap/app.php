@@ -5,6 +5,7 @@ use App\Http\Middleware\AssignRequestId;
 use App\Http\Middleware\EnforcePasswordChange;
 use App\Http\Middleware\EnsurePlatformAdmin;
 use App\Http\Middleware\EnsureTenantUser;
+use App\Http\Middleware\ResolveHostTenant;
 use App\Http\Middleware\SetTenantContext;
 use App\Http\Problem;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -41,6 +42,17 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // Mã request cho mọi yêu cầu (log, audit log, header X-Request-Id).
         $middleware->prepend(AssignRequestId::class);
+
+        // Mỗi doanh nghiệp một subdomain (config/tenancy.php): xác định địa chỉ thuộc nền tảng hay doanh nghiệp nào, từ chối địa chỉ lạ.
+        $middleware->append(ResolveHostTenant::class);
+        $middleware->prependToPriorityList(before: SubstituteBindings::class, prepend: ResolveHostTenant::class);
+
+        // Chỉ chấp nhận Host thuộc tên miền gốc (chống Host giả mạo khi sinh đường dẫn). Không áp dụng khi tính năng tắt.
+        $middleware->trustHosts(at: function (): array {
+            $base = config('tenancy.base_domain');
+
+            return $base ? array_merge(['^(.+\.)?'.preg_quote($base, '/').'$'], (array) config('tenancy.extra_trusted_hosts')) : [];
+        }, subdomains: false);
 
         // Context Tenant phải được đặt SAU xác thực và TRƯỚC route-model-binding (binding đi qua TenantScope).
         // Thứ tự: tenant.context → platform.admin (chuyển sang chế độ nền tảng) → tenant.user → password.fresh.

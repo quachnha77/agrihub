@@ -4,6 +4,7 @@ namespace App\Http\Resources\Api\V1\Platform;
 
 use App\Http\Resources\Api\V1\BranchResource;
 use App\Models\Tenant;
+use App\Support\Tenancy\HostTenant;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -16,6 +17,8 @@ class TenantResource extends JsonResource
             'id' => $this->uuid,
             'name' => $this->name,
             'slug' => $this->slug,
+            /** Địa chỉ đăng nhập riêng của doanh nghiệp (subdomain); null khi chưa đặt TENANT_BASE_DOMAIN. */
+            'url' => app(HostTenant::class)->urlFor($this->slug),
             'status' => $this->status,
             'phone' => $this->phone,
             'address' => $this->address,

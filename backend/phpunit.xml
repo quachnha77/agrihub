@@ -28,6 +28,9 @@
         <env name="DB_URL" value=""/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
+        <!-- Tính năng subdomain tắt trong test (không phụ thuộc .env của từng máy); test subdomain tự bật bằng config(). -->
+        <env name="TENANT_BASE_DOMAIN" value=""/>
+        <env name="TENANT_URL_PORT" value=""/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>

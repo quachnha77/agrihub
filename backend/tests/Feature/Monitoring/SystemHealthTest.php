@@ -266,7 +266,7 @@ class SystemHealthTest extends TestCase
         $this->assertStringContainsString('MAIL_MAILER đang là "log"', $config['summary']);
         $this->assertStringContainsString('APP_URL không dùng https', $config['summary']);
 
-        config(['app.debug' => false, 'mail.default' => 'smtp', 'app.url' => 'https://app.example.com', 'session.driver' => 'database', 'queue.default' => 'database', 'cache.default' => 'database']);
+        config(['app.debug' => false, 'mail.default' => 'smtp', 'app.url' => 'https://app.example.com', 'session.driver' => 'database', 'queue.default' => 'database', 'cache.default' => 'database', 'tenancy.base_domain' => 'agrihub.test']);
         $this->assertSame('ok', $this->part('config')['status']);
         $this->assertStringContainsString('Cấu hình production hợp lý', $this->part('config')['summary']);
     }

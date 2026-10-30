@@ -9,21 +9,36 @@ import { Alert, Button, TextField } from '../../components/ui.tsx'
 import { ApiError, post } from '../../lib/api.ts'
 import { isValidLogin } from '../../lib/phone.ts'
 import { useAuth } from './auth-context.ts'
+import { useHostContext } from './host-context.ts'
 import type { Envelope, Me } from './types.ts'
 
-/** Chọn thông báo dễ hiểu cho từng mã lỗi đăng nhập. */
-function loginErrorMessage(error: unknown, t: (key: string, options?: Record<string, unknown>) => string): string {
-  if (!(error instanceof ApiError)) return t('common.genericError')
+type TFn = (key: string, options?: Record<string, unknown>) => string
 
-  if (error.code === 'network_error') return t('common.networkError')
+interface LoginFailure {
+  message: string
+  /** Đăng nhập sai địa chỉ (subdomain): đường dẫn đúng của chính tài khoản này. */
+  loginUrl?: string
+}
+
+/** Chọn thông báo dễ hiểu cho từng mã lỗi đăng nhập. */
+function loginFailure(error: unknown, t: TFn): LoginFailure {
+  if (!(error instanceof ApiError)) return { message: t('common.genericError') }
+
+  if (error.code === 'network_error') return { message: t('common.networkError') }
 
   if (error.code === 'too_many_attempts') {
-    return t('auth.errors.too_many_attempts', { minutes: Math.max(1, Math.ceil((error.retryAfter ?? 60) / 60)) })
+    return { message: t('auth.errors.too_many_attempts', { minutes: Math.max(1, Math.ceil((error.retryAfter ?? 60) / 60)) }) }
+  }
+
+  if (error.code === 'wrong_host') {
+    const url = error.extra.login_url
+
+    return { message: t('auth.errors.wrong_host'), loginUrl: typeof url === 'string' && /^https?:\/\//.test(url) ? url : undefined }
   }
 
   const known = ['invalid_credentials', 'account_disabled', 'tenant_suspended', 'subscription_expired', 'stateful_request_required']
 
-  return known.includes(error.code) ? t(`auth.errors.${error.code}`) : t('common.genericError')
+  return { message: known.includes(error.code) ? t(`auth.errors.${error.code}`) : t('common.genericError') }
 }
 
 export default function LoginPage() {
@@ -32,7 +47,8 @@ export default function LoginPage() {
   const location = useLocation()
   const from = (location.state as { from?: { pathname: string; search?: string } } | null)?.from
   const target = from ? `${from.pathname}${from.search ?? ''}` : '/'
-  const [formError, setFormError] = useState<string | null>(null)
+  const [failure, setFailure] = useState<LoginFailure | null>(null)
+  const host = useHostContext()
 
   const schema = useMemo(
     () =>
@@ -50,12 +66,31 @@ export default function LoginPage() {
     mutationFn: (values: Values) => post<Envelope<Me>>('/auth/login', values, { silent: true }),
     // Có hồ sơ là bên dưới tự chuyển tới `target` (một nơi duy nhất quyết định đích đến).
     onSuccess: ({ data }) => auth.signIn(data),
-    onError: (error) => setFormError(loginErrorMessage(error, t)),
+    onError: (error) => setFailure(loginFailure(error, t)),
   })
 
   if (!auth.isLoading && auth.user) return <Navigate to={target} replace />
 
   const notice = auth.sessionNotice
+
+  // Subdomain không thuộc doanh nghiệp nào: không có gì để đăng nhập vào.
+  if (host.error instanceof ApiError && host.error.code === 'tenant_not_found') {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
+        <div role="alert" className="w-full max-w-sm rounded-lg border border-slate-200 bg-white p-6 text-center shadow-sm">
+          <h1 className="text-lg font-semibold text-slate-900">{t('errors.tenantNotFoundTitle')}</h1>
+          <p className="mt-2 text-sm text-slate-600">{t('errors.tenantNotFoundText')}</p>
+        </div>
+      </main>
+    )
+  }
+
+  const subtitle =
+    host.data?.kind === 'tenant' && host.data.tenant
+      ? t('auth.login.tenantSubtitle', { name: host.data.tenant.name })
+      : host.data?.kind === 'platform'
+        ? t('auth.login.platformSubtitle')
+        : t('auth.login.subtitle')
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
@@ -67,16 +102,25 @@ export default function LoginPage() {
 
         <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-lg font-semibold text-slate-900">{t('auth.login.title')}</h2>
-          <p className="mb-4 text-sm text-slate-600">{t('auth.login.subtitle')}</p>
+          <p className="mb-4 text-sm text-slate-600">{subtitle}</p>
 
           {notice && <Alert tone="warning" className="mb-4">{t(`auth.sessionNotice.${notice}`)}</Alert>}
-          {formError && <Alert tone="danger" className="mb-4">{formError}</Alert>}
+          {failure && (
+            <Alert tone="danger" className="mb-4">
+              {failure.message}
+              {failure.loginUrl && (
+                <a href={failure.loginUrl} className="mt-1 block font-medium underline">
+                  {t('auth.errors.openOwnAddress')}
+                </a>
+              )}
+            </Alert>
+          )}
 
           <form
             noValidate
             className="space-y-4"
             onSubmit={form.handleSubmit((values) => {
-              setFormError(null)
+              setFailure(null)
               login.mutate(values)
             })}
           >

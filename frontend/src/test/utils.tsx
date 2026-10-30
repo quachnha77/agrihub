@@ -39,6 +39,7 @@ export const problem = (status: number, code: string, title: string, extra: Reco
 export function mockApi(handlers: Record<string, Handler>) {
   const all: Record<string, Handler> = {
     'GET /sanctum/csrf-cookie': { status: 204 },
+    'GET /api/v1/tenant-context': { json: { data: { kind: 'unrestricted', tenant: null } } },
     'GET /api/v1/notifications': { json: { data: [], unread_count: 0, meta: { current_page: 1, last_page: 1, total: 0 } } },
     ...handlers,
   }

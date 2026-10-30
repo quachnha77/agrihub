@@ -266,6 +266,17 @@ class SystemHealth
             }
         }
 
+        // Mỗi doanh nghiệp một subdomain: cookie phiên phải theo từng host. SESSION_DOMAIN đặt chung làm mọi subdomain dùng chung cookie.
+        $base = config('tenancy.base_domain');
+
+        if ($base && config('session.domain')) {
+            $issues[] = [self::CRITICAL, 'SESSION_DOMAIN đang đặt ("'.config('session.domain').'"): cookie phiên bị dùng chung giữa mọi subdomain nên các doanh nghiệp không còn tách biệt phiên. Hãy để trống'];
+        }
+
+        if (! $base && app()->environment('production')) {
+            $issues[] = [self::WARNING, 'TENANT_BASE_DOMAIN chưa đặt: chưa tách doanh nghiệp theo subdomain'];
+        }
+
         $status = self::OK;
 
         foreach ($issues as [$level]) {
@@ -274,7 +285,7 @@ class SystemHealth
 
         return $this->component('config', 'Cấu hình an toàn', $status,
             $issues === [] ? (app()->environment('production') ? 'Cấu hình production hợp lý.' : 'Môi trường '.app()->environment().': chưa kiểm tra cấu hình production.') : 'Cần chú ý: '.implode('; ', array_column($issues, 1)),
-            [['Môi trường', app()->environment()], ['APP_DEBUG', config('app.debug') ? 'bật' : 'tắt'], ['Mail', (string) config('mail.default')], ['Queue', (string) config('queue.default')], ['Session', (string) config('session.driver')]]);
+            [['Môi trường', app()->environment()], ['Subdomain doanh nghiệp', $base ? "*.{$base}" : 'tắt'], ['APP_DEBUG', config('app.debug') ? 'bật' : 'tắt'], ['Mail', (string) config('mail.default')], ['Queue', (string) config('queue.default')], ['Session', (string) config('session.driver')]]);
     }
 
     private function backupsComponent(): array

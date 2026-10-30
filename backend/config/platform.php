@@ -5,10 +5,13 @@
  */
 return [
 
-    /** Slug không được dùng làm định danh Tenant (tránh trùng đường dẫn/ứng dụng của hệ thống, ví dụ /shop/{slug}). */
+    /** Slug không được dùng làm định danh Tenant (tránh trùng đường dẫn/ứng dụng của hệ thống, ví dụ /shop/{slug}) và cũng là subdomain của doanh nghiệp. */
     'reserved_slugs' => [
         'admin', 'agrihub', 'api', 'app', 'assets', 'auth', 'billing', 'dashboard', 'docs', 'help', 'login', 'logout',
         'platform', 'portal', 'register', 'shop', 'static', 'status', 'support', 'system', 'www',
+        // Cũng là subdomain: tên thường dùng cho dịch vụ khác của tên miền, nhập nhằng hoặc dễ bị lợi dụng giả mạo.
+        'autodiscover', 'cdn', 'demo', 'dev', 'ftp', 'git', 'grafana', 'imap', 'mail', 'monitor', 'ns1', 'ns2', 'pop', 'smtp',
+        'staging', 'test', 'vpn', 'webmail',
     ],
 
     /** Chi nhánh đầu tiên được tạo khi onboarding nếu không chỉ định. */

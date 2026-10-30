@@ -10,9 +10,11 @@ export default defineConfig({
   server: {
     // Gọi API Laravel qua cùng origin trong môi trường dev (tránh CORS, dùng được cookie SPA).
     // /sanctum cấp cookie CSRF cho phiên đăng nhập.
+    // changeOrigin: false là CÓ CHỦ ĐÍCH: mỗi doanh nghiệp một subdomain (vd. nong-phat.localhost:5173), máy chủ cần thấy đúng Host gốc
+    // để biết đó là doanh nghiệp nào.
     proxy: {
-      '/api': { target: apiTarget, changeOrigin: true },
-      '/sanctum': { target: apiTarget, changeOrigin: true },
+      '/api': { target: apiTarget, changeOrigin: false },
+      '/sanctum': { target: apiTarget, changeOrigin: false },
     },
   },
   test: {

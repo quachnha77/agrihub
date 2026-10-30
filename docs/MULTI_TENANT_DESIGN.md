@@ -34,6 +34,16 @@ Platform Admin xem dữ liệu của MỘT Tenant để hỗ trợ khách, với
 - Có thể hỗ trợ cả Tenant đang bị khóa.
 - Ghi dữ liệu thay mặt khách hàng (nếu sau này cần) phải là một cơ chế khác: có phê duyệt riêng, không nằm trong phiên này.
 
+## 2d. Mỗi doanh nghiệp một subdomain — đã triển khai (xác nhận 2026-10-31)
+Mỗi Tenant chạy trên `<slug>.<TENANT_BASE_DOMAIN>` (vd. `nong-phat.agrihub.vn`); Super Admin ở `admin.<gốc>` hoặc chính tên miền gốc. Slug đã duy nhất, bất biến và có danh sách tên dành riêng (`config/platform.php`: `admin`, `www`, `api`, `mail`, `smtp`…), nên chính là subdomain. Bật bằng `TENANT_BASE_DOMAIN` (để trống = tắt, một địa chỉ cho tất cả).
+- **Host KHÔNG phải nguồn quyền truy cập.** Tenant của một request vẫn chỉ lấy từ người dùng đã xác thực (mục 2). Host chỉ dùng để (1) trang đăng nhập biết đang ở doanh nghiệp nào (`GET /tenant-context`), (2) từ chối đăng nhập và phiên SAI địa chỉ. Gửi Host giả chỉ cho thấy dữ liệu của chính tài khoản của mình.
+- **Đăng nhập**: người dùng chỉ đăng nhập ở đúng subdomain của doanh nghiệp mình; Super Admin ở `admin.`/tên miền gốc. Sai địa chỉ **với mật khẩu đúng** ⇒ `403 wrong_host` kèm `login_url` (đường dẫn đúng của chính họ); mật khẩu sai hay tài khoản không tồn tại ⇒ vẫn là `401 invalid_credentials` chung (không lộ tài khoản thuộc doanh nghiệp nào). Ghi audit `login_failed` lý do `wrong_host`.
+- **Phiên**: cookie phiên chỉ theo từng host (`SESSION_DOMAIN` phải để trống); middleware `SetTenantContext` còn từ chối (`403 wrong_host`) phiên dùng ở địa chỉ không phải của người dùng — lớp bảo vệ thứ hai phòng cấu hình làm cookie bị dùng chung. Trang Sức khỏe hệ thống báo **nghiêm trọng** nếu `SESSION_DOMAIN` đang đặt trong khi bật subdomain.
+- **Địa chỉ lạ**: subdomain không có doanh nghiệp (hoặc Host ngoài tên miền gốc) ⇒ `404 tenant_not_found` cho mọi API (trừ `/health*` để cân bằng tải gọi bằng IP). `TrustHosts` chỉ chấp nhận Host thuộc tên miền gốc (+ `TENANT_EXTRA_TRUSTED_HOSTS`). Doanh nghiệp tìm theo slug có bộ nhớ đệm 30 giây (chỉ nhớ kết quả "có", nên doanh nghiệp mới dùng được ngay).
+- **Sanctum**: mọi subdomain của tên miền gốc được thêm tự động vào danh sách "ứng dụng web" (ký tự đại diện `*`); không cần CORS vì giao diện và API cùng một origin.
+- **Hiển thị**: `url` trong API doanh nghiệp (`/platform/tenants`) là địa chỉ đăng nhập riêng; giao diện nêu tên doanh nghiệp ở trang đăng nhập và địa chỉ đăng nhập khi cấp mật khẩu tạm.
+- **Chưa làm**: tên miền riêng của khách (custom domain), đổi slug (đổi subdomain), chứng chỉ TLS cho từng doanh nghiệp (dùng chứng chỉ wildcard — xem DEPLOYMENT.md).
+
 ## 3. Phòng thủ nhiều lớp (thiết kế)
 1. **Application**: `TenantScope` (global scope) + trait `BelongsToTenant` tự gán `tenant_id` khi tạo; mọi query lọc theo tenant.
 2. **Policy**: kiểm tra `resource.tenant_id == auth.tenant_id` và phạm vi Branch.

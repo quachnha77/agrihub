@@ -1,4 +1,4 @@
-import { Activity, DatabaseBackup, LayoutDashboard, LogOut, Menu, ServerCog, X, type LucideIcon } from 'lucide-react'
+import { Activity, Building2, DatabaseBackup, LayoutDashboard, LogOut, Menu, ServerCog, ShieldCheck, Users, X, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { NavLink, Outlet, useNavigate } from 'react-router'
@@ -22,6 +22,9 @@ export default function AppLayout() {
 
   const items: NavItem[] = [
     { to: '/', label: t('nav.dashboard'), icon: LayoutDashboard, visible: true, end: true },
+    { to: '/users', label: t('nav.users'), icon: Users, visible: can('tenant.user.view') },
+    { to: '/branches', label: t('nav.branches'), icon: Building2, visible: can('tenant.branch.view') },
+    { to: '/roles', label: t('nav.roles'), icon: ShieldCheck, visible: can('tenant.role.view') },
     { to: '/backups', label: t('nav.backups'), icon: DatabaseBackup, visible: can('backup.backup.view') },
     { to: '/platform/health', label: t('nav.health'), icon: Activity, visible: user?.is_platform_admin === true },
     { to: '/platform/backups', label: t('nav.platformBackups'), icon: ServerCog, visible: user?.is_platform_admin === true },

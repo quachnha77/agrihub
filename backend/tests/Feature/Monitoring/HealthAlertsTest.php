@@ -170,7 +170,7 @@ class HealthAlertsTest extends TestCase
     {
         // Cấu hình production hợp lý + đĩa rộng, để chỉ còn việc thiếu tín hiệu sống của scheduler và queue worker.
         config([
-            'monitoring.alerts_enabled' => true, 'monitoring.thresholds.disk_warn_percent' => 100, 'monitoring.thresholds.disk_critical_percent' => 101,
+            'tenancy.base_domain' => 'agrihub.test', 'monitoring.alerts_enabled' => true, 'monitoring.thresholds.disk_warn_percent' => 100, 'monitoring.thresholds.disk_critical_percent' => 101,
             'app.debug' => false, 'app.url' => 'https://app.example.com', 'mail.default' => 'smtp', 'session.driver' => 'database', 'queue.default' => 'database', 'cache.default' => 'database',
         ]);
         $admin = $this->makePlatformAdmin();

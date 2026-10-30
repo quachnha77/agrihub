@@ -17,7 +17,8 @@ Xác thực bằng cookie phiên (Sanctum stateful): gọi `GET /sanctum/csrf-co
 | Method & path | Mô tả | Lỗi chính |
 |---|---|---|
 | `GET /health`, `GET /health/ready` | Liveness / readiness (kiểm tra DB) | 503 khi DB lỗi |
-| `POST /auth/login` | `{login, password}` — `login` là **email hoặc số điện thoại Việt Nam** (`0912345678`, `0912 345 678`, `+84 912 345 678`...; `email` vẫn được nhận như tên cũ của cùng trường). Trả user kèm tenant & branches | 401 `invalid_credentials` (cùng một thông báo cho sai mật khẩu và tài khoản không tồn tại), 403 `account_disabled` / `tenant_suspended`, 429 `too_many_attempts`, 400 `stateful_request_required`, 422 (lỗi ở `errors.login`) |
+| `POST /auth/login` | `{login, password}` — `login` là **email hoặc số điện thoại Việt Nam** (`0912345678`, `0912 345 678`, `+84 912 345 678`...; `email` vẫn được nhận như tên cũ của cùng trường). Trả user kèm tenant & branches | 401 `invalid_credentials` (cùng một thông báo cho sai mật khẩu và tài khoản không tồn tại), 403 `account_disabled` / `tenant_suspended`, 429 `too_many_attempts`, 400 `stateful_request_required`, 422 (lỗi ở `errors.login`), **403 `wrong_host`** (bật subdomain: tài khoản không thuộc địa chỉ này; chỉ trả khi mật khẩu đúng, kèm `login_url`), 404 `tenant_not_found` |
+| `GET /tenant-context` | **Công khai**: địa chỉ đang truy cập là của nền tảng hay doanh nghiệp nào `{data:{kind: platform\|tenant\|unrestricted, tenant:{name, slug}\|null}}` (để trang đăng nhập hiển thị đúng tên). Có giới hạn tốc độ | 404 `tenant_not_found` (subdomain không có doanh nghiệp / Host ngoài tên miền gốc) |
 | `POST /auth/logout` | Kết thúc phiên (204) | |
 | `GET /auth/me` | Hồ sơ người dùng hiện tại | 401 |
 | `GET /auth/sessions` | Danh sách thiết bị/phiên của chính mình (định danh là mã băm, không lộ session id) | |

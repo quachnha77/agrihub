@@ -27,6 +27,18 @@ export const routes: RouteObject[] = [
               { index: true, element: <DashboardPage /> },
               { path: 'notifications', lazy: async () => ({ Component: (await import('../features/notifications/NotificationsPage.tsx')).default }) },
               {
+                element: <RequireAccess permission="tenant.user.view" />,
+                children: [{ path: 'users', lazy: async () => ({ Component: (await import('../features/users/UsersPage.tsx')).default }) }],
+              },
+              {
+                element: <RequireAccess permission="tenant.branch.view" />,
+                children: [{ path: 'branches', lazy: async () => ({ Component: (await import('../features/branches/BranchesPage.tsx')).default }) }],
+              },
+              {
+                element: <RequireAccess permission="tenant.role.view" />,
+                children: [{ path: 'roles', lazy: async () => ({ Component: (await import('../features/roles/RolesPage.tsx')).default }) }],
+              },
+              {
                 element: <RequireAccess permission="backup.backup.view" />,
                 children: [{ path: 'backups', lazy: async () => ({ Component: (await import('../features/backup/TenantBackupsPage.tsx')).default }) }],
               },

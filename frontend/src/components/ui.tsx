@@ -138,6 +138,74 @@ export function TextField({ label, error, hint, id, className = '', ref, ...rest
   )
 }
 
+/** Hộp xác nhận cho thao tác khó hoàn tác (khóa, xóa, cấp mật khẩu...). Lỗi hiện ngay trong hộp để người dùng đọc được. */
+export function ConfirmDialog({
+  title,
+  children,
+  confirmLabel,
+  danger = false,
+  loading = false,
+  error,
+  onConfirm,
+  onClose,
+}: {
+  title: string
+  children: ReactNode
+  confirmLabel: string
+  danger?: boolean
+  loading?: boolean
+  error?: string | null
+  onConfirm: () => void
+  onClose: () => void
+}) {
+  const { t } = useTranslation()
+
+  return (
+    <Modal title={title} onClose={onClose}>
+      <div className="space-y-4">
+        <div className="text-sm text-slate-700">{children}</div>
+        {error && <Alert tone="danger">{error}</Alert>}
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={onClose}>{t('common.cancel')}</Button>
+          <Button variant={danger ? 'danger' : 'primary'} onClick={onConfirm} loading={loading}>{confirmLabel}</Button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+/** Trước / Sau cho danh sách phân trang. */
+export function Pagination({ page, lastPage, total, onPage }: { page: number; lastPage: number; total: number; onPage: (page: number) => void }) {
+  const { t } = useTranslation()
+
+  if (lastPage <= 1) return <p className="pt-3 text-xs text-slate-500">{t('common.total', { count: total })}</p>
+
+  return (
+    <div className="flex items-center justify-between gap-2 pt-3 text-sm">
+      <span className="text-xs text-slate-500">{t('common.total', { count: total })} · {t('common.page', { page, last: lastPage })}</span>
+      <div className="flex gap-2">
+        <Button variant="secondary" disabled={page <= 1} onClick={() => onPage(page - 1)}>{t('common.previous')}</Button>
+        <Button variant="secondary" disabled={page >= lastPage} onClick={() => onPage(page + 1)}>{t('common.next')}</Button>
+      </div>
+    </div>
+  )
+}
+
+/** Hộp tích có nhãn, dùng cho danh sách chọn nhiều (vai trò, chi nhánh). */
+export function CheckboxField({ label, description, checked, onChange, disabled }: { label: string; description?: string; checked: boolean; onChange: (checked: boolean) => void; disabled?: boolean }) {
+  const id = useId()
+
+  return (
+    <div className="flex items-start gap-2">
+      <input id={id} type="checkbox" checked={checked} disabled={disabled} onChange={(event) => onChange(event.target.checked)} className="mt-1 h-4 w-4 rounded border-slate-300 text-emerald-700" />
+      <label htmlFor={id} className="text-sm text-slate-800">
+        {label}
+        {description && <span className="block text-xs text-slate-500">{description}</span>}
+      </label>
+    </div>
+  )
+}
+
 /** Hộp thoại: đóng bằng Esc hoặc bấm nền; focus vào hộp khi mở và trả lại khi đóng. */
 export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   const { t } = useTranslation()

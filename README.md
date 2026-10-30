@@ -51,6 +51,7 @@ Sau khi `php artisan migrate && php artisan db:seed --class=DevSeeder`, mở htt
 - `root@agrihub.test` – Super Admin (quản trị nền tảng: sao lưu toàn hệ thống, thông báo)
 - `owner@nong-phat.test`, `owner@vat-tu-xanh.test` – Chủ doanh nghiệp (hai Tenant demo độc lập); `admin@…`, `sales@…`, `kho@…` là các vai trò khác
 - Cũng đăng nhập được bằng **số điện thoại**: `0900000011` (owner Nông Phát), `0900000012` (admin Nông Phát), `0900000021` (owner Vật tư Xanh)... (dạng `0900 000 011` hay `+84 900 000 011` đều được).
+- **Mỗi doanh nghiệp một subdomain** (tùy chọn): đặt `TENANT_BASE_DOMAIN=localhost` và `TENANT_URL_PORT=5173` trong `backend/.env`, rồi mở `http://nong-phat.localhost:5173` (Nông Phát), `http://vat-tu-xanh.localhost:5173` (Vật tư Xanh), `http://admin.localhost:5173` (Super Admin). Khi bật, mỗi người chỉ đăng nhập được ở đúng địa chỉ của mình.
 - Super Admin tạo `root@agrihub.test` bằng `php artisan agrihub:create-platform-admin root@agrihub.test` nếu chưa có.
 - `backend/.env` cần `SANCTUM_STATEFUL_DOMAINS` có `localhost:5173` (đã có sẵn trong `.env.example`).
 ```

@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\V1\Platform\UserController as PlatformUserControlle
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\SessionController;
 use App\Http\Controllers\Api\V1\SubscriptionController;
+use App\Http\Controllers\Api\V1\TenantContextController;
 use App\Http\Controllers\Api\V1\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -25,6 +26,9 @@ use Illuminate\Support\Facades\Route;
 Route::get('/health', [HealthController::class, 'live']);
 Route::get('/health/ready', [HealthController::class, 'ready']);
 Route::get('/health/monitor', [HealthController::class, 'monitor'])->middleware('throttle:60,1');
+
+// Công khai: địa chỉ này là của nền tảng hay doanh nghiệp nào (để trang đăng nhập hiển thị đúng tên).
+Route::get('/tenant-context', [TenantContextController::class, 'show'])->middleware('throttle:60,1');
 
 Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:login');
 

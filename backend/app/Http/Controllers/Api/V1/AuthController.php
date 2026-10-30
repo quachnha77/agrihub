@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Problem;
 use App\Http\Requests\Api\V1\LoginRequest;
 use App\Http\Resources\Api\V1\UserResource;
+use App\Models\Tenant;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
 use App\Services\Auth\SessionRevoker;
@@ -13,6 +14,7 @@ use App\Services\Billing\SubscriptionService;
 use App\Support\Audit\AuditSuppression;
 use App\Support\Auth\LoginIdentifier;
 use App\Support\Auth\PasswordPolicy;
+use App\Support\Tenancy\HostTenant;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -30,7 +32,7 @@ class AuthController extends Controller
 
     private const LOCK_MINUTES = 15;
 
-    public function __construct(private TenantContext $context, private AuditLogger $audit, private SessionRevoker $sessions, private SubscriptionService $billing) {}
+    public function __construct(private TenantContext $context, private AuditLogger $audit, private SessionRevoker $sessions, private SubscriptionService $billing, private HostTenant $host) {}
 
     public function login(LoginRequest $request): JsonResponse
     {
@@ -61,6 +63,15 @@ class AuthController extends Controller
             $this->loginFailed($user, $identifier, 'invalid_credentials');
 
             return Problem::response(401, 'invalid_credentials', 'Tài khoản hoặc mật khẩu không đúng.');
+        }
+
+        // Mỗi doanh nghiệp một subdomain: chỉ nói "sai địa chỉ" khi mật khẩu đã ĐÚNG (người lạ không biết được tài khoản thuộc doanh nghiệp nào).
+        if ($this->wrongHost($user)) {
+            $this->loginFailed($user, $identifier, 'wrong_host');
+
+            return Problem::response(403, 'wrong_host', 'Tài khoản này không đăng nhập tại địa chỉ này. Hãy dùng địa chỉ riêng của doanh nghiệp bạn.', null, [
+                'login_url' => $this->correctUrl($user),
+            ]);
         }
 
         if (! $user->isActive()) {
@@ -178,6 +189,26 @@ class AuthController extends Controller
         $user->flushPermissionCache();
 
         return (new UserResource($user))->withPermissions()->response();
+    }
+
+    private function wrongHost(User $user): bool
+    {
+        return match ($this->host->kind()) {
+            HostTenant::TENANT => $user->is_platform_admin || $user->tenant_id !== $this->host->tenantId(),
+            HostTenant::PLATFORM => ! $user->is_platform_admin,
+            default => false,
+        };
+    }
+
+    private function correctUrl(User $user): ?string
+    {
+        if ($user->is_platform_admin) {
+            return $this->host->platformUrl();
+        }
+
+        $slug = $this->context->runAsPlatform(fn () => Tenant::query()->whereKey($user->tenant_id)->value('slug'));
+
+        return is_string($slug) ? $this->host->urlFor($slug) : null;
     }
 
     /** Đăng nhập thất bại: ghi cả khi email không tồn tại (không có chủ thể), không bao giờ ghi mật khẩu. */
