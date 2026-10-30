@@ -14,6 +14,7 @@ use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -51,7 +52,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->render(function (AuthenticationException $e, Request $request) use ($isApi) {
             return $isApi($request) ? Problem::response(401, 'unauthenticated', 'Chưa đăng nhập hoặc phiên đã hết hạn.') : null;
         });
-        $exceptions->render(function (AuthorizationException $e, Request $request) use ($isApi) {
+        // Laravel đổi AuthorizationException thành AccessDeniedHttpException trước khi gọi các renderer.
+        $exceptions->render(function (AccessDeniedHttpException|AuthorizationException $e, Request $request) use ($isApi) {
             return $isApi($request) ? Problem::response(403, 'forbidden', 'Bạn không có quyền thực hiện thao tác này.') : null;
         });
         $exceptions->render(function (ModelNotFoundException|NotFoundHttpException $e, Request $request) use ($isApi) {

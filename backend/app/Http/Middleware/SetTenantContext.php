@@ -19,6 +19,7 @@ class SetTenantContext
     public function handle(Request $request, Closure $next): Response
     {
         $user = $request->user();
+        $user?->flushPermissionCache(); // quyền luôn được tính lại cho mỗi request
 
         try {
             if ($user === null) {

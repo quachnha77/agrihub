@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\Rbac\RoleProvisioner;
 use App\Support\HasPublicUuid;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -17,6 +18,12 @@ class Tenant extends Model
     public const STATUS_SUSPENDED = 'suspended';
 
     protected $fillable = ['name', 'slug', 'status'];
+
+    protected static function booted(): void
+    {
+        // Mỗi Tenant mới luôn có đủ vai trò hệ thống (Owner, Admin, ...).
+        static::created(fn (Tenant $tenant) => app(RoleProvisioner::class)->provision($tenant));
+    }
 
     protected function casts(): array
     {

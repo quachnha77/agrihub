@@ -95,13 +95,15 @@ class AuthController extends Controller
     private function userResponse(User $user): JsonResponse
     {
         // Nạp quan hệ trong đúng context của user (RLS chỉ cho phép dữ liệu Tenant của họ).
-        $load = fn () => $user->load(['tenant', 'branches']);
+        $load = fn () => $user->load(['tenant', 'branches', 'roles']);
 
         $user->is_platform_admin
             ? $this->context->runAsPlatform($load)
             : $this->context->runForTenant((int) $user->tenant_id, $load);
 
-        return (new UserResource($user))->response();
+        $user->flushPermissionCache();
+
+        return (new UserResource($user))->withPermissions()->response();
     }
 
     private function registerFailure(User $user): void

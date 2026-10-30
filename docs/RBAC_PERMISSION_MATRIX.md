@@ -1,5 +1,21 @@
 # AgriHub – RBAC & Ma trận quyền
 
+> **Nguồn sự thật của ma trận là `backend/config/rbac.php`** (catalog quyền + quyền mặc định của 7 vai trò hệ thống); bảng bên dưới là bản tóm tắt thiết kế ban đầu. Test `RbacCatalogTest` kiểm tra cấu hình nhất quán.
+
+## 0. Hiện thực (đã triển khai)
+- **Bảng**: `permissions` (catalog toàn cục), `roles` / `role_permissions` / `user_roles` (theo Tenant, có RLS). Mỗi Tenant mới tự có đủ vai trò hệ thống (observer `Tenant::created` → `RoleProvisioner`).
+- **Vai trò hệ thống** (`is_system`, không xóa được): `owner`, `admin`, `branch_manager`, `accountant`, `warehouse`, `sales`, `delivery`. **Owner luôn có mọi quyền ở phạm vi tenant, không sửa được**, và được tự đồng bộ khi catalog thêm quyền. Các vai trò còn lại do Tenant tùy chỉnh được; chạy `agrihub:sync-permissions` sau khi triển khai bản có quyền mới sẽ bổ sung vai trò còn thiếu nhưng **không ghi đè** tùy chỉnh. Vai trò `customer` (cổng khách hàng) dùng guard riêng, làm ở Giai đoạn 3.
+- **Quyền hiệu lực** của user = hợp các vai trò, mỗi quyền lấy **scope rộng nhất** (`own < branch < tenant`). Mỗi quyền là một Gate ability (`Gate::allows('sales.order.create')`); `User::hasPermission($key, $minScope)`, `permissionScope($key)`.
+- **Phạm vi**: `tenant` = toàn doanh nghiệp; `branch` = các chi nhánh được gán (`user_branches`); `own` = bản ghi do chính mình tạo/được giao (áp dụng khi module nghiệp vụ tương ứng được làm).
+- **Policy** đã áp dụng: `BranchPolicy`, `RolePolicy`, `UserPolicy`. Module sau phải có Policy riêng và test ma trận.
+- **Chống leo thang quyền** (bắt buộc, có test):
+  1. Chỉ cấp được quyền nằm trong phạm vi quyền của chính mình (cả khóa lẫn scope) khi tạo/sửa vai trò → `403 permission_exceeds_privileges`.
+  2. Chỉ gán hoặc gỡ được vai trò có quyền nằm trong phạm vi của mình → `403 role_exceeds_privileges` (vì vậy chỉ Owner gán/gỡ được Owner; Admin không tự nâng quyền).
+  3. Không sửa/xóa được vai trò mạnh hơn mình; Owner bất biến; vai trò hệ thống không xóa được; vai trò còn người dùng không xóa được (409).
+  4. Không thể gỡ vai trò Owner cuối cùng đang hoạt động → `422 last_owner`.
+- Platform Admin không có quyền Tenant; quyền nền tảng (`platform.*`) làm ở bước Super Admin.
+- **Chưa làm**: ghi audit log cho thay đổi phân quyền (bước 5 – bắt buộc), cache quyền giữa các request.
+
 ## 1. Cấu trúc quyền
 Quyền = `module.resource.action`, ví dụ `sales.order.create`, `inventory.stock.adjust`, `receivable.payment.approve`.
 

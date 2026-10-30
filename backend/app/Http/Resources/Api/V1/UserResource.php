@@ -9,6 +9,16 @@ use Illuminate\Http\Resources\Json\JsonResource;
 /** @mixin User */
 class UserResource extends JsonResource
 {
+    private bool $withPermissions = false;
+
+    /** Kèm bản đồ quyền hiệu lực (chỉ dùng cho hồ sơ của chính người đăng nhập). */
+    public function withPermissions(): static
+    {
+        $this->withPermissions = true;
+
+        return $this;
+    }
+
     public function toArray(Request $request): array
     {
         return [
@@ -24,6 +34,10 @@ class UserResource extends JsonResource
                 'slug' => $this->tenant->slug,
             ]),
             'branches' => BranchResource::collection($this->whenLoaded('branches')),
+            'roles' => $this->whenLoaded('roles', fn () => $this->roles->map(fn ($r) => [
+                'id' => $r->uuid, 'key' => $r->key, 'name' => $r->name,
+            ])->values()),
+            'permissions' => $this->when($this->withPermissions, fn () => (object) $this->permissionMap()),
             'last_login_at' => $this->last_login_at?->toIso8601String(),
         ];
     }

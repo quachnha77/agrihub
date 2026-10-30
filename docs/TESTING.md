@@ -1,6 +1,6 @@
 # AgriHub – Chiến lược kiểm thử
 
-Trạng thái: 41 test (health, đăng nhập/khóa tài khoản/rate limit, quản lý phiên, **cô lập Tenant ở 3 lớp: API, Eloquent scope, PostgreSQL RLS**, lệnh tạo Platform Admin). Toàn bộ chạy trên PostgreSQL (`phpunit.xml` mặc định `pgsql` / `agrihub_test`; thông tin kết nối lấy từ `.env` hoặc biến môi trường). Bắt buộc có PostgreSQL (cục bộ 16.13 hoặc service trong CI); không dùng SQLite vì RLS/CHECK là tính năng của PostgreSQL.
+Trạng thái: 102 test (health, đăng nhập/khóa tài khoản/rate limit, quản lý phiên, **cô lập Tenant ở 3 lớp: API, Eloquent scope, PostgreSQL RLS**, lệnh tạo Platform Admin, **RBAC: tính nhất quán của catalog, quyền hiệu lực, Policy chi nhánh/vai trò/người dùng, chống leo thang quyền**). Lưu ý: data provider của PHPUnit chạy trước khi app khởi động nên không dùng được `config()`. Toàn bộ chạy trên PostgreSQL (`phpunit.xml` mặc định `pgsql` / `agrihub_test`; thông tin kết nối lấy từ `.env` hoặc biến môi trường). Bắt buộc có PostgreSQL (cục bộ 16.13 hoặc service trong CI); không dùng SQLite vì RLS/CHECK là tính năng của PostgreSQL.
 
 ## Các tầng
 | Tầng | Công cụ đề xuất | Nội dung |

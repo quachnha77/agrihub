@@ -23,7 +23,12 @@ Xác thực bằng cookie phiên (Sanctum stateful): gọi `GET /sanctum/csrf-co
 | `GET /auth/sessions` | Danh sách thiết bị/phiên của chính mình (định danh là mã băm, không lộ session id) | |
 | `DELETE /auth/sessions/{id}` | Đăng xuất một thiết bị khác | 404, 422 `cannot_revoke_current_session` |
 | `DELETE /auth/sessions` | Đăng xuất mọi thiết bị khác | |
-| `GET /branches`, `GET /branches/{id}` | Chi nhánh của Tenant hiện tại (`?q=`, `?per_page=`). **Tạm thời chưa phân quyền theo vai trò** (RBAC ở bước sau) | 404 với chi nhánh Tenant khác; 403 `tenant_context_required` với Platform Admin |
+| `GET /auth/me` | (bổ sung) kèm `roles` và `permissions` (map `key → scope`) của người đăng nhập | |
+| `GET/POST /branches`, `GET/PATCH/DELETE /branches/{id}` | Chi nhánh (`?q=`, `?per_page=`). Quyền `tenant.branch.*`; scope `branch` chỉ thấy chi nhánh được gán. Xóa mềm; 409 `branch_in_use` nếu còn user | 403 `forbidden`, 404 (Tenant khác), 422, 403 `tenant_context_required` (Platform Admin) |
+| `GET /permissions` | Catalog quyền theo resource + các scope (để dựng UI phân quyền) | 403 |
+| `GET/POST /roles`, `GET/PUT/PATCH/DELETE /roles/{id}` | Vai trò của Tenant kèm danh sách `{key, scope}`. Body tạo/sửa: `{name, description?, permissions:[{key,scope}]}` | 403 `permission_exceeds_privileges`, 409 `role_in_use`, 404, 422 |
+| `GET /users`, `GET /users/{id}` | Người dùng của Tenant (scope `tenant`/`branch`/`own`) kèm vai trò | 403, 404 |
+| `PUT /users/{id}/roles` | `{role_ids:[uuid]}` – thay toàn bộ vai trò của user | 403 `role_exceeds_privileges`, 422 `last_owner` / `validation_failed`, 404 |
 
 Giới hạn tốc độ đăng nhập: 5 lần/phút theo cặp email+IP và 20 lần/phút theo IP; khóa tài khoản 15 phút sau 5 lần sai liên tiếp (phản hồi 429 giống nhau, không lộ tài khoản có tồn tại).
 

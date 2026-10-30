@@ -2,11 +2,14 @@
 
 namespace App\Providers;
 
+use App\Models\User;
+use App\Support\Rbac\Catalog;
 use App\Support\Tenancy\TenantAwareUserProvider;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
@@ -20,6 +23,11 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // Mỗi quyền trong catalog là một Gate ability: Gate::allows('sales.order.create'), middleware can:...
+        foreach (array_keys(Catalog::permissions()) as $permission) {
+            Gate::define($permission, fn (User $user) => $user->hasPermission($permission));
+        }
+
         Auth::provider('tenant-eloquent', function ($app, array $config) {
             return new TenantAwareUserProvider($app['hash'], $config['model']);
         });
