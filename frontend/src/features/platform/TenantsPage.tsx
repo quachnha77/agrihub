@@ -2,8 +2,10 @@ import { Plus } from 'lucide-react'
 import { useDeferredValue, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
-import { Alert, Badge, Button, Card, Pagination, Spinner } from '../../components/ui.tsx'
+import { Refreshable, TableSkeleton } from '../../components/skeleton.tsx'
+import { Alert, Badge, Button, Card, Pagination } from '../../components/ui.tsx'
 import { formatDate } from '../../lib/format.ts'
+import { useClampPage } from '../../lib/pagination.ts'
 import { TemporaryPasswordDialog } from '../users/TemporaryPasswordDialog.tsx'
 import { useTenants, type TenantRow } from './api.ts'
 import { daysLabel } from './labels.ts'
@@ -22,6 +24,8 @@ export default function TenantsPage() {
   const [creating, setCreating] = useState(false)
   const [created, setCreated] = useState<{ tenant: TenantRow; password: string } | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+
+  useClampPage(tenants.data?.meta, setPage)
 
   return (
     <div className="space-y-4">
@@ -67,13 +71,13 @@ export default function TenantsPage() {
         </div>
 
         {tenants.isPending ? (
-          <div className="flex justify-center py-6"><Spinner /></div>
+          <TableSkeleton columns={6} minWidth="56rem" />
         ) : tenants.isError ? (
           <Alert tone="danger">{t('common.loadError')}</Alert>
         ) : tenants.data.data.length === 0 ? (
           <p className="py-6 text-center text-sm text-slate-500">{t('platform.tenants.empty')}</p>
         ) : (
-          <>
+          <Refreshable refreshing={tenants.isPlaceholderData}>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[56rem] text-left text-sm">
                 <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
@@ -131,7 +135,7 @@ export default function TenantsPage() {
               </table>
             </div>
             <Pagination page={tenants.data.meta.current_page} lastPage={tenants.data.meta.last_page} total={tenants.data.meta.total} onPage={setPage} />
-          </>
+          </Refreshable>
         )}
       </Card>
 

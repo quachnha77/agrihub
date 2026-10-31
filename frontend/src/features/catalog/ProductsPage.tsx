@@ -2,9 +2,11 @@ import { Copy, Eye, ListChecks, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useDeferredValue, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useLocation } from 'react-router'
-import { Alert, Badge, Button, Card, ConfirmDialog, Pagination, SelectField, Spinner } from '../../components/ui.tsx'
+import { FilterBar, Refreshable, TableSkeleton } from '../../components/skeleton.tsx'
+import { Alert, Badge, Button, Card, ConfirmDialog, Pagination, SelectField } from '../../components/ui.tsx'
 import { describeError } from '../../lib/forms.ts'
 import { formatVnd } from '../../lib/format.ts'
+import { useClampPage } from '../../lib/pagination.ts'
 import { useAuth } from '../auth/auth-context.ts'
 import { useAllBranches } from '../branches/api.ts'
 import { useCatalogList, useDeleteProduct, useProductTypes, useProducts, type Product, type ProductFilters } from './api.ts'
@@ -44,6 +46,8 @@ export default function ProductsPage() {
   const toggle = (product: Product) => setSelected((current) => (isSelected(product) ? current.filter((item) => item.id !== product.id) : [...current, product]))
   const allOnPage = rows.length > 0 && rows.every(isSelected)
   const showBranch = (branches.data?.length ?? 0) > 1
+  // Ô lọc và bảng chờ dữ liệu tham chiếu (chi nhánh/kho) rồi hiện cùng lúc, để ô lọc/cột "Chi nhánh" thêm vào muộn không làm trang dịch.
+  const loading = products.isPending || branches.isLoading
 
   async function confirmDelete() {
     if (!deleting) return
@@ -57,6 +61,8 @@ export default function ProductsPage() {
       setDeleteError(describeError(error, t))
     }
   }
+
+  useClampPage(products.data?.meta, (page) => set('page', page))
 
   return (
     <div className="space-y-4">
@@ -89,7 +95,7 @@ export default function ProductsPage() {
       )}
 
       <Card>
-        <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-7">
+        <FilterBar loading={loading} fields={['lg:col-span-2', '', '', '', '', '']} className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-7">
           <div className="lg:col-span-2">
             <label htmlFor="product-search" className="mb-1 block text-sm font-medium text-slate-800">{t('common.search')}</label>
             <input
@@ -124,7 +130,7 @@ export default function ProductsPage() {
             <option value="active">{t('catalog.status.active')}</option>
             <option value="inactive">{t('catalog.status.inactive')}</option>
           </SelectField>
-        </div>
+        </FilterBar>
 
         {canCreate && selected.length > 0 && (
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
@@ -139,14 +145,14 @@ export default function ProductsPage() {
           </div>
         )}
 
-        {products.isPending ? (
-          <div className="flex justify-center py-6"><Spinner /></div>
+        {loading ? (
+          <TableSkeleton columns={showBranch ? 9 : 8} actions minWidth="56rem" />
         ) : products.isError ? (
           <Alert tone="danger">{t('common.loadError')}</Alert>
         ) : rows.length === 0 ? (
           <p className="py-6 text-center text-sm text-slate-500">{t('catalog.empty')}</p>
         ) : (
-          <>
+          <Refreshable refreshing={products.isPlaceholderData}>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[56rem] text-left text-sm">
                 <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
@@ -222,7 +228,7 @@ export default function ProductsPage() {
               </table>
             </div>
             <Pagination page={products.data.meta.current_page} lastPage={products.data.meta.last_page} total={products.data.meta.total} onPage={(page) => set('page', page)} />
-          </>
+          </Refreshable>
         )}
       </Card>
 

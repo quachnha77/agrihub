@@ -3,7 +3,8 @@ import { useMemo, useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { z } from 'zod'
-import { Alert, Button, CheckboxField, Modal, Spinner, TextField } from '../../components/ui.tsx'
+import { ChecklistSkeleton } from '../../components/skeleton.tsx'
+import { Alert, Button, CheckboxField, Modal, TextField } from '../../components/ui.tsx'
 import { applyServerErrors, describeError } from '../../lib/forms.ts'
 import { isValidLogin, normalizePhone } from '../../lib/phone.ts'
 import { useAllBranches } from '../branches/api.ts'
@@ -95,7 +96,7 @@ export function UserDialog({ user, onClose, onCreated }: { user?: UserRow; onClo
         <fieldset>
           <legend className="mb-1 text-sm font-medium text-slate-800">{t('users.roles')}</legend>
           {roles.isPending ? (
-            <Spinner className="h-4 w-4" />
+            <ChecklistSkeleton />
           ) : roles.isError ? (
             <p className="text-xs text-slate-500">{t('users.rolesUnavailable')}</p>
           ) : (
@@ -111,7 +112,7 @@ export function UserDialog({ user, onClose, onCreated }: { user?: UserRow; onClo
         <fieldset>
           <legend className="mb-1 text-sm font-medium text-slate-800">{t('users.branches')}</legend>
           {branches.isPending ? (
-            <Spinner className="h-4 w-4" />
+            <ChecklistSkeleton />
           ) : branches.isError ? (
             <p className="text-xs text-slate-500">{t('users.branchesUnavailable')}</p>
           ) : (

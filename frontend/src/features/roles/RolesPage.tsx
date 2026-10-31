@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
-import { Alert, Badge, Card, Spinner } from '../../components/ui.tsx'
+import { CardGridSkeleton } from '../../components/skeleton.tsx'
+import { Alert, Badge, Card } from '../../components/ui.tsx'
 import { usePermissionCatalog, useRoles, type PermissionResource, type Role } from './api.ts'
 
 /** Gom quyền "resource.action" theo resource: [{ nhãn resource, ["Xem (toàn doanh nghiệp)", ...] }]. */
@@ -32,7 +33,7 @@ export default function RolesPage() {
       </div>
 
       {roles.isPending || catalog.isPending ? (
-        <div className="flex justify-center py-8"><Spinner /></div>
+        <CardGridSkeleton cards={4} lines={3} />
       ) : roles.isError || catalog.isError ? (
         <Alert tone="danger">{t('common.loadError')}</Alert>
       ) : (

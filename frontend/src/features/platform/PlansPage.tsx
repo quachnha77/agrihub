@@ -4,7 +4,8 @@ import { useMemo, useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { z } from 'zod'
-import { Alert, Badge, Button, Card, CheckboxField, Modal, Spinner, TextField } from '../../components/ui.tsx'
+import { TableSkeleton } from '../../components/skeleton.tsx'
+import { Alert, Badge, Button, Card, CheckboxField, Modal, TextField } from '../../components/ui.tsx'
 import { formatVnd } from '../../lib/format.ts'
 import { applyServerErrors, describeError } from '../../lib/forms.ts'
 import { usePlans, useSavePlan, type Plan } from './api.ts'
@@ -120,7 +121,7 @@ export default function PlansPage() {
 
       <Card>
         {plans.isPending ? (
-          <div className="flex justify-center py-6"><Spinner /></div>
+          <TableSkeleton columns={6} rows={3} actions minWidth="48rem" />
         ) : plans.isError ? (
           <Alert tone="danger">{t('common.loadError')}</Alert>
         ) : plans.data.length === 0 ? (

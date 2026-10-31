@@ -2,8 +2,10 @@ import { ArrowLeft } from 'lucide-react'
 import { useDeferredValue, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
-import { Alert, Card, Pagination, SelectField, Spinner } from '../../components/ui.tsx'
+import { FilterBar, Refreshable, TableSkeleton } from '../../components/skeleton.tsx'
+import { Alert, Card, Pagination, SelectField } from '../../components/ui.tsx'
 import { formatDateTime } from '../../lib/format.ts'
+import { useClampPage } from '../../lib/pagination.ts'
 import { DOCUMENT_TYPES, useAllWarehouses, useStockDocuments, type DocumentFilters } from './api.ts'
 import { TypeBadge } from './parts.tsx'
 
@@ -17,7 +19,11 @@ export default function StockDocumentsPage() {
   const documents = useStockDocuments({ ...filters, q: search })
   const warehouses = useAllWarehouses()
   const rows = documents.data?.data ?? []
+  // Ô lọc và bảng chờ dữ liệu tham chiếu (chi nhánh/kho) rồi hiện cùng lúc, để ô lọc/cột "Chi nhánh" thêm vào muộn không làm trang dịch.
+  const loading = documents.isPending || warehouses.isLoading
   const set = <K extends keyof DocumentFilters>(key: K, value: DocumentFilters[K]) => setFilters((current) => ({ ...current, [key]: value, page: key === 'page' ? (value as number) : 1 }))
+
+  useClampPage(documents.data?.meta, (page) => set('page', page))
 
   return (
     <div className="space-y-4">
@@ -32,7 +38,7 @@ export default function StockDocumentsPage() {
       </div>
 
       <Card>
-        <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <FilterBar loading={loading} fields={['', '', '', '', '']} className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <div>
             <label htmlFor="document-search" className="mb-1 block text-sm font-medium text-slate-800">{t('inventory.documents.code')}</label>
             <input id="document-search" type="search" value={filters.q} onChange={(event) => set('q', event.target.value)} placeholder="PN0001" className={inputClass} />
@@ -55,16 +61,16 @@ export default function StockDocumentsPage() {
             <label htmlFor="document-to" className="mb-1 block text-sm font-medium text-slate-800">{t('inventory.documents.to')}</label>
             <input id="document-to" type="date" value={filters.to} onChange={(event) => set('to', event.target.value)} className={inputClass} />
           </div>
-        </div>
+        </FilterBar>
 
-        {documents.isPending ? (
-          <div className="flex justify-center py-6"><Spinner /></div>
+        {loading ? (
+          <TableSkeleton columns={5} minWidth="44rem" />
         ) : documents.isError ? (
           <Alert tone="danger">{t('common.loadError')}</Alert>
         ) : rows.length === 0 ? (
           <p className="py-6 text-center text-sm text-slate-500">{t('inventory.documents.empty')}</p>
         ) : (
-          <>
+          <Refreshable refreshing={documents.isPlaceholderData}>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[44rem] text-left text-sm">
                 <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
@@ -93,7 +99,7 @@ export default function StockDocumentsPage() {
               </table>
             </div>
             <Pagination page={documents.data.meta.current_page} lastPage={documents.data.meta.last_page} total={documents.data.meta.total} onPage={(page) => set('page', page)} />
-          </>
+          </Refreshable>
         )}
       </Card>
     </div>

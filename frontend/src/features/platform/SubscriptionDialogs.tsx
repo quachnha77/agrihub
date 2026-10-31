@@ -3,7 +3,8 @@ import { useMemo, useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { z } from 'zod'
-import { Alert, Button, Modal, Spinner, TextField } from '../../components/ui.tsx'
+import { FieldsSkeleton } from '../../components/skeleton.tsx'
+import { Alert, Button, Modal, TextField } from '../../components/ui.tsx'
 import { formatVnd } from '../../lib/format.ts'
 import { applyServerErrors, describeError } from '../../lib/forms.ts'
 import { useConfigureSubscription, usePlans, useReopenSubscription, useRenewSubscription, type BillingCycle, type SubscriptionDetail } from './api.ts'
@@ -186,7 +187,7 @@ export function ConfigureDialog({ tenantId, subscription, onClose }: { tenantId:
   return (
     <Modal title={t('platform.subscription.configureTitle')} onClose={onClose}>
       {plans.isPending ? (
-        <div className="flex justify-center py-6"><Spinner /></div>
+        <FieldsSkeleton fields={4} columns={1} />
       ) : (
         <form onSubmit={submit} noValidate className="space-y-4">
           <p className="text-sm text-slate-600">{t('platform.subscription.configureIntro')}</p>

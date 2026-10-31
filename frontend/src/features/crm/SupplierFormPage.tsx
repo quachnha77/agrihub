@@ -4,7 +4,8 @@ import { useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useParams } from 'react-router'
-import { Alert, Badge, Button, Card, SelectField, Spinner, TextField } from '../../components/ui.tsx'
+import { FormPageSkeleton } from '../../components/skeleton.tsx'
+import { Alert, Badge, Button, Card, SelectField, TextField } from '../../components/ui.tsx'
 import { ApiError } from '../../lib/api.ts'
 import { describeError } from '../../lib/forms.ts'
 import { useAuth } from '../auth/auth-context.ts'
@@ -20,7 +21,7 @@ export default function SupplierFormPage() {
   const { id } = useParams()
   const supplier = useSupplier(id)
 
-  if (id !== undefined && supplier.isPending) return <div className="flex justify-center py-10"><Spinner /></div>
+  if (id !== undefined && supplier.isPending) return <FormPageSkeleton fields={6} />
 
   if (supplier.isError) {
     const notFound = supplier.error instanceof ApiError && (supplier.error.status === 404 || supplier.error.status === 403)

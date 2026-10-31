@@ -2,6 +2,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Upload } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { TableSkeleton } from '../../components/skeleton.tsx'
 import { Alert, Button, Card, Spinner } from '../../components/ui.tsx'
 import { describeError } from '../../lib/forms.ts'
 import { formatDateTime } from '../../lib/format.ts'
@@ -76,7 +77,7 @@ export function TenantBackupsPanel({ source, tenantName }: { source: TenantBacku
           <p className="mb-3 text-xs text-slate-500">{t('backup.admin.exportNote')}</p>
 
           {backups.isPending ? (
-            <div className="flex justify-center py-6"><Spinner /></div>
+            <TableSkeleton columns={6} rows={4} actions minWidth="40rem" />
           ) : backups.isError ? (
             <Alert tone="danger">{t('common.loadError')}</Alert>
           ) : (
@@ -87,7 +88,7 @@ export function TenantBackupsPanel({ source, tenantName }: { source: TenantBacku
 
       <Card title={t('backup.history.title')}>
         {runs.isPending ? (
-          <div className="flex justify-center py-6"><Spinner /></div>
+          <TableSkeleton columns={5} rows={3} minWidth="40rem" />
         ) : runs.isError ? (
           restoring ? null : <Alert tone="danger">{t('common.loadError')}</Alert>
         ) : (

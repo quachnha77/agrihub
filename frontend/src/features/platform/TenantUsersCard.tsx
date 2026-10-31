@@ -1,9 +1,11 @@
 import { KeyRound, Lock, LockOpen } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Alert, Badge, Button, Card, ConfirmDialog, Pagination, Spinner } from '../../components/ui.tsx'
+import { Refreshable, TableSkeleton } from '../../components/skeleton.tsx'
+import { Alert, Badge, Button, Card, ConfirmDialog, Pagination } from '../../components/ui.tsx'
 import { formatDateTime } from '../../lib/format.ts'
 import { describeError } from '../../lib/forms.ts'
+import { useClampPage } from '../../lib/pagination.ts'
 import type { UserRow } from '../users/api.ts'
 import { TemporaryPasswordDialog } from '../users/TemporaryPasswordDialog.tsx'
 import { useResetPlatformUserPassword, useSetPlatformUserStatus, useTenantUsers } from './api.ts'
@@ -44,16 +46,18 @@ export function TenantUsersCard({ tenantId, loginUrl }: { tenantId: string; logi
     setAction({ kind, user })
   }
 
+  useClampPage(users.data?.meta, setPage)
+
   return (
     <Card title={t('platform.users.title')}>
       {users.isPending ? (
-        <div className="flex justify-center py-4"><Spinner /></div>
+        <TableSkeleton columns={6} rows={4} actions minWidth="44rem" />
       ) : users.isError ? (
         <Alert tone="danger">{t('common.loadError')}</Alert>
       ) : users.data.data.length === 0 ? (
         <p className="py-4 text-center text-sm text-slate-500">{t('users.empty')}</p>
       ) : (
-        <>
+        <Refreshable refreshing={users.isPlaceholderData}>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[44rem] text-left text-sm">
               <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
@@ -95,7 +99,7 @@ export function TenantUsersCard({ tenantId, loginUrl }: { tenantId: string; logi
             </table>
           </div>
           <Pagination page={users.data.meta.current_page} lastPage={users.data.meta.last_page} total={users.data.meta.total} onPage={setPage} />
-        </>
+        </Refreshable>
       )}
 
       {action && (

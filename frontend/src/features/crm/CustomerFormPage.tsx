@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useParams } from 'react-router'
-import { Alert, Badge, Button, Card, SelectField, Spinner, TextField } from '../../components/ui.tsx'
+import { FormPageSkeleton } from '../../components/skeleton.tsx'
+import { Alert, Badge, Button, Card, SelectField, TextField } from '../../components/ui.tsx'
 import { ApiError } from '../../lib/api.ts'
 import { formatVnd } from '../../lib/format.ts'
 import { describeError } from '../../lib/forms.ts'
@@ -26,7 +27,7 @@ export default function CustomerFormPage() {
   const branches = useAllBranches()
 
   if ((id !== undefined && customer.isPending) || groups.isPending || branches.isPending) {
-    return <div className="flex justify-center py-10"><Spinner /></div>
+    return <FormPageSkeleton fields={8} />
   }
 
   if (customer.isError) {

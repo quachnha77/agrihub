@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
-import { Alert, Button, Card, Pagination, Spinner } from '../../components/ui.tsx'
+import { Refreshable, TableSkeleton } from '../../components/skeleton.tsx'
+import { Alert, Button, Card, Pagination } from '../../components/ui.tsx'
 import { formatDate, formatDateTime } from '../../lib/format.ts'
+import { useClampPage } from '../../lib/pagination.ts'
 import { useRecordContact, useRenewals, type Renewal } from './api.ts'
 import { ReasonDialog } from './ReasonDialog.tsx'
 import { daysLabel } from './labels.ts'
@@ -34,6 +36,8 @@ export default function RenewalsPage() {
   const [page, setPage] = useState(1)
   const renewals = useRenewals({ withinDays, contacted, page })
   const [contacting, setContacting] = useState<Renewal | null>(null)
+
+  useClampPage(renewals.data?.meta, setPage)
 
   return (
     <div className="space-y-4">
@@ -73,13 +77,13 @@ export default function RenewalsPage() {
         </div>
 
         {renewals.isPending ? (
-          <div className="flex justify-center py-6"><Spinner /></div>
+          <TableSkeleton columns={5} actions minWidth="56rem" />
         ) : renewals.isError ? (
           <Alert tone="danger">{t('common.loadError')}</Alert>
         ) : renewals.data.data.length === 0 ? (
           <p className="py-6 text-center text-sm text-slate-500">{t('platform.renewals.empty')}</p>
         ) : (
-          <>
+          <Refreshable refreshing={renewals.isPlaceholderData}>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[56rem] text-left text-sm">
                 <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
@@ -139,7 +143,7 @@ export default function RenewalsPage() {
               </table>
             </div>
             <Pagination page={renewals.data.meta.current_page} lastPage={renewals.data.meta.last_page} total={renewals.data.meta.total} onPage={setPage} />
-          </>
+          </Refreshable>
         )}
       </Card>
 

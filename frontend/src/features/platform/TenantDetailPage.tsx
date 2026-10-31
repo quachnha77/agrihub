@@ -2,7 +2,8 @@ import { ArrowLeft, DatabaseBackup, Eye, Pencil } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useParams } from 'react-router'
-import { Alert, Badge, Button, Card, ConfirmDialog, Spinner } from '../../components/ui.tsx'
+import { DetailPageSkeleton } from '../../components/skeleton.tsx'
+import { Alert, Badge, Button, Card, ConfirmDialog } from '../../components/ui.tsx'
 import { ApiError } from '../../lib/api.ts'
 import { formatDate, formatDateTime } from '../../lib/format.ts'
 import { describeError } from '../../lib/forms.ts'
@@ -33,7 +34,7 @@ export default function TenantDetailPage() {
   const [dialog, setDialog] = useState<Dialog>(null)
   const [error, setError] = useState<string | null>(null)
 
-  if (tenant.isPending) return <div className="flex justify-center py-10"><Spinner /></div>
+  if (tenant.isPending) return <DetailPageSkeleton />
 
   if (tenant.isError) {
     const notFound = tenant.error instanceof ApiError && tenant.error.status === 404

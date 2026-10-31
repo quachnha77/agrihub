@@ -58,17 +58,6 @@ export function Spinner({ className = 'h-5 w-5' }: { className?: string }) {
   )
 }
 
-export function FullPageSpinner() {
-  const { t } = useTranslation()
-
-  return (
-    <div role="status" className="flex min-h-screen items-center justify-center gap-3 text-slate-600">
-      <Spinner />
-      <span>{t('common.loading')}</span>
-    </div>
-  )
-}
-
 export function Alert({ tone = 'info', title, children, className = '' }: { tone?: Tone; title?: string; children?: ReactNode; className?: string }) {
   return (
     <div role={tone === 'danger' || tone === 'warning' ? 'alert' : 'status'} className={`rounded-md border px-4 py-3 text-sm ${toneClasses[tone]} ${className}`}>
@@ -219,14 +208,14 @@ export function ConfirmDialog({
   )
 }
 
-/** Trước / Sau cho danh sách phân trang. */
+/** Trước / Sau cho danh sách phân trang. Chân trang luôn cao bằng một hàng nút (kể cả khi chỉ có một trang) nên không đổi chiều cao khi sang trang. */
 export function Pagination({ page, lastPage, total, onPage }: { page: number; lastPage: number; total: number; onPage: (page: number) => void }) {
   const { t } = useTranslation()
 
-  if (lastPage <= 1) return <p className="pt-3 text-xs text-slate-500">{t('common.total', { count: total })}</p>
+  if (lastPage <= 1) return <p className="flex min-h-12 items-center pt-3 text-xs text-slate-500">{t('common.total', { count: total })}</p>
 
   return (
-    <div className="flex items-center justify-between gap-2 pt-3 text-sm">
+    <div className="flex min-h-12 items-center justify-between gap-2 pt-3 text-sm">
       <span className="text-xs text-slate-500">{t('common.total', { count: total })} · {t('common.page', { page, last: lastPage })}</span>
       <div className="flex gap-2">
         <Button variant="secondary" disabled={page <= 1} onClick={() => onPage(page - 1)}>{t('common.previous')}</Button>

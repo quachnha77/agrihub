@@ -1,7 +1,8 @@
 import { ArrowLeft } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Link, useLocation, useParams } from 'react-router'
-import { Alert, Card, Spinner } from '../../components/ui.tsx'
+import { DetailPageSkeleton } from '../../components/skeleton.tsx'
+import { Alert, Card } from '../../components/ui.tsx'
 import { ApiError } from '../../lib/api.ts'
 import { formatDateTime, formatQuantity, formatVnd } from '../../lib/format.ts'
 import { useStockDocument } from './api.ts'
@@ -17,7 +18,7 @@ export default function StockDocumentPage() {
   const created = (location.state as { created?: string } | null)?.created
   const document = useStockDocument(id)
 
-  if (document.isPending) return <div className="flex justify-center py-10"><Spinner /></div>
+  if (document.isPending) return <DetailPageSkeleton />
 
   if (document.isError) {
     const notFound = document.error instanceof ApiError && (document.error.status === 404 || document.error.status === 403)

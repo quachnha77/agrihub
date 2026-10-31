@@ -175,6 +175,15 @@ export function useCatalogList(kind: ListKind, enabled = true) {
   })
 }
 
+/** Một trang của danh sách (10 mục/trang) cho màn hình quản lý; các ô chọn trong biểu mẫu dùng `useCatalogList` để có đủ lựa chọn. */
+export function useCatalogListPage(kind: ListKind, page: number) {
+  return useQuery({
+    queryKey: [...LISTS, kind, 'page', page],
+    queryFn: () => get<Paginated<ListItem>>(`/${kind}?per_page=10&page=${page}`),
+    placeholderData: keepPreviousData,
+  })
+}
+
 export interface ListItemInput {
   name: string
   is_active?: boolean

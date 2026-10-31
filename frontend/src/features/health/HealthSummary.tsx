@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
-import { Alert, Card, Spinner } from '../../components/ui.tsx'
+import { LinesSkeleton } from '../../components/skeleton.tsx'
+import { Alert, Card } from '../../components/ui.tsx'
 import { useSystemHealth } from './api.ts'
 import { HealthBadge } from './HealthPage.tsx'
 
@@ -12,7 +13,7 @@ export function HealthSummary() {
   return (
     <Card title={t('dashboard.healthStatus')} actions={<Link to="/platform/health" className="text-sm font-medium text-emerald-700 hover:underline">{t('dashboard.viewDetails')}</Link>}>
       {query.isPending ? (
-        <Spinner />
+        <LinesSkeleton lines={2} />
       ) : query.isError ? (
         <Alert tone="danger">{t('common.loadError')}</Alert>
       ) : (

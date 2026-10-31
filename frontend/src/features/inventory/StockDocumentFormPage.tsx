@@ -4,7 +4,8 @@ import { useDeferredValue, useState } from 'react'
 import { useFieldArray, useForm, useWatch, type Resolver, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useSearchParams } from 'react-router'
-import { Alert, Badge, Button, Card, SelectField, Spinner, TextField } from '../../components/ui.tsx'
+import { FormPageSkeleton, ListSkeleton } from '../../components/skeleton.tsx'
+import { Alert, Badge, Button, Card, SelectField, TextField } from '../../components/ui.tsx'
 import { formatIsoDate, formatQuantity, formatVnd } from '../../lib/format.ts'
 import { describeError } from '../../lib/forms.ts'
 import { useAuth } from '../auth/auth-context.ts'
@@ -25,7 +26,7 @@ export default function StockDocumentFormPage() {
   const [params] = useSearchParams()
   const warehouses = useAllWarehouses()
 
-  if (warehouses.isPending) return <div className="flex justify-center py-10"><Spinner /></div>
+  if (warehouses.isPending) return <FormPageSkeleton fields={4} />
 
   if (warehouses.isError) {
     return (
@@ -366,7 +367,7 @@ function ProductPicker({ branchId, onPick }: { branchId: string; onPick: (produc
         </div>
       </label>
       {products.isPending ? (
-        <div className="py-2"><Spinner /></div>
+        <div className="mt-2 rounded-md border border-slate-200 px-3"><ListSkeleton rows={3} subtitle /></div>
       ) : rows.length === 0 ? (
         <p className="mt-2 text-sm text-slate-500">{t('inventory.form.noProducts')}</p>
       ) : (

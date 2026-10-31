@@ -2,8 +2,10 @@ import { Eye, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useDeferredValue, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useLocation } from 'react-router'
-import { Alert, Badge, Button, Card, ConfirmDialog, Pagination, SelectField, Spinner } from '../../components/ui.tsx'
+import { Refreshable, TableSkeleton } from '../../components/skeleton.tsx'
+import { Alert, Badge, Button, Card, ConfirmDialog, Pagination, SelectField } from '../../components/ui.tsx'
 import { describeError } from '../../lib/forms.ts'
+import { useClampPage } from '../../lib/pagination.ts'
 import { useAuth } from '../auth/auth-context.ts'
 import { useDeleteSupplier, useSuppliers, type Supplier, type SupplierFilters } from './api.ts'
 
@@ -42,6 +44,8 @@ export default function SuppliersPage() {
       setDeleteError(describeError(error, t))
     }
   }
+
+  useClampPage(suppliers.data?.meta, (page) => set('page', page))
 
   return (
     <div className="space-y-4">
@@ -88,13 +92,13 @@ export default function SuppliersPage() {
         </div>
 
         {suppliers.isPending ? (
-          <div className="flex justify-center py-6"><Spinner /></div>
+          <TableSkeleton columns={6} actions minWidth="44rem" />
         ) : suppliers.isError ? (
           <Alert tone="danger">{t('common.loadError')}</Alert>
         ) : rows.length === 0 ? (
           <p className="py-6 text-center text-sm text-slate-500">{t('crm.suppliers.empty')}</p>
         ) : (
-          <>
+          <Refreshable refreshing={suppliers.isPlaceholderData}>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[44rem] text-left text-sm">
                 <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
@@ -138,7 +142,7 @@ export default function SuppliersPage() {
               </table>
             </div>
             <Pagination page={suppliers.data.meta.current_page} lastPage={suppliers.data.meta.last_page} total={suppliers.data.meta.total} onPage={(page) => set('page', page)} />
-          </>
+          </Refreshable>
         )}
       </Card>
 

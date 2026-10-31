@@ -155,10 +155,18 @@ function params(values: object, perPage: number): URLSearchParams {
   return query
 }
 
-export function useWarehouses(filters: { q: string; branch: string; status: string } = { q: '', branch: '', status: '' }) {
+export interface WarehouseFilters {
+  q: string
+  branch: string
+  status: string
+  page: number
+}
+
+/** Danh sách kho phân trang (20 kho/trang); các ô chọn kho dùng `useAllWarehouses`. */
+export function useWarehouses(filters: WarehouseFilters = { q: '', branch: '', status: '', page: 1 }) {
   return useQuery({
     queryKey: [...WAREHOUSES, 'list', filters],
-    queryFn: () => get<Paginated<Warehouse>>(`/warehouses?${params(filters, 100).toString()}`),
+    queryFn: () => get<Paginated<Warehouse>>(`/warehouses?${params(filters, 20).toString()}`),
     placeholderData: keepPreviousData,
   })
 }
@@ -212,11 +220,21 @@ export function useStockBalances(filters: { warehouse?: string; product?: string
   })
 }
 
-export function useStockMovements(filters: { product?: string; warehouse?: string }, enabled = true) {
+/** Một trang số dư theo lô/kho cho hộp chi tiết tồn (phân trang); ô chọn lô khi xuất dùng `useStockBalances` ở trên. */
+export function useStockBalancePage(filters: { warehouse?: string; product?: string }, page: number) {
   return useQuery({
-    queryKey: [...STOCK, 'movements', filters],
-    queryFn: async () => (await get<Paginated<StockMovement>>(`/stock/movements?${params(filters, 20).toString()}`)).data,
-    enabled,
+    queryKey: [...STOCK, 'balances', 'page', filters, page],
+    queryFn: () => get<Paginated<StockBalance>>(`/stock/balances?${params({ ...filters, page }, 10).toString()}`),
+    placeholderData: keepPreviousData,
+  })
+}
+
+/** Một trang thẻ kho (mới nhất trước) của một sản phẩm. */
+export function useStockMovementPage(filters: { product?: string; warehouse?: string }, page: number) {
+  return useQuery({
+    queryKey: [...STOCK, 'movements', filters, page],
+    queryFn: () => get<Paginated<StockMovement>>(`/stock/movements?${params({ ...filters, page }, 10).toString()}`),
+    placeholderData: keepPreviousData,
   })
 }
 

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Alert, Button, Card, Spinner } from '../../components/ui.tsx'
+import { TableSkeleton } from '../../components/skeleton.tsx'
+import { Alert, Button, Card } from '../../components/ui.tsx'
 import { ApiError } from '../../lib/api.ts'
 import { describeError } from '../../lib/forms.ts'
 import { useBackups, useCreateBackup, type BackupRow } from './api.ts'
@@ -42,7 +43,7 @@ export default function PlatformBackupsPage() {
         )}
 
         {backups.isPending ? (
-          <div className="flex justify-center py-6"><Spinner /></div>
+          <TableSkeleton columns={8} rows={4} actions minWidth="40rem" />
         ) : backups.isError ? (
           <Alert tone="danger">{t('common.loadError')}</Alert>
         ) : (

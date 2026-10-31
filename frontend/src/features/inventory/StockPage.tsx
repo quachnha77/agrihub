@@ -2,11 +2,13 @@ import { AlertTriangle, ClipboardList, Warehouse as WarehouseIcon } from 'lucide
 import { useDeferredValue, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
-import { Alert, Badge, Button, Card, Modal, Pagination, SelectField, Spinner } from '../../components/ui.tsx'
+import { FilterBar, Refreshable, StatCardsSkeleton, TableSkeleton } from '../../components/skeleton.tsx'
+import { Alert, Badge, Button, Card, Modal, Pagination, SelectField } from '../../components/ui.tsx'
 import { formatDateTime, formatQuantity, formatVnd } from '../../lib/format.ts'
+import { useClampPage } from '../../lib/pagination.ts'
 import { useAuth } from '../auth/auth-context.ts'
 import { useProductTypes } from '../catalog/api.ts'
-import { useAllWarehouses, useStockBalances, useStockMovements, useStockProducts, useStockSummary, type StockFilters, type StockProduct } from './api.ts'
+import { useAllWarehouses, useStockBalancePage, useStockMovementPage, useStockProducts, useStockSummary, type StockFilters, type StockProduct } from './api.ts'
 import { ExpiryBadge, TypeBadge } from './parts.tsx'
 
 const linkButton = 'inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium'
@@ -26,11 +28,17 @@ export default function StockPage() {
 
   const canMove = can('inventory.movement.create')
   const canAdjust = can('inventory.adjustment.create')
+  // Chỉ để giữ chỗ: thẻ "Giá trị tồn" chỉ có với người xem được giá vốn (quyền thật do máy chủ quyết định).
+  const canSeeCosts = canMove || can('report.report.view')
   const rows = products.data?.data ?? []
+  // Ô lọc và bảng chờ dữ liệu tham chiếu (chi nhánh/kho) rồi hiện cùng lúc, để ô lọc/cột "Chi nhánh" thêm vào muộn không làm trang dịch.
+  const loading = products.isPending || warehouses.isLoading
   const costs = rows.some((row) => row.avg_cost !== undefined) || summary.data?.stock_value !== undefined
   const set = <K extends keyof StockFilters>(key: K, value: StockFilters[K]) => setFilters((current) => ({ ...current, [key]: value, page: key === 'page' ? (value as number) : 1 }))
   const toggle = (key: 'stock' | 'expiry', value: string) => set(key, filters[key] === value ? '' : value)
   const warnDays = summary.data?.expiry_warning_days ?? 60
+
+  useClampPage(products.data?.meta, (page) => set('page', page))
 
   return (
     <div className="space-y-4">
@@ -62,6 +70,8 @@ export default function StockPage() {
         </div>
       )}
 
+      {summary.isPending && <StatCardsSkeleton count={canSeeCosts ? 4 : 3} />}
+
       {summary.data && (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label={t('inventory.summary.title')} role="group">
           <SummaryCard label={t('inventory.summary.low')} value={summary.data.low_products} tone="warning" active={filters.stock === 'low'} onClick={() => toggle('stock', 'low')} />
@@ -77,7 +87,7 @@ export default function StockPage() {
       )}
 
       <Card>
-        <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <FilterBar loading={loading} fields={['lg:col-span-2', '', '', '', '']} className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
           <div className="lg:col-span-2">
             <label htmlFor="stock-search" className="mb-1 block text-sm font-medium text-slate-800">{t('common.search')}</label>
             <input
@@ -110,16 +120,16 @@ export default function StockPage() {
             <option value="soon">{t('inventory.filters.soon', { days: warnDays })}</option>
             <option value="expired">{t('inventory.filters.expired')}</option>
           </SelectField>
-        </div>
+        </FilterBar>
 
-        {products.isPending ? (
-          <div className="flex justify-center py-6"><Spinner /></div>
+        {loading ? (
+          <TableSkeleton columns={costs ? 8 : 6} actions minWidth="56rem" />
         ) : products.isError ? (
           <Alert tone="danger">{t('common.loadError')}</Alert>
         ) : rows.length === 0 ? (
           <p className="py-6 text-center text-sm text-slate-500">{t('inventory.stock.empty')}</p>
         ) : (
-          <>
+          <Refreshable refreshing={products.isPlaceholderData}>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[56rem] text-left text-sm">
                 <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
@@ -163,7 +173,7 @@ export default function StockPage() {
               </table>
             </div>
             <Pagination page={products.data.meta.current_page} lastPage={products.data.meta.last_page} total={products.data.meta.total} onPage={(page) => set('page', page)} />
-          </>
+          </Refreshable>
         )}
       </Card>
 
@@ -196,9 +206,13 @@ function SummaryCard({ label, value, tone, active, onClick }: { label: string; v
 /** Chi tiết tồn của một sản phẩm: từng lô (và kho) với hạn dùng, và thẻ kho gần đây. */
 function ProductStockDialog({ product, warehouse, warnDays, onClose }: { product: StockProduct; warehouse: string; warnDays: number; onClose: () => void }) {
   const { t } = useTranslation()
-  const balances = useStockBalances({ product: product.id, warehouse })
-  const movements = useStockMovements({ product: product.id, warehouse })
+  const [balancePage, setBalancePage] = useState(1)
+  const [movementPage, setMovementPage] = useState(1)
+  const balances = useStockBalancePage({ product: product.id, warehouse }, balancePage)
+  const movements = useStockMovementPage({ product: product.id, warehouse }, movementPage)
   const showCost = product.avg_cost !== undefined
+  useClampPage(balances.data?.meta, setBalancePage)
+  useClampPage(movements.data?.meta, setMovementPage)
 
   return (
     <Modal title={t('inventory.detail.title', { name: product.name })} onClose={onClose} size="xl">
@@ -212,76 +226,82 @@ function ProductStockDialog({ product, warehouse, warnDays, onClose }: { product
         <section>
           <h3 className="mb-2 text-sm font-semibold text-slate-900">{t('inventory.detail.balances')}</h3>
           {balances.isPending ? (
-            <Spinner />
+            <TableSkeleton columns={4} rows={3} minWidth="32rem" />
           ) : balances.isError ? (
             <Alert tone="danger">{t('common.loadError')}</Alert>
-          ) : (balances.data ?? []).length === 0 ? (
+          ) : balances.data.data.length === 0 ? (
             <p className="text-sm text-slate-500">{t('inventory.detail.noBalances')}</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[32rem] text-left text-sm">
-                <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
-                  <tr>
-                    <th scope="col" className="py-2 pr-3">{t('inventory.columns.warehouse')}</th>
-                    <th scope="col" className="py-2 pr-3">{t('inventory.columns.batch')}</th>
-                    <th scope="col" className="py-2 pr-3">{t('inventory.columns.expiry')}</th>
-                    <th scope="col" className="py-2 text-right">{t('inventory.columns.quantity')}</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {(balances.data ?? []).map((row) => (
-                    <tr key={row.id}>
-                      <td className="py-2 pr-3">{row.warehouse.name}</td>
-                      <td className="py-2 pr-3">{row.batch?.batch_no ?? '—'}</td>
-                      <td className="py-2 pr-3"><ExpiryBadge date={row.batch?.expires_at ?? null} warnDays={warnDays} /></td>
-                      <td className="py-2 text-right whitespace-nowrap">{formatQuantity(row.quantity)} {product.base_unit.name}</td>
+            <Refreshable refreshing={balances.isPlaceholderData}>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[32rem] text-left text-sm">
+                  <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+                    <tr>
+                      <th scope="col" className="py-2 pr-3">{t('inventory.columns.warehouse')}</th>
+                      <th scope="col" className="py-2 pr-3">{t('inventory.columns.batch')}</th>
+                      <th scope="col" className="py-2 pr-3">{t('inventory.columns.expiry')}</th>
+                      <th scope="col" className="py-2 text-right">{t('inventory.columns.quantity')}</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {balances.data.data.map((row) => (
+                      <tr key={row.id}>
+                        <td className="py-2 pr-3">{row.warehouse.name}</td>
+                        <td className="py-2 pr-3">{row.batch?.batch_no ?? '—'}</td>
+                        <td className="py-2 pr-3"><ExpiryBadge date={row.batch?.expires_at ?? null} warnDays={warnDays} /></td>
+                        <td className="py-2 text-right whitespace-nowrap">{formatQuantity(row.quantity)} {product.base_unit.name}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <Pagination page={balances.data.meta.current_page} lastPage={balances.data.meta.last_page} total={balances.data.meta.total} onPage={setBalancePage} />
+            </Refreshable>
           )}
         </section>
 
         <section>
           <h3 className="mb-2 text-sm font-semibold text-slate-900">{t('inventory.detail.card')}</h3>
           {movements.isPending ? (
-            <Spinner />
+            <TableSkeleton columns={5} rows={5} minWidth="40rem" />
           ) : movements.isError ? (
             <Alert tone="danger">{t('common.loadError')}</Alert>
-          ) : (movements.data ?? []).length === 0 ? (
+          ) : movements.data.data.length === 0 ? (
             <p className="text-sm text-slate-500">{t('inventory.detail.noMovements')}</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[40rem] text-left text-sm">
-                <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
-                  <tr>
-                    <th scope="col" className="py-2 pr-3">{t('inventory.columns.time')}</th>
-                    <th scope="col" className="py-2 pr-3">{t('inventory.columns.document')}</th>
-                    <th scope="col" className="py-2 pr-3">{t('inventory.columns.batch')}</th>
-                    <th scope="col" className="py-2 pr-3 text-right">{t('inventory.columns.change')}</th>
-                    <th scope="col" className="py-2 text-right">{t('inventory.columns.balanceAfter')}</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {(movements.data ?? []).map((m) => (
-                    <tr key={m.id}>
-                      <td className="py-2 pr-3 whitespace-nowrap">{formatDateTime(m.performed_at)}</td>
-                      <td className="py-2 pr-3">
-                        <Link to={`/stock/documents/${m.document.id}`} onClick={onClose} className="font-mono text-xs text-emerald-700 hover:underline">{m.document.code}</Link>
-                        <span className="ml-1"><TypeBadge type={m.type} /></span>
-                      </td>
-                      <td className="py-2 pr-3">{m.batch?.batch_no ?? '—'}</td>
-                      <td className={`py-2 pr-3 text-right whitespace-nowrap font-medium ${Number(m.quantity_delta) < 0 ? 'text-red-700' : 'text-emerald-700'}`}>
-                        {Number(m.quantity_delta) > 0 ? '+' : ''}{formatQuantity(m.quantity_delta)}
-                        <span className="block text-xs font-normal text-slate-500">{t('inventory.detail.entered', { quantity: formatQuantity(m.entered.quantity), unit: m.entered.unit })}</span>
-                      </td>
-                      <td className="py-2 text-right whitespace-nowrap">{formatQuantity(m.balance_after)}</td>
+            <Refreshable refreshing={movements.isPlaceholderData}>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[40rem] text-left text-sm">
+                  <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+                    <tr>
+                      <th scope="col" className="py-2 pr-3">{t('inventory.columns.time')}</th>
+                      <th scope="col" className="py-2 pr-3">{t('inventory.columns.document')}</th>
+                      <th scope="col" className="py-2 pr-3">{t('inventory.columns.batch')}</th>
+                      <th scope="col" className="py-2 pr-3 text-right">{t('inventory.columns.change')}</th>
+                      <th scope="col" className="py-2 text-right">{t('inventory.columns.balanceAfter')}</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {movements.data.data.map((m) => (
+                      <tr key={m.id}>
+                        <td className="py-2 pr-3 whitespace-nowrap">{formatDateTime(m.performed_at)}</td>
+                        <td className="py-2 pr-3">
+                          <Link to={`/stock/documents/${m.document.id}`} onClick={onClose} className="font-mono text-xs text-emerald-700 hover:underline">{m.document.code}</Link>
+                          <span className="ml-1"><TypeBadge type={m.type} /></span>
+                        </td>
+                        <td className="py-2 pr-3">{m.batch?.batch_no ?? '—'}</td>
+                        <td className={`py-2 pr-3 text-right whitespace-nowrap font-medium ${Number(m.quantity_delta) < 0 ? 'text-red-700' : 'text-emerald-700'}`}>
+                          {Number(m.quantity_delta) > 0 ? '+' : ''}{formatQuantity(m.quantity_delta)}
+                          <span className="block text-xs font-normal text-slate-500">{t('inventory.detail.entered', { quantity: formatQuantity(m.entered.quantity), unit: m.entered.unit })}</span>
+                        </td>
+                        <td className="py-2 text-right whitespace-nowrap">{formatQuantity(m.balance_after)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <Pagination page={movements.data.meta.current_page} lastPage={movements.data.meta.last_page} total={movements.data.meta.total} onPage={setMovementPage} />
+            </Refreshable>
           )}
         </section>
 

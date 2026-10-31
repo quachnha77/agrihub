@@ -1,7 +1,8 @@
 import { ArrowLeft } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Link, useParams } from 'react-router'
-import { Alert, Spinner } from '../../components/ui.tsx'
+import { DetailPageSkeleton } from '../../components/skeleton.tsx'
+import { Alert } from '../../components/ui.tsx'
 import { ApiError } from '../../lib/api.ts'
 import { useTenant } from '../platform/api.ts'
 import { TenantBackupsPanel } from './TenantBackupsPanel.tsx'
@@ -12,7 +13,7 @@ export default function TenantBackupsAdminPage() {
   const { id = '' } = useParams()
   const tenant = useTenant(id)
 
-  if (tenant.isPending) return <div className="flex justify-center py-10"><Spinner /></div>
+  if (tenant.isPending) return <DetailPageSkeleton />
 
   if (tenant.isError) {
     return (

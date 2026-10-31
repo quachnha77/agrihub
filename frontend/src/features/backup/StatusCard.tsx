@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
-import { Alert, Badge, Card, Spinner, type Tone } from '../../components/ui.tsx'
+import { LinesSkeleton } from '../../components/skeleton.tsx'
+import { Alert, Badge, Card, type Tone } from '../../components/ui.tsx'
 import { formatBytes, formatDateTime } from '../../lib/format.ts'
 import { usePlatformBackupStatus, type PlatformBackupState } from './api.ts'
 
@@ -28,7 +29,7 @@ export function PlatformStatusCard() {
   const query = usePlatformBackupStatus()
 
   if (query.isPending) {
-    return <Card title={t('backup.status.title')}><Spinner /></Card>
+    return <Card title={t('backup.status.title')}><LinesSkeleton lines={5} /></Card>
   }
 
   if (query.isError) {
@@ -91,7 +92,7 @@ export function PlatformStatusSummary() {
   return (
     <Card title={t('dashboard.backupStatus')} actions={<Link to="/platform/backups" className="text-sm font-medium text-emerald-700 hover:underline">{t('dashboard.viewDetails')}</Link>}>
       {query.isPending ? (
-        <Spinner />
+        <LinesSkeleton lines={2} />
       ) : query.isError ? (
         <Alert tone="danger">{t('common.loadError')}</Alert>
       ) : (

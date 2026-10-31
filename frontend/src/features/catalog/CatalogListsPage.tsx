@@ -5,11 +5,13 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { z } from 'zod'
-import { Alert, Badge, Button, Card, ConfirmDialog, Modal, Spinner, TextField } from '../../components/ui.tsx'
+import { ListSkeleton, Refreshable } from '../../components/skeleton.tsx'
+import { Alert, Badge, Button, Card, ConfirmDialog, Modal, Pagination, TextField } from '../../components/ui.tsx'
 import { ApiError } from '../../lib/api.ts'
 import { applyServerErrors, describeError } from '../../lib/forms.ts'
+import { useClampPage } from '../../lib/pagination.ts'
 import { useAuth } from '../auth/auth-context.ts'
-import { useCatalogList, useDeleteListItem, useSaveListItem, type ListItem, type ListKind } from './api.ts'
+import { useCatalogListPage, useDeleteListItem, useSaveListItem, type ListItem, type ListKind } from './api.ts'
 
 const KINDS: ListKind[] = ['units', 'categories', 'brands']
 const MAX_NAME: Record<ListKind, number> = { units: 50, categories: 100, brands: 100, 'customer-groups': 100 }
@@ -37,7 +39,8 @@ export default function CatalogListsPage() {
 export function ListCard({ kind, permission = 'catalog.product' }: { kind: ListKind; permission?: string }) {
   const { t } = useTranslation()
   const { can } = useAuth()
-  const items = useCatalogList(kind)
+  const [page, setPage] = useState(1)
+  const items = useCatalogListPage(kind, page)
   const remove = useDeleteListItem(kind)
   const [editing, setEditing] = useState<ListItem | 'new' | null>(null)
   const [deleting, setDeleting] = useState<ListItem | null>(null)
@@ -59,6 +62,8 @@ export function ListCard({ kind, permission = 'catalog.product' }: { kind: ListK
     }
   }
 
+  useClampPage(items.data?.meta, setPage)
+
   return (
     <Card
       title={t(`catalog.lists.${kind}.title`)}
@@ -72,34 +77,37 @@ export function ListCard({ kind, permission = 'catalog.product' }: { kind: ListK
       <p className="mb-3 text-xs text-slate-500">{t(`catalog.lists.${kind}.hint`)}</p>
 
       {items.isPending ? (
-        <div className="flex justify-center py-4"><Spinner /></div>
+        <ListSkeleton rows={4} actions />
       ) : items.isError ? (
         <Alert tone="danger">{t('common.loadError')}</Alert>
-      ) : items.data.length === 0 ? (
+      ) : items.data.data.length === 0 ? (
         <p className="py-4 text-center text-sm text-slate-500">{t('catalog.lists.empty')}</p>
       ) : (
-        <ul className="divide-y divide-slate-100">
-          {items.data.map((item) => (
-            <li key={item.id} className="flex items-center justify-between gap-2 py-2">
-              <span className="flex flex-wrap items-center gap-2">
-                <span className="font-medium text-slate-900">{item.name}</span>
-                {!item.is_active && <Badge tone="neutral">{t('catalog.lists.retired')}</Badge>}
-              </span>
-              <span className="flex gap-1">
-                {canUpdate && (
-                  <Button variant="ghost" onClick={() => setEditing(item)} aria-label={`${t('common.edit')} ${item.name}`}>
-                    <Pencil className="h-4 w-4" aria-hidden="true" />
-                  </Button>
-                )}
-                {canDelete && (
-                  <Button variant="ghost" onClick={() => { setDeleteError(null); setDeleting(item) }} aria-label={`${t('common.delete')} ${item.name}`}>
-                    <Trash2 className="h-4 w-4 text-red-700" aria-hidden="true" />
-                  </Button>
-                )}
-              </span>
-            </li>
-          ))}
-        </ul>
+        <Refreshable refreshing={items.isPlaceholderData}>
+          <ul className="divide-y divide-slate-100">
+            {items.data.data.map((item) => (
+              <li key={item.id} className="flex items-center justify-between gap-2 py-2">
+                <span className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium text-slate-900">{item.name}</span>
+                  {!item.is_active && <Badge tone="neutral">{t('catalog.lists.retired')}</Badge>}
+                </span>
+                <span className="flex gap-1">
+                  {canUpdate && (
+                    <Button variant="ghost" onClick={() => setEditing(item)} aria-label={`${t('common.edit')} ${item.name}`}>
+                      <Pencil className="h-4 w-4" aria-hidden="true" />
+                    </Button>
+                  )}
+                  {canDelete && (
+                    <Button variant="ghost" onClick={() => { setDeleteError(null); setDeleting(item) }} aria-label={`${t('common.delete')} ${item.name}`}>
+                      <Trash2 className="h-4 w-4 text-red-700" aria-hidden="true" />
+                    </Button>
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <Pagination page={items.data.meta.current_page} lastPage={items.data.meta.last_page} total={items.data.meta.total} onPage={setPage} />
+        </Refreshable>
       )}
 
       {editing && <ListItemDialog kind={kind} item={editing === 'new' ? undefined : editing} onClose={() => setEditing(null)} />}

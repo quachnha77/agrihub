@@ -16,6 +16,8 @@ export interface MockResponse {
   status?: number
   json?: unknown
   headers?: Record<string, string>
+  /** Giữ phản hồi cho đến khi promise này xong: để kiểm tra giao diện trong lúc đang tải (skeleton, dữ liệu cũ khi đổi trang). */
+  after?: Promise<unknown>
 }
 
 type Handler = MockResponse | ((call: ApiCall) => MockResponse)
@@ -63,6 +65,7 @@ export function mockApi(handlers: Record<string, Handler>) {
       }
 
       const result = typeof handler === 'function' ? handler(call) : handler
+      if (result.after) await result.after
 
       return new Response(result.json === undefined ? null : JSON.stringify(result.json), {
         status: result.status ?? 200,

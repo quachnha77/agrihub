@@ -1,7 +1,7 @@
 import { Activity, Boxes, Building2, ClipboardList, Contact, LayoutDashboard, LogOut, Menu, Package, PhoneCall, ServerCog, ShieldCheck, Store, Tags, Truck, Users, Warehouse, X, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { NavLink, Outlet, useNavigate } from 'react-router'
+import { NavLink, Outlet, useNavigate, useNavigation } from 'react-router'
 import { useAuth } from '../features/auth/auth-context.ts'
 import { NotificationBell } from '../features/notifications/NotificationBell.tsx'
 import { SubscriptionBanner, SupportSessionBanner } from '../features/subscription/Banners.tsx'
@@ -18,6 +18,8 @@ export default function AppLayout() {
   const { t } = useTranslation()
   const { user, can, signOut } = useAuth()
   const navigate = useNavigate()
+  // Sang trang chưa tải mã (lazy): giữ trang cũ nguyên vẹn và báo đang chuyển bằng thanh mảnh dưới thanh trên, không để trang đứng im.
+  const navigating = useNavigation().state === 'loading'
   const [menuOpen, setMenuOpen] = useState(false)
 
   const items: NavItem[] = [
@@ -73,6 +75,8 @@ export default function AppLayout() {
             <span>{t('auth.logout')}</span>
           </button>
         </div>
+
+        {navigating && <div aria-hidden="true" className="absolute inset-x-0 bottom-0 h-0.5 bg-emerald-600 motion-safe:animate-pulse" />}
       </header>
 
       <div className="flex">

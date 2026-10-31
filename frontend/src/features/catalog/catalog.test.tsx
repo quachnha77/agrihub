@@ -514,6 +514,27 @@ describe('đơn vị tính, nhóm hàng, thương hiệu', () => {
     await waitFor(() => expect(server.to('PATCH', '/api/v1/brands/b-1')[0]?.body).toEqual({ name: 'Đầu Trâu Việt', is_active: true }))
   })
 
+  it('mỗi danh sách chia trang 10 mục; bấm "Sau" ở một thẻ chỉ đổi thẻ đó', async () => {
+    const server = mockApi(base({
+      'GET /api/v1/units': (call: { path: string }) => {
+        const current = Number(new URL(call.path, 'http://x').searchParams.get('page') ?? '1')
+
+        return { json: { data: [{ id: `u-p${current}`, name: `Đơn vị trang ${current}`, is_active: true }], meta: { current_page: current, last_page: 2, total: 12, per_page: 10 } } }
+      },
+    }))
+    renderApp('/products/lists')
+    const user = userEvent.setup()
+
+    expect(await screen.findByText('Đơn vị trang 1')).toBeInTheDocument()
+    expect(server.calls.some((c) => c.path.startsWith('/api/v1/units?per_page=10') && c.path.includes('page=1'))).toBe(true)
+
+    await user.click(screen.getByRole('button', { name: 'Sau' })) // chỉ thẻ đơn vị tính có hơn một trang
+    expect(await screen.findByText('Đơn vị trang 2')).toBeInTheDocument()
+    expect(screen.getByText('Phân bón')).toBeInTheDocument()
+    expect(server.calls.some((c) => c.path.startsWith('/api/v1/units?per_page=10') && c.path.includes('page=2'))).toBe(true)
+    expect(server.calls.some((c) => c.path.startsWith('/api/v1/categories?per_page=10') && c.path.includes('page=2'))).toBe(false)
+  })
+
   it('nhóm hàng có thêm thứ tự hiển thị', async () => {
     const server = mockApi(base({ 'PATCH /api/v1/categories/c-1': { json: { data: CATEGORIES[0] } } }))
     renderApp('/products/lists')

@@ -5,12 +5,14 @@ import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { z } from 'zod'
-import { Alert, Badge, Button, Card, ConfirmDialog, Modal, SelectField, Spinner, TextField } from '../../components/ui.tsx'
+import { FilterBar, Refreshable, TableSkeleton } from '../../components/skeleton.tsx'
+import { Alert, Badge, Button, Card, ConfirmDialog, Modal, Pagination, SelectField, TextField } from '../../components/ui.tsx'
 import { ApiError } from '../../lib/api.ts'
 import { applyServerErrors, describeError } from '../../lib/forms.ts'
+import { useClampPage } from '../../lib/pagination.ts'
 import { useAuth } from '../auth/auth-context.ts'
 import { useAllBranches } from '../branches/api.ts'
-import { useDeleteWarehouse, useSaveWarehouse, useWarehouses, type Warehouse } from './api.ts'
+import { useDeleteWarehouse, useSaveWarehouse, useWarehouses, type Warehouse, type WarehouseFilters } from './api.ts'
 
 const CODE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
 
@@ -18,7 +20,7 @@ const CODE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
 export default function WarehousesPage() {
   const { t } = useTranslation()
   const { can } = useAuth()
-  const [filters, setFilters] = useState({ q: '', branch: '', status: '' })
+  const [filters, setFilters] = useState<WarehouseFilters>({ q: '', branch: '', status: '', page: 1 })
   const warehouses = useWarehouses(filters)
   const branches = useAllBranches()
   const remove = useDeleteWarehouse()
@@ -31,6 +33,10 @@ export default function WarehousesPage() {
   const canDelete = can('inventory.warehouse.delete')
   const rows = warehouses.data?.data ?? []
   const showBranch = (branches.data?.length ?? 0) > 1
+  // Ô lọc và bảng chờ dữ liệu tham chiếu (chi nhánh/kho) rồi hiện cùng lúc, để ô lọc/cột "Chi nhánh" thêm vào muộn không làm trang dịch.
+  const loading = warehouses.isPending || branches.isLoading
+  // Đổi bộ lọc thì về trang 1; đổi trang thì giữ bộ lọc.
+  const set = <K extends keyof WarehouseFilters>(key: K, value: WarehouseFilters[K]) => setFilters((current) => ({ ...current, [key]: value, page: key === 'page' ? (value as number) : 1 }))
 
   async function confirmDelete() {
     if (!deleting) return
@@ -43,6 +49,8 @@ export default function WarehousesPage() {
       setDeleteError(error instanceof ApiError && error.code === 'warehouse_in_use' ? t('inventory.warehouses.inUse') : describeError(error, t))
     }
   }
+
+  useClampPage(warehouses.data?.meta, (page) => set('page', page))
 
   return (
     <div className="space-y-4">
@@ -65,77 +73,80 @@ export default function WarehousesPage() {
       </div>
 
       <Card>
-        <div className="mb-4 grid gap-3 sm:grid-cols-3">
+        <FilterBar loading={loading} fields={['', '', '']} className="mb-4 grid gap-3 sm:grid-cols-3">
           <div>
             <label htmlFor="warehouse-search" className="mb-1 block text-sm font-medium text-slate-800">{t('common.search')}</label>
             <input
               id="warehouse-search"
               type="search"
               value={filters.q}
-              onChange={(event) => setFilters({ ...filters, q: event.target.value })}
+              onChange={(event) => set('q', event.target.value)}
               placeholder={t('inventory.warehouses.searchPlaceholder')}
               className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-200"
             />
           </div>
           {showBranch && (
-            <SelectField label={t('inventory.filters.branch')} value={filters.branch} onChange={(event) => setFilters({ ...filters, branch: event.target.value })}>
+            <SelectField label={t('inventory.filters.branch')} value={filters.branch} onChange={(event) => set('branch', event.target.value)}>
               <option value="">{t('inventory.filters.all')}</option>
               {(branches.data ?? []).map((b) => <option key={b.id} value={b.id}>{b.code} — {b.name}</option>)}
             </SelectField>
           )}
-          <SelectField label={t('inventory.filters.status')} value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })}>
+          <SelectField label={t('inventory.filters.status')} value={filters.status} onChange={(event) => set('status', event.target.value)}>
             <option value="">{t('inventory.filters.all')}</option>
             <option value="active">{t('inventory.warehouses.status.active')}</option>
             <option value="inactive">{t('inventory.warehouses.status.inactive')}</option>
           </SelectField>
-        </div>
+        </FilterBar>
 
-        {warehouses.isPending ? (
-          <div className="flex justify-center py-6"><Spinner /></div>
+        {loading ? (
+          <TableSkeleton columns={showBranch ? 6 : 5} actions minWidth="40rem" />
         ) : warehouses.isError ? (
           <Alert tone="danger">{t('common.loadError')}</Alert>
         ) : rows.length === 0 ? (
           <p className="py-6 text-center text-sm text-slate-500">{t('inventory.warehouses.empty')}</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[40rem] text-left text-sm">
-              <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
-                <tr>
-                  <th scope="col" className="py-2 pr-3">{t('inventory.columns.code')}</th>
-                  <th scope="col" className="py-2 pr-3">{t('inventory.columns.warehouseName')}</th>
-                  {showBranch && <th scope="col" className="py-2 pr-3">{t('inventory.columns.branch')}</th>}
-                  <th scope="col" className="py-2 pr-3">{t('inventory.columns.address')}</th>
-                  <th scope="col" className="py-2 pr-3">{t('inventory.columns.status')}</th>
-                  <th scope="col" className="py-2 text-right">{t('backup.list.actions')}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {rows.map((warehouse) => (
-                  <tr key={warehouse.id}>
-                    <td className="py-2 pr-3 font-mono text-xs whitespace-nowrap">{warehouse.code}</td>
-                    <td className="py-2 pr-3 font-medium text-slate-900">{warehouse.name}</td>
-                    {showBranch && <td className="py-2 pr-3">{warehouse.branch.code}</td>}
-                    <td className="py-2 pr-3 text-slate-600">{warehouse.address ?? '—'}</td>
-                    <td className="py-2 pr-3"><Badge tone={warehouse.status === 'active' ? 'success' : 'neutral'}>{t(`inventory.warehouses.status.${warehouse.status}`)}</Badge></td>
-                    <td className="py-2 text-right">
-                      <div className="flex justify-end gap-1">
-                        {canUpdate && (
-                          <Button variant="ghost" onClick={() => setEditing(warehouse)} aria-label={`${t('common.edit')} ${warehouse.name}`}>
-                            <Pencil className="h-4 w-4" aria-hidden="true" />
-                          </Button>
-                        )}
-                        {canDelete && (
-                          <Button variant="ghost" onClick={() => { setDeleteError(null); setDeleting(warehouse) }} aria-label={`${t('common.delete')} ${warehouse.name}`}>
-                            <Trash2 className="h-4 w-4 text-red-700" aria-hidden="true" />
-                          </Button>
-                        )}
-                      </div>
-                    </td>
+          <Refreshable refreshing={warehouses.isPlaceholderData}>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[40rem] text-left text-sm">
+                <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+                  <tr>
+                    <th scope="col" className="py-2 pr-3">{t('inventory.columns.code')}</th>
+                    <th scope="col" className="py-2 pr-3">{t('inventory.columns.warehouseName')}</th>
+                    {showBranch && <th scope="col" className="py-2 pr-3">{t('inventory.columns.branch')}</th>}
+                    <th scope="col" className="py-2 pr-3">{t('inventory.columns.address')}</th>
+                    <th scope="col" className="py-2 pr-3">{t('inventory.columns.status')}</th>
+                    <th scope="col" className="py-2 text-right">{t('backup.list.actions')}</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {rows.map((warehouse) => (
+                    <tr key={warehouse.id}>
+                      <td className="py-2 pr-3 font-mono text-xs whitespace-nowrap">{warehouse.code}</td>
+                      <td className="py-2 pr-3 font-medium text-slate-900">{warehouse.name}</td>
+                      {showBranch && <td className="py-2 pr-3">{warehouse.branch.code}</td>}
+                      <td className="py-2 pr-3 text-slate-600">{warehouse.address ?? '—'}</td>
+                      <td className="py-2 pr-3"><Badge tone={warehouse.status === 'active' ? 'success' : 'neutral'}>{t(`inventory.warehouses.status.${warehouse.status}`)}</Badge></td>
+                      <td className="py-2 text-right">
+                        <div className="flex justify-end gap-1">
+                          {canUpdate && (
+                            <Button variant="ghost" onClick={() => setEditing(warehouse)} aria-label={`${t('common.edit')} ${warehouse.name}`}>
+                              <Pencil className="h-4 w-4" aria-hidden="true" />
+                            </Button>
+                          )}
+                          {canDelete && (
+                            <Button variant="ghost" onClick={() => { setDeleteError(null); setDeleting(warehouse) }} aria-label={`${t('common.delete')} ${warehouse.name}`}>
+                              <Trash2 className="h-4 w-4 text-red-700" aria-hidden="true" />
+                            </Button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <Pagination page={warehouses.data.meta.current_page} lastPage={warehouses.data.meta.last_page} total={warehouses.data.meta.total} onPage={(page) => set('page', page)} />
+          </Refreshable>
         )}
       </Card>
 

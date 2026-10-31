@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { Link, Navigate, Outlet, useLocation } from 'react-router'
-import { FullPageSpinner } from '../../components/ui.tsx'
+import { AppShellSkeleton } from '../../components/skeleton.tsx'
 import { useAuth } from './auth-context.ts'
 
 /** Chỉ cho người đã đăng nhập vào; tài khoản đang dùng mật khẩu tạm bị đưa tới trang đổi mật khẩu. */
@@ -8,7 +8,7 @@ export function RequireAuth() {
   const { user, isLoading } = useAuth()
   const location = useLocation()
 
-  if (isLoading) return <FullPageSpinner />
+  if (isLoading) return <AppShellSkeleton />
 
   if (!user) return <Navigate to="/login" replace state={{ from: location }} />
 

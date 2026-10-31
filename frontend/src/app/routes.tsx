@@ -1,4 +1,5 @@
 import type { RouteObject } from 'react-router'
+import { AppShellSkeleton } from '../components/skeleton.tsx'
 import ChangePasswordPage from '../features/auth/ChangePasswordPage.tsx'
 import { RequireAccess, RequireAuth } from '../features/auth/guards.tsx'
 import LoginPage from '../features/auth/LoginPage.tsx'
@@ -13,10 +14,13 @@ import AuthRoot from './AuthRoot.tsx'
  * Cây route của ứng dụng. Chặn theo quyền ở đây chỉ để dẫn đường người dùng; quyền thật do API kiểm tra.
  * Module nghiệp vụ mới thêm route của mình dưới <AppLayout> với <RequireAccess permission="..."> và tải theo nhu cầu (lazy)
  * để bản đầu tiên người dùng tải về luôn nhỏ.
+ * Mở thẳng một đường dẫn lazy thì trình duyệt phải tải xong phần mã của trang đó trước; `HydrateFallback` giữ khung ứng dụng
+ * trong lúc chờ, thay cho trang trắng.
  */
 export const routes: RouteObject[] = [
   {
     element: <AuthRoot />,
+    HydrateFallback: AppShellSkeleton,
     children: [
       { path: '/login', element: <LoginPage /> },
       { path: '/forgot-password', element: <RecoveryRequestPage mode="password" /> },

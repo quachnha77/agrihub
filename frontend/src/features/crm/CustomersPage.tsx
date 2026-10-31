@@ -2,9 +2,11 @@ import { Eye, Pencil, Plus, Trash2, Users } from 'lucide-react'
 import { useDeferredValue, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useLocation } from 'react-router'
-import { Alert, Badge, Button, Card, ConfirmDialog, Pagination, SelectField, Spinner } from '../../components/ui.tsx'
+import { FilterBar, Refreshable, TableSkeleton } from '../../components/skeleton.tsx'
+import { Alert, Badge, Button, Card, ConfirmDialog, Pagination, SelectField } from '../../components/ui.tsx'
 import { formatVnd } from '../../lib/format.ts'
 import { describeError } from '../../lib/forms.ts'
+import { useClampPage } from '../../lib/pagination.ts'
 import { useAuth } from '../auth/auth-context.ts'
 import { useAllBranches } from '../branches/api.ts'
 import { useCatalogList } from '../catalog/api.ts'
@@ -50,6 +52,8 @@ export default function CustomersPage() {
   const canDelete = can('crm.customer.delete')
   const rows = customers.data?.data ?? []
   const showBranch = (branches.data?.length ?? 0) > 1
+  // Ô lọc và bảng chờ dữ liệu tham chiếu (chi nhánh/kho) rồi hiện cùng lúc, để ô lọc/cột "Chi nhánh" thêm vào muộn không làm trang dịch.
+  const loading = customers.isPending || branches.isLoading
   const set = <K extends keyof CustomerFilters>(key: K, value: CustomerFilters[K]) => setFilters((current) => ({ ...current, [key]: value, page: key === 'page' ? (value as number) : 1 }))
 
   async function confirmDelete() {
@@ -63,6 +67,8 @@ export default function CustomersPage() {
       setDeleteError(describeError(error, t))
     }
   }
+
+  useClampPage(customers.data?.meta, (page) => set('page', page))
 
   return (
     <div className="space-y-4">
@@ -95,7 +101,7 @@ export default function CustomersPage() {
       )}
 
       <Card>
-        <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+        <FilterBar loading={loading} fields={['lg:col-span-2', '', '', '', '']} className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
           <div className="lg:col-span-2">
             <label htmlFor="customer-search" className="mb-1 block text-sm font-medium text-slate-800">{t('common.search')}</label>
             <input
@@ -126,16 +132,16 @@ export default function CustomersPage() {
             <option value="active">{t('crm.status.active')}</option>
             <option value="inactive">{t('crm.status.inactive')}</option>
           </SelectField>
-        </div>
+        </FilterBar>
 
-        {customers.isPending ? (
-          <div className="flex justify-center py-6"><Spinner /></div>
+        {loading ? (
+          <TableSkeleton columns={showBranch ? 7 : 6} actions minWidth="52rem" />
         ) : customers.isError ? (
           <Alert tone="danger">{t('common.loadError')}</Alert>
         ) : rows.length === 0 ? (
           <p className="py-6 text-center text-sm text-slate-500">{t('crm.customers.empty')}</p>
         ) : (
-          <>
+          <Refreshable refreshing={customers.isPlaceholderData}>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[52rem] text-left text-sm">
                 <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
@@ -184,7 +190,7 @@ export default function CustomersPage() {
               </table>
             </div>
             <Pagination page={customers.data.meta.current_page} lastPage={customers.data.meta.last_page} total={customers.data.meta.total} onPage={(page) => set('page', page)} />
-          </>
+          </Refreshable>
         )}
       </Card>
 

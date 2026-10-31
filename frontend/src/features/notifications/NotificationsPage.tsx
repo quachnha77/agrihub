@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
-import { Alert, Button, Card, Spinner } from '../../components/ui.tsx'
+import { ListSkeleton } from '../../components/skeleton.tsx'
+import { Alert, Button, Card } from '../../components/ui.tsx'
 import { useAllNotices, useMarkAllNoticesRead, useMarkNoticeRead } from './api.ts'
 import { NoticeRow } from './NotificationBell.tsx'
 
@@ -25,7 +26,7 @@ export default function NotificationsPage() {
 
       <Card className="overflow-hidden [&>div]:p-0">
         {query.isPending ? (
-          <div className="flex justify-center p-8"><Spinner /></div>
+          <div className="px-4"><ListSkeleton rows={6} subtitle /></div>
         ) : query.isError ? (
           <Alert tone="danger" className="m-4">{t('common.loadError')}</Alert>
         ) : items.length === 0 ? (

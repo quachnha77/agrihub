@@ -1,8 +1,10 @@
 import { Pencil, Plus, Trash2 } from 'lucide-react'
 import { useDeferredValue, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Alert, Badge, Button, Card, ConfirmDialog, Pagination, Spinner } from '../../components/ui.tsx'
+import { Refreshable, TableSkeleton } from '../../components/skeleton.tsx'
+import { Alert, Badge, Button, Card, ConfirmDialog, Pagination } from '../../components/ui.tsx'
 import { describeError } from '../../lib/forms.ts'
+import { useClampPage } from '../../lib/pagination.ts'
 import { useAuth } from '../auth/auth-context.ts'
 import { useBranches, useDeleteBranch, type Branch } from './api.ts'
 import { BranchDialog } from './BranchDialog.tsx'
@@ -31,6 +33,8 @@ export default function BranchesPage() {
       setDeleteError(describeError(error, t))
     }
   }
+
+  useClampPage(branches.data?.meta, setPage)
 
   return (
     <div className="space-y-4">
@@ -61,13 +65,13 @@ export default function BranchesPage() {
         />
 
         {branches.isPending ? (
-          <div className="flex justify-center py-6"><Spinner /></div>
+          <TableSkeleton columns={6} actions minWidth="40rem" />
         ) : branches.isError ? (
           <Alert tone="danger">{t('common.loadError')}</Alert>
         ) : branches.data.data.length === 0 ? (
           <p className="py-6 text-center text-sm text-slate-500">{t('branches.empty')}</p>
         ) : (
-          <>
+          <Refreshable refreshing={branches.isPlaceholderData}>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[40rem] text-left text-sm">
                 <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
@@ -110,7 +114,7 @@ export default function BranchesPage() {
               </table>
             </div>
             <Pagination page={branches.data.meta.current_page} lastPage={branches.data.meta.last_page} total={branches.data.meta.total} onPage={setPage} />
-          </>
+          </Refreshable>
         )}
       </Card>
 

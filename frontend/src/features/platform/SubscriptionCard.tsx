@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Alert, Button, Card, Spinner } from '../../components/ui.tsx'
+import { LinesSkeleton } from '../../components/skeleton.tsx'
+import { Alert, Button, Card } from '../../components/ui.tsx'
 import { formatDate, formatDateTime, formatVnd } from '../../lib/format.ts'
 import { ApiError } from '../../lib/api.ts'
 import { useRecordContact, useSubscription } from './api.ts'
@@ -31,7 +32,7 @@ export function SubscriptionCard({ tenantId }: { tenantId: string }) {
   if (subscription.isPending) {
     return (
       <Card title={t('platform.subscription.title')}>
-        <div className="flex justify-center py-4"><Spinner /></div>
+        <LinesSkeleton lines={4} />
       </Card>
     )
   }

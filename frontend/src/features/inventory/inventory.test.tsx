@@ -197,6 +197,42 @@ describe('trang Tồn kho', () => {
     expect(within(dialog).getAllByText('đã nhập 1 Bao').length).toBeGreaterThan(0)
   })
 
+  it('thẻ kho chia trang trong hộp chi tiết: 10 dòng mỗi trang, bấm "Sau" gửi trang kế', async () => {
+    const server = mockApi(base({
+      'GET /api/v1/stock/movements': (call: { path: string }) => {
+        const current = Number(new URL(call.path, 'http://x').searchParams.get('page') ?? '1')
+
+        return { json: { data: [movement(current, 'receipt', '1.000', '1.000')], meta: { current_page: current, last_page: 2, total: 12, per_page: 10 } } }
+      },
+    }))
+    renderApp('/stock')
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('button', { name: 'Chi tiết Thuốc trừ sâu 25WG' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Tồn kho: Thuốc trừ sâu 25WG' })
+    expect(await within(dialog).findByText(/Tổng 12 mục · Trang 1\/2/)).toBeInTheDocument()
+    expect(server.calls.some((c) => c.path.startsWith('/api/v1/stock/movements') && c.path.includes('per_page=10') && c.path.includes('page=1'))).toBe(true)
+
+    await user.click(within(dialog).getByRole('button', { name: 'Sau' }))
+    expect(await within(dialog).findByText(/Trang 2\/2/)).toBeInTheDocument()
+    expect(server.calls.some((c) => c.path.startsWith('/api/v1/stock/movements') && c.path.includes('page=2'))).toBe(true)
+  })
+
+  it('đang tải: giữ chỗ cho bốn thẻ cảnh báo và bảng, nên khi số liệu về bảng không bị đẩy xuống', async () => {
+    let release!: () => void
+    const held = new Promise<void>((resolve) => { release = resolve })
+    mockApi(base({ 'GET /api/v1/stock/summary': { json: { data: SUMMARY }, after: held } }))
+    renderApp('/stock')
+
+    await screen.findByRole('table') // bảng về trước, thẻ số liệu còn chờ: chỗ của thẻ đã được giữ bằng skeleton
+    expect(screen.getByText('Đang tải…')).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Cảnh báo tồn kho' })).not.toBeInTheDocument()
+
+    release()
+    expect(await screen.findByRole('button', { name: /Sắp hết hàng/ })).toBeInTheDocument()
+    expect(screen.queryByText('Đang tải…')).not.toBeInTheDocument()
+  })
+
   it('nhân viên bán hàng thấy số lượng nhưng không có giá vốn, giá trị tồn hay nút nhập/xuất', async () => {
     mockApi(base({
       'GET /api/v1/stock/products': { json: page([{ ...LOW, avg_cost: undefined, value: undefined }]) },

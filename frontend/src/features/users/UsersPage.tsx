@@ -1,9 +1,11 @@
 import { KeyRound, Lock, LockOpen, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useDeferredValue, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Alert, Badge, Button, Card, ConfirmDialog, Pagination, Spinner } from '../../components/ui.tsx'
+import { Refreshable, TableSkeleton } from '../../components/skeleton.tsx'
+import { Alert, Badge, Button, Card, ConfirmDialog, Pagination } from '../../components/ui.tsx'
 import { formatDateTime } from '../../lib/format.ts'
 import { describeError } from '../../lib/forms.ts'
+import { useClampPage } from '../../lib/pagination.ts'
 import { useAuth } from '../auth/auth-context.ts'
 import { useDeleteUser, useResetPassword, useSetUserStatus, useUsers, type UserRow } from './api.ts'
 import { TemporaryPasswordDialog } from './TemporaryPasswordDialog.tsx'
@@ -56,6 +58,8 @@ export default function UsersPage() {
     setAction({ kind, user })
   }
 
+  useClampPage(users.data?.meta, setPage)
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -85,13 +89,13 @@ export default function UsersPage() {
         />
 
         {users.isPending ? (
-          <div className="flex justify-center py-6"><Spinner /></div>
+          <TableSkeleton columns={7} actions minWidth="56rem" />
         ) : users.isError ? (
           <Alert tone="danger">{t('common.loadError')}</Alert>
         ) : users.data.data.length === 0 ? (
           <p className="py-6 text-center text-sm text-slate-500">{t('users.empty')}</p>
         ) : (
-          <>
+          <Refreshable refreshing={users.isPlaceholderData}>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[56rem] text-left text-sm">
                 <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
@@ -157,7 +161,7 @@ export default function UsersPage() {
               </table>
             </div>
             <Pagination page={users.data.meta.current_page} lastPage={users.data.meta.last_page} total={users.data.meta.total} onPage={setPage} />
-          </>
+          </Refreshable>
         )}
       </Card>
 

@@ -1,6 +1,7 @@
 import { RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Alert, Badge, Button, Card, Spinner, type Tone } from '../../components/ui.tsx'
+import { CardGridSkeleton } from '../../components/skeleton.tsx'
+import { Alert, Badge, Button, Card, type Tone } from '../../components/ui.tsx'
 import { formatDateTime } from '../../lib/format.ts'
 import { useSystemHealth, type HealthStatus } from './api.ts'
 
@@ -31,7 +32,7 @@ export default function HealthPage() {
       </div>
 
       {query.isPending ? (
-        <div className="flex justify-center py-10"><Spinner /></div>
+        <CardGridSkeleton cards={4} lines={3} />
       ) : query.isError ? (
         <Alert tone="danger">{t('common.loadError')}</Alert>
       ) : (
