@@ -7,6 +7,7 @@ use App\Support\HasPublicUuid;
 use App\Support\Tenancy\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
@@ -35,5 +36,11 @@ class Warehouse extends Model
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
+    }
+
+    /** Đợt kiểm kê đang đếm của kho (nếu có): kho đang bị khóa, không ghi được phiếu kho khác. */
+    public function openStocktake(): HasOne
+    {
+        return $this->hasOne(Stocktake::class)->where('status', Stocktake::COUNTING);
     }
 }

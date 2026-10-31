@@ -5,13 +5,14 @@ import { useLocation, useNavigate, useSearchParams, type To } from 'react-router
  * Popup (hộp thoại biểu mẫu) mở bằng tham số `?dialog=` trên địa chỉ của trang đang xem:
  *   `?dialog=product`           thêm sản phẩm        `?dialog=product:<id>`     sửa/xem sản phẩm
  *   `?dialog=stock-new:receipt` lập phiếu nhập kho   `?dialog=stock-doc:<id>`  xem phiếu kho
+ *   `?dialog=stocktake-new`     bắt đầu kiểm kê      `?dialog=stocktake:<id>`   đếm / xem một đợt kiểm kê
  * Mở được trên MỌI trang (kể cả Tổng quan) mà trang phía sau vẫn nguyên: không chuyển trang, giữ bộ lọc và vị trí cuộn. Vì nằm trên địa chỉ
  * nên nút Quay lại của trình duyệt/điện thoại đóng popup, tải lại trang vẫn mở đúng popup, và gửi liên kết cho người khác được.
  */
 
 const PARAM = 'dialog'
 
-export type DialogName = 'product' | 'customer' | 'supplier' | 'stock-new' | 'stock-doc'
+export type DialogName = 'product' | 'customer' | 'supplier' | 'stock-new' | 'stock-doc' | 'stocktake-new' | 'stocktake'
 
 /** Thuộc tính mà mọi popup nhận từ khung (DialogHost). `arg` là phần sau dấu ":" (mã bản ghi cần sửa/xem, hoặc loại phiếu). */
 export interface DialogProps {
@@ -60,6 +61,16 @@ export function useDialog() {
     [params, location.pathname],
   )
 
+  /** Đổi sang popup khác NGAY TẠI chỗ popup hiện tại (vd. vừa bắt đầu kiểm kê thì mở luôn màn đếm): không thêm mục lịch sử nên đóng một lần là về trang. */
+  const replace = useCallback(
+    (name: DialogName, arg?: string) => {
+      const next = new URLSearchParams(params)
+      next.set(PARAM, arg ? `${name}:${arg}` : name)
+      navigate({ pathname: location.pathname, search: `?${stringify(next)}` }, { replace: true, state: location.state })
+    },
+    [navigate, params, location.pathname, location.state],
+  )
+
   const close = useCallback(() => {
     // Mở bằng liên kết: lùi một bước là về đúng trang trước đó (cùng địa chỉ nhưng chưa có popup).
     if (openedByLink) {
@@ -74,5 +85,5 @@ export function useDialog() {
     navigate({ pathname: location.pathname, search: next.size > 0 ? `?${stringify(next)}` : '' }, { replace: true })
   }, [openedByLink, navigate, params, location.pathname])
 
-  return { current, link, close }
+  return { current, link, replace, close }
 }

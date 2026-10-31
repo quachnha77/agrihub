@@ -154,6 +154,9 @@ return [
         'stock_documents',
         'stock_movements',
         'stock_balances',
+        // Kiểm kê (cha → con): đợt tham chiếu kho và phiếu điều chỉnh; dòng đếm tham chiếu đợt, sản phẩm và lô.
+        'stocktakes',
+        'stocktake_lines',
     ],
 
     /**

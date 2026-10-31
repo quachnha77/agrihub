@@ -62,6 +62,7 @@ export const routes: RouteObject[] = [
                 children: [
                   { path: 'stock', lazy: async () => ({ Component: (await import('../features/inventory/StockPage.tsx')).default }) },
                   { path: 'stock/documents', lazy: async () => ({ Component: (await import('../features/inventory/StockDocumentsPage.tsx')).default }) },
+                  { path: 'stock/stocktakes', lazy: async () => ({ Component: (await import('../features/inventory/StocktakesPage.tsx')).default }) },
                 ],
               },
               {

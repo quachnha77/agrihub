@@ -24,6 +24,7 @@ use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\SessionController;
 use App\Http\Controllers\Api\V1\StockController;
 use App\Http\Controllers\Api\V1\StockDocumentController;
+use App\Http\Controllers\Api\V1\StocktakeController;
 use App\Http\Controllers\Api\V1\SubscriptionController;
 use App\Http\Controllers\Api\V1\SupplierController;
 use App\Http\Controllers\Api\V1\TenantContextController;
@@ -143,6 +144,14 @@ Route::middleware(['auth:sanctum', 'tenant.context'])->group(function () {
             Route::get('/stock/documents', [StockDocumentController::class, 'index']);
             Route::post('/stock/documents', [StockDocumentController::class, 'store']);
             Route::get('/stock/documents/{document}', [StockDocumentController::class, 'show']);
+            // Kiểm kê: một đợt khóa kho đang đếm; chênh lệch được ghi bằng MỘT phiếu điều chỉnh (kiểm kê không sửa tồn trực tiếp).
+            Route::get('/stocktakes', [StocktakeController::class, 'index']);
+            Route::post('/stocktakes', [StocktakeController::class, 'store']);
+            Route::get('/stocktakes/{stocktake}', [StocktakeController::class, 'show']);
+            Route::get('/stocktakes/{stocktake}/lines', [StocktakeController::class, 'lines']);
+            Route::patch('/stocktakes/{stocktake}/lines/{line}', [StocktakeController::class, 'count']);
+            Route::post('/stocktakes/{stocktake}/complete', [StocktakeController::class, 'complete']);
+            Route::post('/stocktakes/{stocktake}/cancel', [StocktakeController::class, 'cancel']);
 
             Route::get('/permissions', [PermissionController::class, 'index']);
             Route::apiResource('roles', RoleController::class);

@@ -18,6 +18,8 @@ const loaders = {
   supplier: () => import('../features/crm/SupplierDialog.tsx'),
   stockNew: () => import('../features/inventory/StockDocumentDialog.tsx'),
   stockDoc: () => import('../features/inventory/StockDocumentViewDialog.tsx'),
+  stocktakeNew: () => import('../features/inventory/StocktakeStartDialog.tsx'),
+  stocktake: () => import('../features/inventory/StocktakeDialog.tsx'),
 }
 
 /**
@@ -31,6 +33,9 @@ const DIALOGS: Record<string, Definition> = {
   // Phiếu điều chỉnh có quyền riêng: người chỉ có quyền điều chỉnh vẫn mở được (popup tự chỉ cho chọn loại phiếu mà người đó được lập).
   'stock-new': { Component: lazy(loaders.stockNew), allowed: (can) => can('inventory.movement.create') || can('inventory.adjustment.create') },
   'stock-doc': { Component: lazy(loaders.stockDoc), allowed: (can) => can('inventory.movement.view') },
+  // Kiểm kê dùng quyền "Kiểm kê & điều chỉnh kho": xem đợt cần quyền xem, bắt đầu cần quyền tạo (đếm/hoàn tất/hủy do popup tự ẩn nút và API kiểm tra lại).
+  'stocktake-new': { Component: lazy(loaders.stocktakeNew), allowed: (can) => can('inventory.adjustment.create') },
+  stocktake: { Component: lazy(loaders.stocktake), allowed: (can) => can('inventory.adjustment.view') },
 }
 
 /** Tải sẵn mã của các popup khi trình duyệt rảnh, để lần bấm đầu tiên không phải chờ mạng (nhất là trên điện thoại). Bỏ qua khi chạy test. */

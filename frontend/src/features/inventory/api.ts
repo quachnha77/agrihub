@@ -22,6 +22,8 @@ export interface Warehouse {
   name: string
   address: string | null
   status: WarehouseStatus
+  /** Đợt kiểm kê đang đếm (kho bị khóa: không ghi được phiếu kho); null = không khóa. */
+  stocktake?: { id: string; code: string } | null
 }
 
 export interface WarehouseInput {
@@ -276,6 +278,131 @@ export function usePostStockDocument() {
     // Không `await`: popup đóng ngay khi máy chủ đã nhận, tồn kho phía sau tự làm mới.
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: STOCK })
+    },
+  })
+}
+
+// --- Kiểm kê -------------------------------------------------------------------------------------
+
+export type StocktakeStatus = 'counting' | 'completed' | 'cancelled'
+export const STOCKTAKE_STATUSES: StocktakeStatus[] = ['counting', 'completed', 'cancelled']
+export type LineFilter = '' | 'uncounted' | 'counted' | 'differing'
+
+/** Một đợt kiểm kê. `difference_value` (đồng, âm = thiếu hàng) chỉ có khi được phép xem giá vốn; đã hủy thì không có. */
+export interface Stocktake {
+  id: string
+  code: string
+  status: StocktakeStatus
+  note: string | null
+  warehouse: { id: string; code: string; name: string }
+  branch: BranchRef
+  started_by: { id: string; name: string } | null
+  started_at: string
+  finished_by: { id: string; name: string } | null
+  finished_at: string | null
+  adjustment_document: { id: string; code: string } | null
+  summary?: { lines: number; counted: number; differing: number }
+  difference_value?: string | null
+}
+
+/** Dòng đếm: số lượng là chuỗi thập phân theo ĐƠN VỊ CƠ SỞ; `counted.entered` là số và đơn vị người dùng đã nhập. */
+export interface StocktakeLine {
+  id: string
+  product: {
+    id: string
+    sku: string
+    name: string
+    track_batch: boolean
+    base_unit: { id: string; name: string }
+    units: { unit: { id: string; name: string }; is_base: boolean; factor: string }[]
+  }
+  batch: { id: string; batch_no: string; expires_at: string | null } | null
+  system_quantity: string
+  counted: { quantity: string; entered: { quantity: string; unit: { id: string; name: string }; factor: string } } | null
+  difference: string | null
+}
+
+export interface StocktakeFilters {
+  status: string
+  warehouse: string
+  page: number
+}
+
+export interface LineFilters {
+  q: string
+  status: LineFilter
+  page: number
+}
+
+const STOCKTAKES = ['stocktakes'] as const
+
+export function useStocktakes(filters: StocktakeFilters) {
+  return useQuery({
+    queryKey: [...STOCKTAKES, 'list', filters],
+    queryFn: () => get<Paginated<Stocktake>>(`/stocktakes?${params(filters, 20).toString()}`),
+    placeholderData: keepPreviousData,
+  })
+}
+
+export function useStocktake(id: string | undefined) {
+  return useQuery({
+    queryKey: [...STOCKTAKES, 'detail', id],
+    queryFn: async () => (await get<{ data: Stocktake }>(`/stocktakes/${id}`)).data,
+    enabled: id !== undefined,
+  })
+}
+
+/** Một trang dòng đếm của đợt (25 dòng/trang), lọc theo tên/mã/số lô và trạng thái đếm. */
+export function useStocktakeLines(id: string | undefined, filters: LineFilters) {
+  return useQuery({
+    queryKey: [...STOCKTAKES, id, 'lines', filters],
+    queryFn: () => get<Paginated<StocktakeLine>>(`/stocktakes/${id}/lines?${params(filters, 25).toString()}`),
+    placeholderData: keepPreviousData,
+    enabled: id !== undefined,
+  })
+}
+
+/** Bắt đầu kiểm kê một kho (khóa kho). Kho đổi trạng thái khóa nên làm mới cả danh sách kho. */
+export function useStartStocktake() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (input: { warehouse_id: string; note: string | null }) => (await post<{ data: Stocktake }>('/stocktakes', input)).data,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: STOCKTAKES })
+      void queryClient.invalidateQueries({ queryKey: WAREHOUSES })
+    },
+  })
+}
+
+/**
+ * Ghi (hoặc xóa, khi `quantity` = null) số đếm của một dòng. Dòng trả về được đặt thẳng vào các trang đang xem nên ô đếm không bị dựng lại giữa chừng;
+ * chỉ phần tổng kết của đợt được tải lại.
+ */
+export function useCountLine(stocktakeId: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (input: { line: string; quantity: string | null; unit_id: string | null }) =>
+      (await api<{ data: StocktakeLine }>('PATCH', `/stocktakes/${stocktakeId}/lines/${input.line}`, { quantity: input.quantity, unit_id: input.unit_id })).data,
+    onSuccess: (line) => {
+      queryClient.setQueriesData<Paginated<StocktakeLine>>({ queryKey: [...STOCKTAKES, stocktakeId, 'lines'] }, (page) => page && { ...page, data: page.data.map((row) => (row.id === line.id ? line : row)) })
+      void queryClient.invalidateQueries({ queryKey: [...STOCKTAKES, 'detail', stocktakeId] })
+      void queryClient.invalidateQueries({ queryKey: [...STOCKTAKES, 'list'] })
+    },
+  })
+}
+
+/** Hoàn tất (ghi chênh lệch bằng một phiếu điều chỉnh) hoặc hủy đợt; cả hai mở khóa kho, hoàn tất còn làm đổi tồn nên làm mới mọi số liệu kho. */
+export function useFinishStocktake(id: string, action: 'complete' | 'cancel') {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async () => (await post<{ data: Stocktake }>(`/stocktakes/${id}/${action}`, {})).data,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: STOCKTAKES })
+      void queryClient.invalidateQueries({ queryKey: WAREHOUSES })
+      if (action === 'complete') void queryClient.invalidateQueries({ queryKey: STOCK })
     },
   })
 }

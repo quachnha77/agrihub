@@ -168,7 +168,12 @@ function StockForm({ type: initialType, onTypeChange, allowed, warehouses, onClo
               {...form.register('warehouse_id', { onChange: (event) => changeWarehouse(event.target.value) })}
             >
               <option value="">{t('inventory.form.choose')}</option>
-              {warehouses.map((w) => <option key={w.id} value={w.id}>{showBranch ? `${w.branch.code} — ${w.name}` : w.name}</option>)}
+              {warehouses.map((w) => {
+                const name = showBranch ? `${w.branch.code} — ${w.name}` : w.name
+
+                // Kho đang kiểm kê bị khóa: không ghi được phiếu cho tới khi hoàn tất hoặc hủy đợt kiểm kê.
+                return <option key={w.id} value={w.id} disabled={!!w.stocktake}>{w.stocktake ? t('inventory.stocktake.lockedOption', { name }) : name}</option>
+              })}
             </SelectField>
 
             {reasons.length > 0 && (

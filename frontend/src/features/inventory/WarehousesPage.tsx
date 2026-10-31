@@ -3,12 +3,14 @@ import { Pencil, Plus, Trash2, Warehouse as WarehouseIcon } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router'
 import { z } from 'zod'
 import { EmptyState, FilterBar, FilterSelect, PageHeader, SearchField } from '../../components/page.tsx'
 import { Refreshable, TableSkeleton } from '../../components/skeleton.tsx'
 import { DataTable } from '../../components/table.tsx'
 import { Alert, Badge, Button, Card, ConfirmDialog, IconButton, Modal, Pagination, SelectField, TextField } from '../../components/ui.tsx'
 import { ApiError } from '../../lib/api.ts'
+import { useDialog } from '../../lib/dialog.ts'
 import { countActiveFilters } from '../../lib/filters.ts'
 import { applyServerErrors, describeError } from '../../lib/forms.ts'
 import { useClampPage } from '../../lib/pagination.ts'
@@ -24,6 +26,7 @@ const EMPTY_FILTERS: WarehouseFilters = { q: '', branch: '', status: '', page: 1
 export default function WarehousesPage() {
   const { t } = useTranslation()
   const { can } = useAuth()
+  const { link } = useDialog()
   const [filters, setFilters] = useState<WarehouseFilters>(EMPTY_FILTERS)
   const warehouses = useWarehouses(filters)
   const branches = useAllBranches()
@@ -126,7 +129,18 @@ export default function WarehousesPage() {
                     <td className="py-3 pr-4 font-medium text-slate-900">{warehouse.name}</td>
                     {showBranch && <td className="py-3 pr-4">{warehouse.branch.code}</td>}
                     <td className="py-3 pr-4 text-slate-600">{warehouse.address ?? '—'}</td>
-                    <td className="py-3 pr-4"><Badge tone={warehouse.status === 'active' ? 'success' : 'neutral'} dot>{t(`inventory.warehouses.status.${warehouse.status}`)}</Badge></td>
+                    <td className="py-3 pr-4">
+                      <span className="inline-flex flex-wrap items-center gap-1.5">
+                        <Badge tone={warehouse.status === 'active' ? 'success' : 'neutral'} dot>{t(`inventory.warehouses.status.${warehouse.status}`)}</Badge>
+                        {warehouse.stocktake && (
+                          can('inventory.adjustment.view') ? (
+                            <Link {...link('stocktake', warehouse.stocktake.id)} className="rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"><Badge tone="warning">{t('inventory.warehouses.counting')}</Badge></Link>
+                          ) : (
+                            <Badge tone="warning">{t('inventory.warehouses.counting')}</Badge>
+                          )
+                        )}
+                      </span>
+                    </td>
                     <td className="py-3 text-right">
                       <div className="flex justify-end gap-1">
                         {canUpdate && (

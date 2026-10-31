@@ -8,6 +8,7 @@ use App\Http\Requests\Api\V1\WarehouseRequest;
 use App\Http\Resources\Api\V1\WarehouseResource;
 use App\Models\Branch;
 use App\Models\StockDocument;
+use App\Models\Stocktake;
 use App\Models\Warehouse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -31,7 +32,7 @@ class WarehouseController extends Controller
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 
-        $query = Warehouse::query()->with('branch')->orderBy('branch_id')->orderBy('code');
+        $query = Warehouse::query()->with(['branch', 'openStocktake'])->orderBy('branch_id')->orderBy('code');
 
         if ($request->user()->permissionScope('inventory.warehouse.view') !== 'tenant') {
             $query->whereIn('branch_id', $request->user()->branchIds());
@@ -52,7 +53,7 @@ class WarehouseController extends Controller
     {
         Gate::authorize('view', $warehouse);
 
-        return new WarehouseResource($warehouse->load('branch'));
+        return new WarehouseResource($warehouse->load(['branch', 'openStocktake']));
     }
 
     public function store(WarehouseRequest $request): JsonResponse
@@ -64,16 +65,21 @@ class WarehouseController extends Controller
         $warehouse->branch_id = $branch->id;
         $warehouse->save(); // tenant_id lấy từ context, không từ request
 
-        return (new WarehouseResource($warehouse->load('branch')))->response()->setStatusCode(201);
+        return (new WarehouseResource($warehouse->load(['branch', 'openStocktake'])))->response()->setStatusCode(201);
     }
 
-    public function update(WarehouseRequest $request, Warehouse $warehouse): WarehouseResource
+    public function update(WarehouseRequest $request, Warehouse $warehouse): WarehouseResource|JsonResponse
     {
         Gate::authorize('update', $warehouse);
 
+        // Kho đang kiểm kê không được ngừng hoạt động (đợt kiểm kê sẽ không hoàn tất được): phải hoàn tất hoặc hủy đợt trước.
+        if (($request->validated('status') ?? null) === Warehouse::STATUS_INACTIVE && $warehouse->openStocktake()->exists()) {
+            return Problem::response(409, 'warehouse_counting', 'Kho đang kiểm kê.', 'Kho này đang có đợt kiểm kê chưa kết thúc. Hãy hoàn tất hoặc hủy kiểm kê trước khi chuyển kho sang "ngừng hoạt động".');
+        }
+
         $warehouse->fill(Arr::only($request->validated(), ['code', 'name', 'address', 'status']))->save();
 
-        return new WarehouseResource($warehouse->load('branch'));
+        return new WarehouseResource($warehouse->load(['branch', 'openStocktake']));
     }
 
     /** Xóa mềm; kho đã có phiếu kho thì không xóa được (sổ kho tham chiếu mãi mãi) — chuyển sang "ngừng hoạt động". */
@@ -83,6 +89,10 @@ class WarehouseController extends Controller
 
         if (StockDocument::where('warehouse_id', $warehouse->id)->exists()) {
             return Problem::response(409, 'warehouse_in_use', 'Kho đã có phiếu kho.', 'Kho này đã có phiếu nhập/xuất nên không xóa được. Hãy chuyển sang "ngừng hoạt động" để không chọn lại được nữa.');
+        }
+
+        if (Stocktake::where('warehouse_id', $warehouse->id)->exists()) {
+            return Problem::response(409, 'warehouse_in_use', 'Kho đã có đợt kiểm kê.', 'Kho này đã có đợt kiểm kê nên không xóa được. Hãy chuyển sang "ngừng hoạt động" nếu không dùng nữa.');
         }
 
         $warehouse->delete();

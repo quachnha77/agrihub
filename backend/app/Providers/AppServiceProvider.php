@@ -7,6 +7,7 @@ use App\Models\Brand;
 use App\Models\Category;
 use App\Models\CustomerGroup;
 use App\Models\StockDocument;
+use App\Models\Stocktake;
 use App\Models\Unit;
 use App\Models\User;
 use App\Models\Warehouse;
@@ -14,6 +15,7 @@ use App\Observers\BranchObserver;
 use App\Policies\CatalogListPolicy;
 use App\Policies\CustomerGroupPolicy;
 use App\Policies\StockDocumentPolicy;
+use App\Policies\StocktakePolicy;
 use App\Policies\WarehousePolicy;
 use App\Services\Audit\AuditLogger;
 use App\Support\Auth\LoginIdentifier;
@@ -57,6 +59,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(CustomerGroup::class, CustomerGroupPolicy::class);
         Gate::policy(Warehouse::class, WarehousePolicy::class);
         Gate::policy(StockDocument::class, StockDocumentPolicy::class);
+        Gate::policy(Stocktake::class, StocktakePolicy::class);
 
         // Chi nhánh nào cũng có sẵn "Kho chính".
         Branch::observe(BranchObserver::class);

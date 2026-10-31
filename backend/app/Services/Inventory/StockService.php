@@ -8,6 +8,7 @@ use App\Models\ProductCost;
 use App\Models\StockBalance;
 use App\Models\StockDocument;
 use App\Models\StockMovement;
+use App\Models\Stocktake;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\Audit\AuditLogger;
@@ -28,6 +29,8 @@ use Illuminate\Validation\ValidationException;
  * - Sản phẩm theo dõi lô bắt buộc khai lô: nhập khai số lô + hạn dùng (lô chưa có thì tạo), xuất/điều chỉnh giảm chọn lô đang có.
  *   Lô đã quá hạn chỉ xuất được để hủy (lý do "hết hạn").
  * - Số lượng, đơn giá quy về ĐƠN VỊ CƠ SỞ của sản phẩm bằng số thập phân chính xác (BCMath), người dùng nhập theo đơn vị nào cũng được.
+ * - Kho đang kiểm kê (đợt `counting`) bị KHÓA: mọi phiếu bị từ chối, trừ phiếu điều chỉnh do chính đợt kiểm kê đó ghi khi hoàn tất (tham số `$stocktake`).
+   Khóa chia sẻ trên dòng kho tuần tự hóa với `StocktakeService::start` (giữ khóa độc quyền cùng dòng) nên không phiếu nào lọt vào giữa lúc chụp tồn.
  * Mọi lỗi dữ liệu gom lại và báo một lần theo từng dòng (`lines.N.field`) bằng ValidationException (422).
  */
 class StockService
@@ -43,16 +46,25 @@ class StockService
 
     /**
      * @param  array{reason?: ?string, note?: ?string, lines: list<array<string, mixed>>}  $data  đã kiểm tra hình dạng; `product_id`, `unit_id`, `batch_id` là uuid công khai
+     * @param  Stocktake|null  $stocktake  chỉ StocktakeService truyền vào khi hoàn tất đợt kiểm kê: được ghi vào kho đang bị khóa bởi CHÍNH đợt này
      */
-    public function post(Warehouse $warehouse, string $type, array $data, ?User $by): StockDocument
+    public function post(Warehouse $warehouse, string $type, array $data, ?User $by, ?Stocktake $stocktake = null): StockDocument
     {
-        return CodeSequence::retrying(StockDocument::class, self::CODE_PREFIX[$type], fn (string $code) => DB::transaction(fn () => $this->record($warehouse, $type, $data, $by, $code)));
+        return CodeSequence::retrying(StockDocument::class, self::CODE_PREFIX[$type], fn (string $code) => DB::transaction(fn () => $this->record($warehouse, $type, $data, $by, $code, $stocktake)));
     }
 
     /** @param  array<string, mixed>  $data */
-    private function record(Warehouse $warehouse, string $type, array $data, ?User $by, string $code): StockDocument
+    private function record(Warehouse $warehouse, string $type, array $data, ?User $by, string $code, ?Stocktake $stocktake = null): StockDocument
     {
         $errors = [];
+
+        // Khóa chia sẻ dòng kho rồi mới đọc đợt kiểm kê: nếu một đợt đang bắt đầu (khóa độc quyền) thì chờ nó xong và thấy nó.
+        Warehouse::whereKey($warehouse->id)->sharedLock()->first();
+        $counting = Stocktake::where('warehouse_id', $warehouse->id)->where('status', Stocktake::COUNTING)->first();
+
+        if ($counting !== null && $stocktake?->id !== $counting->id) {
+            $errors['warehouse_id'][] = sprintf('Kho này đang kiểm kê (%s): hoàn tất hoặc hủy đợt kiểm kê trước khi ghi phiếu kho.', $counting->code);
+        }
 
         if ($warehouse->status !== Warehouse::STATUS_ACTIVE) {
             $errors['warehouse_id'][] = 'Kho này đã ngừng hoạt động.';

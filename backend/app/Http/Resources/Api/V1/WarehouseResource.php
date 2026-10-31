@@ -18,6 +18,8 @@ class WarehouseResource extends JsonResource
             'name' => $this->name,
             'address' => $this->address,
             'status' => $this->status,
+            // Đợt kiểm kê đang đếm (kho bị khóa: không ghi được phiếu kho khác); null = không khóa. Chỉ có khi đã nạp quan hệ `openStocktake`.
+            'stocktake' => $this->whenLoaded('openStocktake', fn () => $this->openStocktake === null ? null : ['id' => $this->openStocktake->uuid, 'code' => $this->openStocktake->code]),
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
         ];
