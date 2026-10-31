@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { ApiError } from '../../lib/api.ts'
 import { parseNumber } from '../catalog/form.ts'
 import type { Product } from '../catalog/api.ts'
-import type { DocumentPayload, DocumentType, LinePayload } from './api.ts'
+import type { DocumentPayload, DocumentType, LinePayload, TransferPayload } from './api.ts'
 
 /** Giá trị đặc biệt của ô chọn lô: "lô mới" (khai số lô và hạn dùng). */
 export const NEW_BATCH = '__new__'
@@ -151,6 +151,92 @@ export function applyStockErrors(error: unknown, setError: UseFormSetError<Stock
 
     if (['warehouse_id', 'type', 'reason', 'note'].includes(key) || LINE_KEY.test(key)) {
       setError(key as Path<StockFormValues>, { type: 'server', message })
+      handled = true
+    } else {
+      leftover.push(message)
+    }
+  }
+
+  return { handled: handled || leftover.length > 0, leftover }
+}
+
+// --- Chuyển kho ----------------------------------------------------------------------------------
+
+export interface TransferLineValues {
+  product_id: string
+  unit_id: string
+  quantity: string
+  batch_id: string
+}
+
+export interface TransferFormValues {
+  from_warehouse_id: string
+  to_warehouse_id: string
+  note: string
+  lines: TransferLineValues[]
+}
+
+export const emptyTransferLine = (): TransferLineValues => ({ product_id: '', unit_id: '', quantity: '', batch_id: '' })
+
+export function transferSchema(t: TFunction) {
+  const quantity = z.string().trim().refine((v) => {
+    const n = parseNumber(v)
+
+    return n !== null && n > 0 && n <= 99_999_999 && Math.round(n * 1000) / 1000 === n
+  }, t('inventory.form.quantityInvalid'))
+
+  return z
+    .object({
+      from_warehouse_id: z.string().min(1, t('inventory.transfer.form.fromRequired')),
+      to_warehouse_id: z.string().min(1, t('inventory.transfer.form.toRequired')),
+      note: z.string().max(500, t('validation.maxLength', { count: 500 })),
+      lines: z
+        .array(
+          z.object({
+            product_id: z.string().min(1, t('inventory.form.productRequired')),
+            unit_id: z.string().min(1, t('inventory.form.unitRequired')),
+            quantity,
+            batch_id: z.string(),
+          }),
+        )
+        .min(1, t('inventory.form.linesRequired'))
+        .max(100, t('inventory.form.tooManyLines', { max: 100 })),
+    })
+    .superRefine((values, ctx) => {
+      if (values.from_warehouse_id !== '' && values.from_warehouse_id === values.to_warehouse_id) {
+        ctx.addIssue({ code: 'custom', path: ['to_warehouse_id'], message: t('inventory.transfer.form.sameWarehouse') })
+      }
+    })
+}
+
+/** Nội dung gửi API. Sản phẩm theo dõi lô thì gửi lô đã chọn ở kho gửi; sản phẩm không theo dõi lô không gửi gì về lô. */
+export function transferPayload(values: TransferFormValues, products: Record<string, Product | undefined>): TransferPayload {
+  return {
+    from_warehouse_id: values.from_warehouse_id,
+    to_warehouse_id: values.to_warehouse_id,
+    note: values.note.trim() === '' ? null : values.note.trim(),
+    lines: values.lines.map((line, index) => ({
+      product_id: line.product_id,
+      unit_id: line.unit_id,
+      quantity: parseNumber(line.quantity) ?? 0,
+      ...(products[String(index)]?.track_batch ? { batch_id: line.batch_id === '' ? null : line.batch_id } : {}),
+    })),
+  }
+}
+
+/** Đưa lỗi 422 của máy chủ vào đúng ô (`from_warehouse_id`, `to_warehouse_id`, `note`, `lines.N.<ô>`); lỗi không gắn được vào ô nào trả về để hiện chung. */
+export function applyTransferErrors(error: unknown, setError: UseFormSetError<TransferFormValues>): { handled: boolean; leftover: string[] } {
+  if (!(error instanceof ApiError) || error.status !== 422) return { handled: false, leftover: [] }
+
+  const leftover: string[] = []
+  let handled = false
+
+  for (const [key, messages] of Object.entries(error.errors)) {
+    const message = messages[0]
+    if (!message) continue
+
+    if (['from_warehouse_id', 'to_warehouse_id', 'note'].includes(key) || LINE_KEY.test(key)) {
+      setError(key as Path<TransferFormValues>, { type: 'server', message })
       handled = true
     } else {
       leftover.push(message)

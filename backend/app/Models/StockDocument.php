@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * Phiếu kho: nhập kho, xuất kho, điều chỉnh, tồn đầu kỳ. Bất biến (trigger chặn sửa/xóa); sai sót được sửa bằng phiếu điều chỉnh mới.
- * Chỉ StockService tạo.
+ * Chỉ StockService tạo. Phiếu `transfer_out` / `transfer_in` đi cặp với nhau theo `transfer_id` (StockTransfer).
  */
 class StockDocument extends Model
 {
@@ -24,7 +24,16 @@ class StockDocument extends Model
 
     public const ADJUSTMENT = 'adjustment';
 
+    /** Chuyển kho đi: phiếu xuất ở kho gửi / phiếu nhập ở kho nhận của một phiếu chuyển (StockTransfer). Không ghi trực tiếp qua API phiếu kho. */
+    public const TRANSFER_OUT = 'transfer_out';
+
+    public const TRANSFER_IN = 'transfer_in';
+
+    /** Loại phiếu ghi trực tiếp được qua API phiếu kho. */
     public const TYPES = [self::OPENING, self::RECEIPT, self::ISSUE, self::ADJUSTMENT];
+
+    /** Mọi loại phiếu có thể xuất hiện trong sổ kho (để lọc danh sách). */
+    public const ALL_TYPES = [...self::TYPES, self::TRANSFER_OUT, self::TRANSFER_IN];
 
     /** Lý do xuất kho hợp lệ; `expired` (hủy hàng hết hạn) là lý do duy nhất được xuất lô đã quá hạn. */
     public const ISSUE_REASONS = ['damaged', 'expired', 'internal_use', 'sample', 'other'];
@@ -53,6 +62,11 @@ class StockDocument extends Model
     public function performer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'performed_by');
+    }
+
+    public function transfer(): BelongsTo
+    {
+        return $this->belongsTo(StockTransfer::class, 'transfer_id');
     }
 
     public function movements(): HasMany

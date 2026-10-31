@@ -147,10 +147,11 @@ return [
         'customers',
         'customer_addresses',
         'customer_contacts',
-        // Kho (cha → con): kho, lô, giá vốn, phiếu kho và sổ kho (bất biến, chỉ được xóa trong lúc khôi phục), số dư.
+        // Kho (cha → con): kho, lô, giá vốn, phiếu chuyển kho (phiếu kho tham chiếu nó), phiếu kho và sổ kho (bất biến, chỉ được xóa trong lúc khôi phục), số dư.
         'warehouses',
         'batches',
         'product_costs',
+        'stock_transfers',
         'stock_documents',
         'stock_movements',
         'stock_balances',

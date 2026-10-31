@@ -20,6 +20,8 @@ const loaders = {
   stockDoc: () => import('../features/inventory/StockDocumentViewDialog.tsx'),
   stocktakeNew: () => import('../features/inventory/StocktakeStartDialog.tsx'),
   stocktake: () => import('../features/inventory/StocktakeDialog.tsx'),
+  transferNew: () => import('../features/inventory/TransferDialog.tsx'),
+  transfer: () => import('../features/inventory/TransferViewDialog.tsx'),
 }
 
 /**
@@ -36,6 +38,9 @@ const DIALOGS: Record<string, Definition> = {
   // Kiểm kê dùng quyền "Kiểm kê & điều chỉnh kho": xem đợt cần quyền xem, bắt đầu cần quyền tạo (đếm/hoàn tất/hủy do popup tự ẩn nút và API kiểm tra lại).
   'stocktake-new': { Component: lazy(loaders.stocktakeNew), allowed: (can) => can('inventory.adjustment.create') },
   stocktake: { Component: lazy(loaders.stocktake), allowed: (can) => can('inventory.adjustment.view') },
+  // Chuyển kho dùng quyền nhập/xuất kho (máy chủ còn đòi quyền ở CẢ HAI chi nhánh của hai kho).
+  'transfer-new': { Component: lazy(loaders.transferNew), allowed: (can) => can('inventory.movement.create') },
+  transfer: { Component: lazy(loaders.transfer), allowed: (can) => can('inventory.movement.view') },
 }
 
 /** Tải sẵn mã của các popup khi trình duyệt rảnh, để lần bấm đầu tiên không phải chờ mạng (nhất là trên điện thoại). Bỏ qua khi chạy test. */

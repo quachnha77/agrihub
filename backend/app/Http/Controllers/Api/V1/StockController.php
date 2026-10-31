@@ -89,7 +89,7 @@ class StockController extends Controller
         $f = $request->validate([
             'product' => ['nullable', 'uuid'],
             'warehouse' => ['nullable', 'uuid'],
-            'type' => ['nullable', Rule::in(StockDocument::TYPES)],
+            'type' => ['nullable', Rule::in(StockDocument::ALL_TYPES)],
             'from' => ['nullable', 'date_format:Y-m-d'],
             'to' => ['nullable', 'date_format:Y-m-d'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],

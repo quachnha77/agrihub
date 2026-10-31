@@ -6,13 +6,14 @@ import { useLocation, useNavigate, useSearchParams, type To } from 'react-router
  *   `?dialog=product`           thêm sản phẩm        `?dialog=product:<id>`     sửa/xem sản phẩm
  *   `?dialog=stock-new:receipt` lập phiếu nhập kho   `?dialog=stock-doc:<id>`  xem phiếu kho
  *   `?dialog=stocktake-new`     bắt đầu kiểm kê      `?dialog=stocktake:<id>`   đếm / xem một đợt kiểm kê
+ *   `?dialog=transfer-new`      chuyển kho           `?dialog=transfer:<id>`    xem một phiếu chuyển kho
  * Mở được trên MỌI trang (kể cả Tổng quan) mà trang phía sau vẫn nguyên: không chuyển trang, giữ bộ lọc và vị trí cuộn. Vì nằm trên địa chỉ
  * nên nút Quay lại của trình duyệt/điện thoại đóng popup, tải lại trang vẫn mở đúng popup, và gửi liên kết cho người khác được.
  */
 
 const PARAM = 'dialog'
 
-export type DialogName = 'product' | 'customer' | 'supplier' | 'stock-new' | 'stock-doc' | 'stocktake-new' | 'stocktake'
+export type DialogName = 'product' | 'customer' | 'supplier' | 'stock-new' | 'stock-doc' | 'stocktake-new' | 'stocktake' | 'transfer-new' | 'transfer'
 
 /** Thuộc tính mà mọi popup nhận từ khung (DialogHost). `arg` là phần sau dấu ":" (mã bản ghi cần sửa/xem, hoặc loại phiếu). */
 export interface DialogProps {

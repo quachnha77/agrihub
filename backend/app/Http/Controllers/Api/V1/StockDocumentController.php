@@ -18,7 +18,7 @@ use Illuminate\Validation\Rule;
 /** Phiếu kho: danh sách, chi tiết, và ghi phiếu mới (nhập, xuất, điều chỉnh, tồn đầu kỳ). Phiếu đã ghi không sửa/xóa được; sai sót sửa bằng phiếu điều chỉnh. */
 class StockDocumentController extends Controller
 {
-    private const WITH = ['warehouse', 'branch', 'performer'];
+    private const WITH = ['warehouse', 'branch', 'performer', 'transfer'];
 
     public function __construct(private StockService $stock) {}
 
@@ -28,7 +28,7 @@ class StockDocumentController extends Controller
 
         $f = $request->validate([
             'q' => ['nullable', 'string', 'max:50'],
-            'type' => ['nullable', Rule::in(StockDocument::TYPES)],
+            'type' => ['nullable', Rule::in(StockDocument::ALL_TYPES)],
             'warehouse' => ['nullable', 'uuid'],
             'from' => ['nullable', 'date_format:Y-m-d'],
             'to' => ['nullable', 'date_format:Y-m-d'],

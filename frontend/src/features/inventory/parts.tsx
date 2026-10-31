@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { Badge } from '../../components/ui.tsx'
 import { formatIsoDate } from '../../lib/format.ts'
-import type { DocumentType, StocktakeStatus } from './api.ts'
+import type { LedgerType, StocktakeStatus } from './api.ts'
 import { daysFromToday } from './dates.ts'
 
 /** Hạn dùng kèm trạng thái: đã hết hạn (đỏ), sắp hết hạn trong `warnDays` ngày (vàng), còn lâu (xám). */
@@ -21,9 +21,9 @@ export function ExpiryBadge({ date, warnDays = 60 }: { date: string | null; warn
   )
 }
 
-export function TypeBadge({ type }: { type: DocumentType }) {
+export function TypeBadge({ type }: { type: LedgerType }) {
   const { t } = useTranslation()
-  const tone = type === 'receipt' || type === 'opening' ? 'success' : type === 'issue' ? 'warning' : 'info'
+  const tone = type === 'receipt' || type === 'opening' || type === 'transfer_in' ? 'success' : type === 'issue' || type === 'transfer_out' ? 'warning' : 'info'
 
   return <Badge tone={tone}>{t(`inventory.types.${type}`)}</Badge>
 }

@@ -5,7 +5,11 @@ import type { Paginated } from '../../lib/types.ts'
 export type WarehouseStatus = 'active' | 'inactive'
 export type DocumentType = 'opening' | 'receipt' | 'issue' | 'adjustment'
 
+/** Loại phiếu có thể lập trực tiếp. Chuyển kho đi qua phiếu chuyển riêng và để lại hai phiếu kho đi cặp (`transfer_out` ở kho gửi, `transfer_in` ở kho nhận). */
 export const DOCUMENT_TYPES: DocumentType[] = ['receipt', 'issue', 'adjustment', 'opening']
+/** Mọi loại phiếu có thể xuất hiện trong sổ kho (để lọc và hiển thị). */
+export type LedgerType = DocumentType | 'transfer_out' | 'transfer_in'
+export const LEDGER_TYPES: LedgerType[] = [...DOCUMENT_TYPES, 'transfer_out', 'transfer_in']
 export const ISSUE_REASONS = ['damaged', 'expired', 'internal_use', 'sample', 'other'] as const
 export const ADJUSTMENT_REASONS = ['count_correction', 'damaged', 'expired', 'other'] as const
 
@@ -68,7 +72,7 @@ export interface StockBalance {
 
 export interface StockMovement {
   id: number
-  type: DocumentType
+  type: LedgerType
   document: { id: string; code: string; reason: string | null }
   warehouse: { id: string; code: string; name: string }
   product: { id: string; sku: string; name: string; base_unit: string | null }
@@ -84,11 +88,13 @@ export interface StockMovement {
 export interface StockDocument {
   id: string
   code: string
-  type: DocumentType
+  type: LedgerType
   reason: string | null
   note: string | null
   warehouse: { id: string; code: string; name: string }
   branch: BranchRef
+  /** Phiếu chuyển kho mà phiếu này thuộc về (chỉ phiếu `transfer_out` / `transfer_in`). */
+  transfer?: { id: string; code: string } | null
   performed_by: { id: string; name: string } | null
   performed_at: string
   line_count?: number
@@ -403,6 +409,82 @@ export function useFinishStocktake(id: string, action: 'complete' | 'cancel') {
       void queryClient.invalidateQueries({ queryKey: STOCKTAKES })
       void queryClient.invalidateQueries({ queryKey: WAREHOUSES })
       if (action === 'complete') void queryClient.invalidateQueries({ queryKey: STOCK })
+    },
+  })
+}
+
+// --- Chuyển kho ----------------------------------------------------------------------------------
+
+export interface TransferSide {
+  warehouse: { id: string; code: string; name: string }
+  branch: BranchRef
+}
+
+/** Một dòng hàng chuyển: số lượng DƯƠNG theo đơn vị cơ sở kèm đơn vị người dùng đã nhập; giá vốn chỉ có khi được phép xem. */
+export interface TransferLine {
+  product: { id: string; sku: string; name: string; base_unit: string }
+  batch: { id: string; batch_no: string; expires_at: string | null } | null
+  quantity: string
+  entered: { unit: string; quantity: string; factor: string }
+  unit_cost?: string
+  value?: string
+}
+
+/** Phiếu chuyển kho. `documents` (phiếu xuất ở kho gửi, phiếu nhập ở kho nhận) và `lines` chỉ có khi xem chi tiết. */
+export interface StockTransfer {
+  id: string
+  code: string
+  note: string | null
+  from: TransferSide
+  to: TransferSide
+  performed_by: { id: string; name: string } | null
+  performed_at: string
+  line_count?: number
+  documents?: { out: { id: string; code: string }; in: { id: string; code: string } | null }
+  lines?: TransferLine[]
+  /** Giá trị hàng chuyển (đồng); chỉ có khi được phép xem giá vốn. */
+  value?: string
+}
+
+export interface TransferFilters {
+  q: string
+  warehouse: string
+  from: string
+  to: string
+  page: number
+}
+
+export interface TransferPayload {
+  from_warehouse_id: string
+  to_warehouse_id: string
+  note: string | null
+  lines: { product_id: string; unit_id: string; quantity: number; batch_id?: string | null }[]
+}
+
+export function useTransfers(filters: TransferFilters) {
+  return useQuery({
+    queryKey: [...STOCK, 'transfers', 'list', filters],
+    queryFn: () => get<Paginated<StockTransfer>>(`/stock/transfers?${params(filters, 20).toString()}`),
+    placeholderData: keepPreviousData,
+  })
+}
+
+export function useTransfer(id: string | undefined) {
+  return useQuery({
+    queryKey: [...STOCK, 'transfers', 'detail', id],
+    queryFn: async () => (await get<{ data: StockTransfer }>(`/stock/transfers/${id}`)).data,
+    enabled: id !== undefined,
+  })
+}
+
+/** Chuyển kho trong một bước; thành công thì làm mới mọi số liệu tồn (kho gửi trừ, kho nhận cộng) và danh sách phiếu. */
+export function useCreateTransfer() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (payload: TransferPayload) => (await post<{ data: StockTransfer }>('/stock/transfers', payload)).data,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: STOCK })
     },
   })
 }

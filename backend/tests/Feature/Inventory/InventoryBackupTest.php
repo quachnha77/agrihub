@@ -24,7 +24,7 @@ class InventoryBackupTest extends TestCase
 {
     use AdministersBackups, CreatesTenants, MakesCatalog, MakesStock, RefreshDatabase;
 
-    private const TABLES = ['warehouses', 'batches', 'product_costs', 'stock_documents', 'stock_movements', 'stock_balances'];
+    private const TABLES = ['warehouses', 'batches', 'product_costs', 'stock_transfers', 'stock_documents', 'stock_movements', 'stock_balances'];
 
     protected function setUp(): void
     {
@@ -47,6 +47,8 @@ class InventoryBackupTest extends TestCase
         $this->assertLessThan($pos('stock_documents'), $pos('warehouses'));
         $this->assertLessThan($pos('batches'), $pos('products'));
         $this->assertLessThan($pos('product_costs'), $pos('products'));
+        $this->assertLessThan($pos('stock_documents'), $pos('stock_transfers'), 'phiếu kho tham chiếu phiếu chuyển');
+        $this->assertLessThan($pos('stock_transfers'), $pos('warehouses'));
         $this->assertLessThan($pos('stock_movements'), $pos('stock_documents'));
         $this->assertLessThan($pos('stock_movements'), $pos('batches'));
         $this->assertLessThan($pos('stock_balances'), $pos('batches'));

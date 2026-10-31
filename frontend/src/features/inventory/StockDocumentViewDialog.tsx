@@ -1,10 +1,11 @@
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router'
 import { FormSection } from '../../components/dialog-parts.tsx'
 import { FieldsSkeleton, SkeletonRegion, TableSkeleton } from '../../components/skeleton.tsx'
 import { DataTable } from '../../components/table.tsx'
 import { Alert, Button, Modal, ModalActions } from '../../components/ui.tsx'
 import { ApiError } from '../../lib/api.ts'
-import type { DialogProps } from '../../lib/dialog.ts'
+import { useDialog, type DialogProps } from '../../lib/dialog.ts'
 import { formatDateTime, formatQuantity, formatVnd } from '../../lib/format.ts'
 import { useStockDocument } from './api.ts'
 import { ExpiryBadge, TypeBadge } from './parts.tsx'
@@ -14,6 +15,7 @@ const money = (value: string | undefined) => (value === undefined ? '—' : form
 /** Popup chi tiết một phiếu kho (`?dialog=stock-doc:<id>`): người ghi, kho, lý do và từng dòng (số lượng theo đơn vị đã nhập và theo đơn vị cơ sở, lô, giá vốn nếu được xem). */
 export default function StockDocumentViewDialog({ arg: id, onClose }: DialogProps) {
   const { t } = useTranslation()
+  const { link } = useDialog()
   const document = useStockDocument(id)
   const data = document.data
   const lines = data?.lines ?? []
@@ -50,6 +52,12 @@ export default function StockDocumentViewDialog({ arg: id, onClose }: DialogProp
             <div><dt className="text-slate-500">{t('inventory.columns.time')}</dt><dd className="font-medium">{formatDateTime(data.performed_at)}</dd></div>
             <div><dt className="text-slate-500">{t('inventory.columns.warehouse')}</dt><dd className="font-medium">{data.warehouse.name} <span className="text-slate-500">({data.branch.code})</span></dd></div>
             <div><dt className="text-slate-500">{t('inventory.columns.by')}</dt><dd className="font-medium">{data.performed_by?.name ?? t('inventory.documents.system')}</dd></div>
+            {data.transfer && (
+              <div>
+                <dt className="text-slate-500">{t('inventory.documents.transfer')}</dt>
+                <dd><Link {...link('transfer', data.transfer.id)} className="font-mono text-xs font-semibold text-brand-700 hover:underline">{data.transfer.code}</Link></dd>
+              </div>
+            )}
             {data.reason && <div><dt className="text-slate-500">{t('inventory.form.reason')}</dt><dd className="font-medium">{t(`inventory.reasons.${data.reason}`)}</dd></div>}
             {costs && <div><dt className="text-slate-500">{t('inventory.documents.value')}</dt><dd className="font-medium">{money(data.value)}</dd></div>}
             {data.note && <div className="sm:col-span-2 lg:col-span-4"><dt className="text-slate-500">{t('inventory.form.note')}</dt><dd>{data.note}</dd></div>}

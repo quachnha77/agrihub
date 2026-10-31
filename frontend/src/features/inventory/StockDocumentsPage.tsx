@@ -10,7 +10,7 @@ import { useDialog } from '../../lib/dialog.ts'
 import { countActiveFilters } from '../../lib/filters.ts'
 import { formatDateTime } from '../../lib/format.ts'
 import { useClampPage } from '../../lib/pagination.ts'
-import { DOCUMENT_TYPES, useAllWarehouses, useStockDocuments, type DocumentFilters } from './api.ts'
+import { LEDGER_TYPES, useAllWarehouses, useStockDocuments, type DocumentFilters } from './api.ts'
 import { TypeBadge } from './parts.tsx'
 import { StockTabs } from './StockTabs.tsx'
 
@@ -47,7 +47,7 @@ export default function StockDocumentsPage() {
         >
           <FilterSelect label={t('inventory.documents.type')} value={filters.type} onChange={(event) => set('type', event.target.value)}>
             <option value="">{t('inventory.filters.all')}</option>
-            {DOCUMENT_TYPES.map((type) => <option key={type} value={type}>{t(`inventory.types.${type}`)}</option>)}
+            {LEDGER_TYPES.map((type) => <option key={type} value={type}>{t(`inventory.types.${type}`)}</option>)}
           </FilterSelect>
           {(warehouses.data?.length ?? 0) > 1 && (
             <FilterSelect label={t('inventory.filters.warehouse')} value={filters.warehouse} onChange={(event) => set('warehouse', event.target.value)}>

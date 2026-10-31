@@ -1,10 +1,9 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Plus, Search, Trash2 } from 'lucide-react'
-import { useDeferredValue, useState } from 'react'
+import { Plus, Trash2 } from 'lucide-react'
+import { useState } from 'react'
 import { useFieldArray, useForm, useWatch, type Resolver, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { DialogSkeleton, FormSection, RequiredNote, UnsavedChangesDialog } from '../../components/dialog-parts.tsx'
-import { ListSkeleton } from '../../components/skeleton.tsx'
 import { fieldBase, fieldTone } from '../../components/styles.ts'
 import { Alert, Badge, Button, Modal, ModalActions, SelectField, TextField } from '../../components/ui.tsx'
 import { useDialog, type DialogProps } from '../../lib/dialog.ts'
@@ -14,9 +13,10 @@ import { useToast } from '../../lib/toast.ts'
 import { useUnsavedGuard } from '../../lib/unsaved.ts'
 import { useAuth } from '../auth/auth-context.ts'
 import { parseNumber } from '../catalog/form.ts'
-import { useProducts, type Product } from '../catalog/api.ts'
+import type { Product } from '../catalog/api.ts'
 import { ADJUSTMENT_REASONS, DOCUMENT_TYPES, ISSUE_REASONS, useAllWarehouses, usePostStockDocument, useStockBalances, type DocumentType, type Warehouse } from './api.ts'
 import { NEW_BATCH, applyStockErrors, defaultUnit, emptyLine, factorOf, isIncoming, stockPayload, stockSchema, type StockFormValues } from './forms.ts'
+import { ProductPicker } from './ProductPicker.tsx'
 
 const inputClass = (error: boolean) => `${fieldBase} ${fieldTone(error)}`
 
@@ -369,42 +369,5 @@ function LineEditor({ index, form, type, warehouse, product, onPick, onRemove, c
         </div>
       )}
     </fieldset>
-  )
-}
-
-/** Tìm sản phẩm của chi nhánh theo tên / mã / mã vạch (chỉ sản phẩm đang kinh doanh). */
-function ProductPicker({ branchId, onPick }: { branchId: string; onPick: (product: Product) => void }) {
-  const { t } = useTranslation()
-  const [q, setQ] = useState('')
-  const search = useDeferredValue(q)
-  const products = useProducts({ q: search, type: '', status: 'active', branch: branchId, category: '', brand: '', page: 1 })
-  const rows = (products.data?.data ?? []).slice(0, 8)
-
-  return (
-    <div>
-      <label className="mb-1.5 block text-sm font-medium text-slate-800">
-        {t('inventory.form.product')}
-        <div className="relative mt-1.5">
-          <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" aria-hidden="true" />
-          <input type="search" value={q} onChange={(event) => setQ(event.target.value)} placeholder={t('inventory.form.productPlaceholder')} autoComplete="off" className={`${inputClass(false)} pl-9 font-normal`} />
-        </div>
-      </label>
-      {products.isPending ? (
-        <div className="mt-2 rounded-lg border border-slate-200 bg-white px-3"><ListSkeleton rows={3} subtitle /></div>
-      ) : rows.length === 0 ? (
-        <p className="mt-2 text-sm text-slate-500">{t('inventory.form.noProducts')}</p>
-      ) : (
-        <ul className="mt-2 max-h-64 divide-y divide-slate-100 overflow-y-auto rounded-lg border border-slate-200 bg-white">
-          {rows.map((product) => (
-            <li key={product.id}>
-              <button type="button" onClick={() => onPick(product)} className="flex w-full flex-wrap items-center justify-between gap-2 px-3 py-2.5 text-left text-sm hover:bg-brand-50">
-                <span><span className="font-mono text-xs">{product.sku}</span> <span className="font-medium text-slate-900">{product.name}</span></span>
-                <span className="text-xs text-slate-500">{product.type_label} · {product.base_unit.name}{product.track_batch ? ` · ${t('inventory.stock.batch')}` : ''}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
   )
 }
