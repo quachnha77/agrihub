@@ -4,7 +4,7 @@ import type { Paginated } from '../../lib/types.ts'
 
 export type ProductTypeKey = 'fertilizer' | 'pesticide' | 'seed' | 'other'
 export type ProductStatus = 'active' | 'inactive'
-export type ListKind = 'units' | 'categories' | 'brands'
+export type ListKind = 'units' | 'categories' | 'brands' | 'customer-groups'
 
 export interface ProductUnitRow {
   unit: { id: string; name: string }

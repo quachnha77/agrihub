@@ -48,6 +48,29 @@ export const routes: RouteObject[] = [
                 children: [{ path: 'products/new', lazy: async () => ({ Component: (await import('../features/catalog/ProductFormPage.tsx')).default }) }],
               },
               {
+                element: <RequireAccess permission="crm.customer.view" />,
+                children: [
+                  { path: 'customers', lazy: async () => ({ Component: (await import('../features/crm/CustomersPage.tsx')).default }) },
+                  { path: 'customers/groups', lazy: async () => ({ Component: (await import('../features/crm/CustomerGroupsPage.tsx')).default }) },
+                  { path: 'customers/:id', lazy: async () => ({ Component: (await import('../features/crm/CustomerFormPage.tsx')).default }) },
+                ],
+              },
+              {
+                element: <RequireAccess permission="crm.customer.create" />,
+                children: [{ path: 'customers/new', lazy: async () => ({ Component: (await import('../features/crm/CustomerFormPage.tsx')).default }) }],
+              },
+              {
+                element: <RequireAccess permission="purchase.supplier.view" />,
+                children: [
+                  { path: 'suppliers', lazy: async () => ({ Component: (await import('../features/crm/SuppliersPage.tsx')).default }) },
+                  { path: 'suppliers/:id', lazy: async () => ({ Component: (await import('../features/crm/SupplierFormPage.tsx')).default }) },
+                ],
+              },
+              {
+                element: <RequireAccess permission="purchase.supplier.create" />,
+                children: [{ path: 'suppliers/new', lazy: async () => ({ Component: (await import('../features/crm/SupplierFormPage.tsx')).default }) }],
+              },
+              {
                 element: <RequireAccess permission="tenant.branch.view" />,
                 children: [{ path: 'branches', lazy: async () => ({ Component: (await import('../features/branches/BranchesPage.tsx')).default }) }],
               },

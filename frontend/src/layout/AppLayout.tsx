@@ -1,4 +1,4 @@
-import { Activity, Building2, LayoutDashboard, LogOut, Menu, Package, PhoneCall, ServerCog, ShieldCheck, Store, Tags, Users, X, type LucideIcon } from 'lucide-react'
+import { Activity, Building2, Contact, LayoutDashboard, LogOut, Menu, Package, PhoneCall, ServerCog, ShieldCheck, Store, Tags, Truck, Users, X, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { NavLink, Outlet, useNavigate } from 'react-router'
@@ -23,6 +23,8 @@ export default function AppLayout() {
   const items: NavItem[] = [
     { to: '/', label: t('nav.dashboard'), icon: LayoutDashboard, visible: true, end: true },
     { to: '/products', label: t('nav.products'), icon: Package, visible: can('catalog.product.view') },
+    { to: '/customers', label: t('nav.customers'), icon: Contact, visible: can('crm.customer.view') },
+    { to: '/suppliers', label: t('nav.suppliers'), icon: Truck, visible: can('purchase.supplier.view') },
     { to: '/users', label: t('nav.users'), icon: Users, visible: can('tenant.user.view') },
     { to: '/branches', label: t('nav.branches'), icon: Building2, visible: can('tenant.branch.view') },
     { to: '/roles', label: t('nav.roles'), icon: ShieldCheck, visible: can('tenant.role.view') },

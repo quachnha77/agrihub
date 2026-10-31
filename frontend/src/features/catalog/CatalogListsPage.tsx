@@ -12,7 +12,7 @@ import { useAuth } from '../auth/auth-context.ts'
 import { useCatalogList, useDeleteListItem, useSaveListItem, type ListItem, type ListKind } from './api.ts'
 
 const KINDS: ListKind[] = ['units', 'categories', 'brands']
-const MAX_NAME: Record<ListKind, number> = { units: 50, categories: 100, brands: 100 }
+const MAX_NAME: Record<ListKind, number> = { units: 50, categories: 100, brands: 100, 'customer-groups': 100 }
 
 /** Đơn vị tính, nhóm hàng, thương hiệu: danh sách dùng chung toàn doanh nghiệp (mọi chi nhánh). */
 export default function CatalogListsPage() {
@@ -33,7 +33,8 @@ export default function CatalogListsPage() {
   )
 }
 
-function ListCard({ kind }: { kind: ListKind }) {
+/** Một danh sách dùng chung toàn doanh nghiệp. `permission` là tiền tố quyền (mặc định của sản phẩm; nhóm khách dùng `crm.customer`). */
+export function ListCard({ kind, permission = 'catalog.product' }: { kind: ListKind; permission?: string }) {
   const { t } = useTranslation()
   const { can } = useAuth()
   const items = useCatalogList(kind)
@@ -41,10 +42,10 @@ function ListCard({ kind }: { kind: ListKind }) {
   const [editing, setEditing] = useState<ListItem | 'new' | null>(null)
   const [deleting, setDeleting] = useState<ListItem | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
-  const canCreate = can('catalog.product.create')
+  const canCreate = can(`${permission}.create`)
   // Đổi tên và xóa ảnh hưởng mọi chi nhánh nên chỉ cấp doanh nghiệp; quản lý chi nhánh chỉ được thêm mới.
-  const canUpdate = can('catalog.product.update', 'tenant')
-  const canDelete = can('catalog.product.delete', 'tenant')
+  const canUpdate = can(`${permission}.update`, 'tenant')
+  const canDelete = can(`${permission}.delete`, 'tenant')
 
   async function confirmDelete() {
     if (!deleting) return
@@ -54,7 +55,7 @@ function ListCard({ kind }: { kind: ListKind }) {
       await remove.mutateAsync(deleting.id)
       setDeleting(null)
     } catch (error) {
-      setDeleteError(error instanceof ApiError && error.code === 'catalog_item_in_use' ? t('catalog.lists.inUse') : describeError(error, t))
+      setDeleteError(error instanceof ApiError && error.code === 'catalog_item_in_use' ? t(kind === 'customer-groups' ? 'catalog.lists.customer-groups.inUse' : 'catalog.lists.inUse') : describeError(error, t))
     }
   }
 
@@ -158,7 +159,7 @@ function ListItemDialog({ kind, item, onClose }: { kind: ListKind; item?: ListIt
             <input type="checkbox" className="mt-1 h-4 w-4 rounded border-slate-300 text-emerald-700" {...form.register('is_active')} />
             <span>
               {t('catalog.lists.inUseLabel')}
-              <span className="block text-xs text-slate-500">{t('catalog.lists.inUseHint')}</span>
+              <span className="block text-xs text-slate-500">{t(kind === 'customer-groups' ? 'catalog.lists.customer-groups.inUseHint' : 'catalog.lists.inUseHint')}</span>
             </span>
           </label>
         )}
