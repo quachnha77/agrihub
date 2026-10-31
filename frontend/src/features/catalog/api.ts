@@ -29,6 +29,8 @@ export interface Product {
   description: string | null
   status: ProductStatus
   track_batch: boolean
+  /** Mức tồn tối thiểu (đơn vị cơ sở, chuỗi thập phân); null = không đặt. Tồn xuống mức này thì báo "sắp hết hàng". */
+  min_stock: string | null
   specs: Record<string, string | number>
   base_unit: { id: string; name: string }
   units: ProductUnitRow[]
@@ -85,6 +87,7 @@ export interface ProductPayload {
   description: string | null
   status: ProductStatus
   track_batch: boolean
+  min_stock: number | null
   category_id: string | null
   brand_id: string | null
   specs: Record<string, string | number>

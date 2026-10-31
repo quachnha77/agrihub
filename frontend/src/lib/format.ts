@@ -36,3 +36,21 @@ const money = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND
 export function formatVnd(amount: number | null | undefined): string {
   return amount === null || amount === undefined ? '—' : money.format(amount)
 }
+
+const quantity = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 3 })
+
+/** Số lượng kho: "500.000" → "500", "12.500" → "12,5" (dấu phẩy thập phân, dấu chấm ngăn nghìn). Chuỗi không phải số giữ nguyên. */
+export function formatQuantity(value: string | number | null | undefined): string {
+  if (value === null || value === undefined || value === '') return '—'
+
+  const n = Number(value)
+
+  return Number.isFinite(n) ? quantity.format(n) : String(value)
+}
+
+/** Ngày "2027-06-30" (không có giờ) → "30/06/2027", không lệch múi giờ. */
+export function formatIsoDate(date: string | null | undefined): string {
+  const match = date ? /^(\d{4})-(\d{2})-(\d{2})/.exec(date) : null
+
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : '—'
+}

@@ -71,6 +71,22 @@ export const routes: RouteObject[] = [
                 children: [{ path: 'suppliers/new', lazy: async () => ({ Component: (await import('../features/crm/SupplierFormPage.tsx')).default }) }],
               },
               {
+                element: <RequireAccess permission="inventory.movement.view" />,
+                children: [
+                  { path: 'stock', lazy: async () => ({ Component: (await import('../features/inventory/StockPage.tsx')).default }) },
+                  { path: 'stock/documents', lazy: async () => ({ Component: (await import('../features/inventory/StockDocumentsPage.tsx')).default }) },
+                  { path: 'stock/documents/:id', lazy: async () => ({ Component: (await import('../features/inventory/StockDocumentPage.tsx')).default }) },
+                ],
+              },
+              {
+                element: <RequireAccess permission="inventory.movement.create" />,
+                children: [{ path: 'stock/new', lazy: async () => ({ Component: (await import('../features/inventory/StockDocumentFormPage.tsx')).default }) }],
+              },
+              {
+                element: <RequireAccess permission="inventory.warehouse.view" />,
+                children: [{ path: 'warehouses', lazy: async () => ({ Component: (await import('../features/inventory/WarehousesPage.tsx')).default }) }],
+              },
+              {
                 element: <RequireAccess permission="tenant.branch.view" />,
                 children: [{ path: 'branches', lazy: async () => ({ Component: (await import('../features/branches/BranchesPage.tsx')).default }) }],
               },

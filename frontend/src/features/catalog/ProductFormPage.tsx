@@ -192,6 +192,15 @@ function ProductForm({ product, types, maxUnits, lists }: { product?: Product; t
                   onChange={(checked) => form.setValue('track_batch', checked, { shouldDirty: true })}
                 />
               </div>
+
+              <TextField
+                label={baseUnitName ? t('catalog.form.minStockUnit', { unit: baseUnitName }) : t('catalog.form.minStock')}
+                hint={t('catalog.form.minStockHint')}
+                error={errors.min_stock?.message}
+                inputMode="decimal"
+                autoComplete="off"
+                {...form.register('min_stock')}
+              />
             </div>
           </Card>
 

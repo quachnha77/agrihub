@@ -53,6 +53,7 @@ export interface FormValues {
   description: string
   status: ProductStatus
   track_batch: boolean
+  min_stock: string
   base_unit_id: string
   base_price_cash: string
   base_price_credit: string
@@ -66,7 +67,7 @@ export const emptyUnitRow = (): UnitRowValues => ({ unit_id: '', factor: '', pri
 export function toFormValues(product: Product | undefined, defaults: { branch_id: string }): FormValues {
   if (!product) {
     return {
-      branch_id: defaults.branch_id, type: '', sku: '', name: '', category_id: '', brand_id: '', description: '', status: 'active', track_batch: false,
+      branch_id: defaults.branch_id, type: '', sku: '', name: '', category_id: '', brand_id: '', description: '', status: 'active', track_batch: false, min_stock: '',
       base_unit_id: '', base_price_cash: '', base_price_credit: '', base_barcode: '', extra_units: [], specs: {},
     }
   }
@@ -83,6 +84,7 @@ export function toFormValues(product: Product | undefined, defaults: { branch_id
     description: product.description ?? '',
     status: product.status,
     track_batch: product.track_batch,
+    min_stock: toInputNumber(product.min_stock),
     base_unit_id: product.base_unit.id,
     base_price_cash: toInputNumber(base?.price_cash),
     base_price_credit: toInputNumber(base?.price_credit),
@@ -118,6 +120,7 @@ export function toPayload(values: FormValues, definition: TypeDefinition, creati
     description: values.description.trim() === '' ? null : values.description.trim(),
     status: values.status,
     track_batch: definition.track_batch_required ? true : values.track_batch,
+    min_stock: values.min_stock.trim() === '' ? null : (parseNumber(values.min_stock) ?? null),
     category_id: values.category_id === '' ? null : values.category_id,
     brand_id: values.brand_id === '' ? null : values.brand_id,
     specs,
@@ -157,6 +160,12 @@ export function buildSchema(t: TFunction, types: TypeDefinition[], creating: boo
       description: z.string().max(2000, t('validation.maxLength', { count: 2000 })),
       status: z.enum(['active', 'inactive']),
       track_batch: z.boolean(),
+      min_stock: z.string().trim().refine((v) => {
+        if (v === '') return true
+        const n = parseNumber(v)
+
+        return n !== null && n >= 0 && n <= 99_999_999 && Math.round(n * 1000) / 1000 === n
+      }, t('catalog.form.minStockInvalid')),
       base_unit_id: creating ? z.string().min(1, t('catalog.form.baseUnitRequired')) : z.string(),
       base_price_cash: money,
       base_price_credit: money,
@@ -214,7 +223,7 @@ export function buildSchema(t: TFunction, types: TypeDefinition[], creating: boo
     })
 }
 
-const SAME_NAME = ['sku', 'name', 'description', 'status', 'category_id', 'brand_id', 'track_batch', 'type', 'branch_id', 'base_unit_id'] as const
+const SAME_NAME = ['sku', 'name', 'description', 'status', 'category_id', 'brand_id', 'track_batch', 'min_stock', 'type', 'branch_id', 'base_unit_id'] as const
 
 /**
  * Đưa lỗi 422 của máy chủ vào đúng ô trên form. Máy chủ đánh số đơn vị theo danh sách gửi lên [đơn vị cơ sở, ...đơn vị khác]

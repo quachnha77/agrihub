@@ -252,7 +252,7 @@ export function CheckboxField({ label, description, checked, onChange, disabled 
 }
 
 /** Hộp thoại: đóng bằng Esc hoặc bấm nền; focus vào hộp khi mở và trả lại khi đóng. */
-export function Modal({ title, onClose, children, size = 'md' }: { title: string; onClose: () => void; children: ReactNode; size?: 'md' | 'lg' }) {
+export function Modal({ title, onClose, children, size = 'md' }: { title: string; onClose: () => void; children: ReactNode; size?: 'md' | 'lg' | 'xl' }) {
   const { t } = useTranslation()
   const titleId = useId()
   const panel = useRef<HTMLDivElement>(null)
@@ -274,7 +274,7 @@ export function Modal({ title, onClose, children, size = 'md' }: { title: string
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <div ref={panel} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} className={`max-h-[90vh] w-full overflow-y-auto rounded-lg bg-white shadow-xl outline-none ${size === 'lg' ? 'max-w-2xl' : 'max-w-md'}`}>
+      <div ref={panel} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} className={`max-h-[90vh] w-full overflow-y-auto rounded-lg bg-white shadow-xl outline-none ${size === 'xl' ? 'max-w-4xl' : size === 'lg' ? 'max-w-2xl' : 'max-w-md'}`}>
         <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3">
           <h2 id={titleId} className="text-base font-semibold">
             {title}

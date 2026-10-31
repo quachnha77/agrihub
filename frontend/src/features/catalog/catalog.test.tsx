@@ -57,6 +57,7 @@ const product = (overrides: Partial<Product> = {}): Product => ({
   description: null,
   status: 'active',
   track_batch: false,
+  min_stock: null,
   specs: { composition: 'N16 P16 K8' },
   base_unit: { id: unit('Kg'), name: 'Kg' },
   units: [
@@ -293,6 +294,7 @@ describe('thêm sản phẩm', () => {
       description: null,
       status: 'active',
       track_batch: true,
+      min_stock: null,
       category_id: 'c-1',
       brand_id: null,
       specs: { registration_no: '1234/CP-BVTV', active_ingredient: 'Difenoconazole', toxicity_group: 'III', phi_days: 7 },
@@ -416,6 +418,37 @@ describe('sửa sản phẩm', () => {
     expect(body).toMatchObject({ name: 'NPK mới', category_id: 'c-1', brand_id: 'b-1', specs: { composition: 'N16 P16 K8' } })
     expect((body.units as { price_cash: number }[])[0].price_cash).toBe(16500)
     expect(await screen.findByText('Đã lưu thay đổi của sản phẩm "NPK mới".')).toBeInTheDocument()
+  })
+
+  it('tồn tối thiểu: hiện giá trị đang có, sửa kiểu Việt Nam gửi lên máy chủ, bỏ trống thì gửi null, nhập sai bị báo', async () => {
+    const server = mockApi(base({ ...detail(product({ min_stock: '12.500' })), 'PATCH /api/v1/products/p1': { json: { data: product() } } }))
+    renderApp('/products/p1')
+    const user = userEvent.setup()
+
+    const field = await screen.findByLabelText('Tồn tối thiểu (Kg)')
+    expect(field).toHaveValue('12.5')
+    await user.clear(field)
+    await user.type(field, '-3')
+    await user.click(screen.getByRole('button', { name: 'Lưu' }))
+    expect(await screen.findByText('Nhập số từ 0 (tối đa 3 chữ số thập phân).')).toBeInTheDocument()
+    expect(server.to('PATCH', '/api/v1/products/p1')).toHaveLength(0)
+
+    await user.clear(field)
+    await user.type(field, '20,5')
+    await user.click(screen.getByRole('button', { name: 'Lưu' }))
+    await waitFor(() => expect(server.to('PATCH', '/api/v1/products/p1')).toHaveLength(1))
+    expect(server.to('PATCH', '/api/v1/products/p1')[0]?.body).toMatchObject({ min_stock: 20.5 })
+  })
+
+  it('bỏ trống tồn tối thiểu thì gửi null để máy chủ xóa mức đã đặt', async () => {
+    const server = mockApi(base({ ...detail(product({ min_stock: '5.000' })), 'PATCH /api/v1/products/p1': { json: { data: product() } } }))
+    renderApp('/products/p1')
+    const user = userEvent.setup()
+
+    await user.clear(await screen.findByLabelText('Tồn tối thiểu (Kg)'))
+    await user.click(screen.getByRole('button', { name: 'Lưu' }))
+    await waitFor(() => expect(server.to('PATCH', '/api/v1/products/p1')).toHaveLength(1))
+    expect(server.to('PATCH', '/api/v1/products/p1')[0]?.body).toMatchObject({ min_stock: null })
   })
 
   it('bỏ một đơn vị quy đổi thì không gửi dòng đó nữa', async () => {
