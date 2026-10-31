@@ -13,7 +13,7 @@ import { formatDateTime, formatQuantity, formatVnd } from '../../lib/format.ts'
 import { useClampPage } from '../../lib/pagination.ts'
 import { useAuth } from '../auth/auth-context.ts'
 import { useProductTypes } from '../catalog/api.ts'
-import { useAllWarehouses, useStockBalancePage, useStockMovementPage, useStockProducts, useStockSummary, type StockFilters, type StockProduct } from './api.ts'
+import { DEFAULT_EXPIRY_WARNING_DAYS, useAllWarehouses, useStockBalancePage, useStockMovementPage, useStockProducts, useStockSummary, type StockFilters, type StockProduct } from './api.ts'
 import { ExpiryBadge, TypeBadge } from './parts.tsx'
 import { StockTabs } from './StockTabs.tsx'
 
@@ -49,7 +49,7 @@ export default function StockPage() {
   const costs = rows.some((row) => row.avg_cost !== undefined) || summary.data?.stock_value !== undefined
   const set = <K extends keyof StockFilters>(key: K, value: StockFilters[K]) => setFilters((current) => ({ ...current, [key]: value, page: key === 'page' ? (value as number) : 1 }))
   const toggle = (key: 'stock' | 'expiry', value: string) => set(key, filters[key] === value ? '' : value)
-  const warnDays = summary.data?.expiry_warning_days ?? 60
+  const warnDays = summary.data?.expiry_warning_days ?? DEFAULT_EXPIRY_WARNING_DAYS
   const activeFilters = countActiveFilters(filters)
   const filtered = activeFilters > 0 || filters.q !== ''
 
@@ -97,7 +97,12 @@ export default function StockPage() {
         }
       />
 
-      {summary.isPending && <StatCardsSkeleton count={canSeeCosts ? 4 : 3} />}
+      {summary.isPending && (
+        <StatCardsSkeleton
+          labels={[t('inventory.summary.low'), t('inventory.summary.expiring', { days: warnDays }), t('inventory.summary.expired'), ...(canSeeCosts ? [t('inventory.summary.value')] : [])]}
+          money={canSeeCosts}
+        />
+      )}
 
       {summary.data && (
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label={t('inventory.summary.title')} role="group">
@@ -106,7 +111,7 @@ export default function StockPage() {
           <SummaryCard icon={TriangleAlert} label={t('inventory.summary.expired')} value={summary.data.expired_batches} tone="danger" active={filters.expiry === 'expired'} onClick={() => toggle('expiry', 'expired')} />
           {summary.data.stock_value !== undefined && (
             <div className="flex min-h-[4.75rem] items-center gap-3 rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-card">
-              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand-50 text-brand-700">
+              <span className="hidden h-10 w-10 shrink-0 place-items-center rounded-full bg-brand-50 text-brand-700 sm:grid">
                 <Wallet className="h-5 w-5" aria-hidden="true" />
               </span>
               <span className="min-w-0">

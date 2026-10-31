@@ -241,6 +241,12 @@ describe('trang Tồn kho', () => {
     expect(screen.getByText('Đang tải…')).toBeInTheDocument()
     expect(screen.queryByRole('group', { name: 'Cảnh báo tồn kho' })).not.toBeInTheDocument()
 
+    // Nhãn là chữ cố định nên thẻ giữ chỗ hiện chữ thật (chưa phải nút): trên điện thoại nhãn dài ngắt dòng, thẻ giữ chỗ mới cao bằng thẻ thật.
+    const waiting = screen.getByRole('status')
+    expect(within(waiting).getByText('Lô sắp hết hạn (≤ 60 ngày)')).toBeInTheDocument()
+    expect(within(waiting).getByText('Giá trị tồn')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Lô sắp hết hạn/ })).not.toBeInTheDocument()
+
     release()
     expect(await screen.findByRole('button', { name: /Sắp hết hàng/ })).toBeInTheDocument()
     expect(screen.queryByText('Đang tải…')).not.toBeInTheDocument()

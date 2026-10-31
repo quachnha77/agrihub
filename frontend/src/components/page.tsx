@@ -100,7 +100,7 @@ export function SearchField({ label, value, onChange, placeholder, id }: { label
   return (
     <div className="relative">
       <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
-      <input id={id} type="search" aria-label={label} value={value} onChange={onChange} placeholder={placeholder} className={`${fieldBase} border-slate-300 pl-9 focus:border-brand-600 focus:ring-brand-200`} />
+      <input id={id} type="search" aria-label={label} value={value} onChange={onChange} placeholder={placeholder} className={`${fieldBase} border-slate-300 pl-9 text-ellipsis focus:border-brand-600 focus:ring-brand-200`} />
     </div>
   )
 }

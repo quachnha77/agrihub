@@ -8,7 +8,7 @@ import { useAuth } from '../features/auth/auth-context.ts'
 import { PlatformStatusSummary } from '../features/backup/StatusCard.tsx'
 import { useProductCount } from '../features/catalog/api.ts'
 import { HealthSummary } from '../features/health/HealthSummary.tsx'
-import { useRecentStockDocuments, useStockSummary } from '../features/inventory/api.ts'
+import { DEFAULT_EXPIRY_WARNING_DAYS, useRecentStockDocuments, useStockSummary } from '../features/inventory/api.ts'
 import { TypeBadge } from '../features/inventory/parts.tsx'
 import { useLatestNotices } from '../features/notifications/api.ts'
 import { formatAgo, formatToday } from '../lib/format.ts'
@@ -81,17 +81,25 @@ function AlertTile({ to, icon: Icon, label, value, tone }: { to: string; icon: L
   )
 }
 
+/** Nhãn ba thẻ cảnh báo kho khi chưa có số liệu: cùng chữ với thẻ thật để thẻ giữ chỗ ngắt dòng và cao giống hệt (xem StatCardsSkeleton). */
+function useAlertLabels(): string[] {
+  const { t } = useTranslation()
+
+  return [t('inventory.summary.low'), t('inventory.summary.expiring', { days: DEFAULT_EXPIRY_WARNING_DAYS }), t('inventory.summary.expired')]
+}
+
 /** Cảnh báo kho (sắp hết hàng, lô sắp/đã hết hạn): chỉ cho người xem được tồn kho. */
 function StockAttention() {
   const { t } = useTranslation()
   const summary = useStockSummary('')
+  const alertLabels = useAlertLabels()
 
   return (
     <section aria-labelledby="dash-attention" className="space-y-3">
       <h2 id="dash-attention" className="text-base font-semibold text-slate-900">{t('dashboard.attention')}</h2>
 
       {summary.isPending ? (
-        <StatCardsSkeleton count={3} />
+        <StatCardsSkeleton labels={alertLabels} />
       ) : summary.isError ? (
         <Alert tone="danger">{t('common.loadError')}</Alert>
       ) : (
@@ -196,12 +204,14 @@ function GettingStarted({ canProduct, canStock, canCustomer }: { canProduct: boo
  * nên trang chờ biết số sản phẩm rồi mới hiện một lượt: nếu hiện khối đó muộn nó sẽ bật ra ở đầu trang và đẩy mọi thứ xuống.
  */
 function DashboardSkeleton({ stock, quick }: { stock: boolean; quick: boolean }) {
+  const alertLabels = useAlertLabels()
+
   return (
     <SkeletonRegion className="space-y-6">
       {stock && (
         <div className="space-y-3">
           <Skeleton className="h-6 w-28" />
-          <StatCardsSkeleton count={3} />
+          <StatCardsSkeleton labels={alertLabels} />
         </div>
       )}
       {quick && (

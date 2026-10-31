@@ -166,16 +166,20 @@ export function FieldsSkeleton({ fields = 6, columns = 2 }: { fields?: number; c
   )
 }
 
-/** Hàng thẻ số liệu (biểu tượng tròn + số `text-2xl` + nhãn `text-xs`, cao 76px): giữ chỗ để bảng bên dưới không bị đẩy xuống khi số liệu về. */
-export function StatCardsSkeleton({ count = 3 }: { count?: number }) {
+/**
+ * Hàng thẻ số liệu (biểu tượng tròn + số `text-2xl` + nhãn `text-xs`): giữ chỗ để phần bên dưới không bị đẩy xuống khi số liệu về.
+ * Nhãn là chữ cố định nên hiện luôn chữ thật thay cho thanh xám: trên điện thoại nhãn dài xuống hai dòng, và thẻ giữ chỗ chỉ cao đúng
+ * bằng thẻ thật khi nó ngắt dòng giống hệt. `money`: thẻ cuối là thẻ giá trị tiền, không có biểu tượng trên điện thoại (cho số tiền đủ chỗ).
+ */
+export function StatCardsSkeleton({ labels, money = false }: { labels: string[]; money?: boolean }) {
   return (
     <SkeletonRegion className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-      {Array.from({ length: count }, (_, card) => (
-        <div key={card} className="flex min-h-[4.75rem] items-center gap-3 rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-card">
-          <Skeleton className="h-10 w-10 shrink-0 rounded-full" />
+      {labels.map((label, card) => (
+        <div key={label} className="flex min-h-[4.75rem] items-center gap-3 rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-card">
+          <Skeleton className={`h-10 w-10 shrink-0 rounded-full ${money && card === labels.length - 1 ? 'hidden sm:block' : ''}`} />
           <div className="min-w-0 flex-1">
             <div className="flex h-[30px] items-center"><Skeleton className="h-5 w-10" /></div>
-            <div className="flex h-4 items-center"><Skeleton className="h-3 w-28 max-w-full" /></div>
+            <span aria-hidden="true" className="block text-xs text-slate-600">{label}</span>
           </div>
         </div>
       ))}

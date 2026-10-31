@@ -95,6 +95,9 @@ export interface StockDocument {
   value?: string
 }
 
+/** Số ngày "sắp hết hạn" mặc định; dùng để dựng nhãn thẻ giữ chỗ trước khi máy chủ trả số ngày thật. */
+export const DEFAULT_EXPIRY_WARNING_DAYS = 60
+
 export interface StockSummary {
   low_products: number
   expired_batches: number
