@@ -8,6 +8,7 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
 use App\Services\Billing\SubscriptionService;
+use App\Services\Catalog\CatalogDefaults;
 use App\Support\Auth\TempPassword;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\Arr;
@@ -20,7 +21,7 @@ use Illuminate\Support\Str;
  */
 class TenantOnboarding
 {
-    public function __construct(private TenantContext $context, private AuditLogger $audit, private SubscriptionService $billing) {}
+    public function __construct(private TenantContext $context, private AuditLogger $audit, private SubscriptionService $billing, private CatalogDefaults $catalog) {}
 
     /**
      * @param  array{tenant: array<string, mixed>, owner: array<string, mixed>, branch?: ?array<string, mixed>}  $data  đã validate
@@ -44,6 +45,8 @@ class TenantOnboarding
             $branch = new Branch(Arr::only($branchData, ['code', 'name']));
             $branch->tenant_id = $tenant->id;
             $branch->save();
+
+            $this->catalog->seedUnits($tenant); // bộ đơn vị tính thông dụng (bao, kg, chai, ...) để dùng ngay
 
             $owner = new User([
                 'name' => $data['owner']['name'],

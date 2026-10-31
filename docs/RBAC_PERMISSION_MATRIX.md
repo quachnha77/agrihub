@@ -52,7 +52,7 @@ Backend kiểm tra bằng Policy/Gate trên mọi endpoint; frontend chỉ ẩn/
 | Subscription/Billing | VCU | V | – | – | – | – | – | – |
 | Customers | VCUDE | VCUDE | VCUE | VE | – | VCU | V (được giao) | V (own) |
 | Suppliers | VCUDE | VCUDE | VCU | VE | V | – | – | – |
-| Products | VCUDE | VCUDE | VCU | V | V | V | – | – |
+| Products (theo chi nhánh: phạm vi `branch` = các chi nhánh được gán; đơn vị tính/nhóm hàng/thương hiệu: thêm = quyền tạo, sửa/xóa = cấp doanh nghiệp) | VCUDE | VCUDE | VCU | V | V | V | – | – |
 | Inventory (movement) | VCAE | VCAE | VCAE | V | VC | V | – | – |
 | Stock adjust/count | VCA | VCA | VCA | – | VC | – | – | – |
 | Purchase | VCUAXE | VCUAXE | VCUAX | VE | VC (nhập) | – | – | – |

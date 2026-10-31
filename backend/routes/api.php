@@ -4,6 +4,8 @@ use App\Http\Controllers\Api\V1\AuditLogController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BackupController;
 use App\Http\Controllers\Api\V1\BranchController;
+use App\Http\Controllers\Api\V1\BrandController;
+use App\Http\Controllers\Api\V1\CategoryController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\PasswordRecoveryController;
@@ -16,10 +18,12 @@ use App\Http\Controllers\Api\V1\Platform\SupportSessionController;
 use App\Http\Controllers\Api\V1\Platform\TenantBackupController;
 use App\Http\Controllers\Api\V1\Platform\TenantController;
 use App\Http\Controllers\Api\V1\Platform\UserController as PlatformUserController;
+use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\SessionController;
 use App\Http\Controllers\Api\V1\SubscriptionController;
 use App\Http\Controllers\Api\V1\TenantContextController;
+use App\Http\Controllers\Api\V1\UnitController;
 use App\Http\Controllers\Api\V1\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -111,6 +115,14 @@ Route::middleware(['auth:sanctum', 'tenant.context'])->group(function () {
             Route::apiResource('branches', BranchController::class);
 
             Route::get('/audit-logs', [AuditLogController::class, 'index']);
+
+            // Danh mục sản phẩm: sản phẩm thuộc từng chi nhánh; đơn vị tính, nhóm hàng, thương hiệu dùng chung toàn doanh nghiệp.
+            Route::get('/products/types', [ProductController::class, 'types']);
+            Route::post('/products/copy', [ProductController::class, 'copy']);
+            Route::apiResource('products', ProductController::class);
+            Route::apiResource('units', UnitController::class)->except('show');
+            Route::apiResource('categories', CategoryController::class)->except('show');
+            Route::apiResource('brands', BrandController::class)->except('show');
 
             Route::get('/backups', [BackupController::class, 'index']);
             Route::post('/backups', [BackupController::class, 'store'])->middleware('throttle:sensitive');

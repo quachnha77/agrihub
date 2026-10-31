@@ -2,7 +2,11 @@
 
 namespace App\Providers;
 
+use App\Models\Brand;
+use App\Models\Category;
+use App\Models\Unit;
 use App\Models\User;
+use App\Policies\CatalogListPolicy;
 use App\Services\Audit\AuditLogger;
 use App\Support\Auth\LoginIdentifier;
 use App\Support\Auth\LoginScope;
@@ -37,12 +41,17 @@ class AppServiceProvider extends ServiceProvider
             Gate::define($permission, fn (User $user) => $user->hasPermission($permission));
         }
 
+        // Đơn vị tính, nhóm hàng, thương hiệu dùng chung một bộ quy tắc (Product có ProductPolicy riêng, tự nhận diện theo tên).
+        foreach ([Unit::class, Category::class, Brand::class] as $model) {
+            Gate::policy($model, CatalogListPolicy::class);
+        }
+
         Auth::provider('tenant-eloquent', function ($app, array $config) {
             return new TenantAwareUserProvider($app['hash'], $config['model']);
         });
 
         // Tham số route là uuid công khai; giá trị khác định dạng => 404 (không để PostgreSQL báo lỗi cú pháp uuid thành 500).
-        foreach (['tenant', 'user', 'branch', 'role', 'plan', 'backup'] as $parameter) {
+        foreach (['tenant', 'user', 'branch', 'role', 'plan', 'backup', 'product', 'unit', 'category', 'brand'] as $parameter) {
             Route::pattern($parameter, '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}');
         }
 

@@ -134,7 +134,12 @@ return [
      * @var list<string>
      */
     'tenant_tables' => [
-        // Giai đoạn 2 sẽ thêm: customers, suppliers, products, ... (xem IMPLEMENTATION_PLAN.md)
+        // Danh mục sản phẩm (cha → con). Giai đoạn 2 sẽ thêm tiếp: customers, suppliers, kho, ... (xem IMPLEMENTATION_PLAN.md)
+        'units',
+        'categories',
+        'brands',
+        'products',
+        'product_units',
     ],
 
     /**
