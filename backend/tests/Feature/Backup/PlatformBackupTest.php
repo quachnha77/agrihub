@@ -521,7 +521,8 @@ class PlatformBackupTest extends TestCase
         $backup = $this->runBackup();
         $admin = $this->makePlatformAdmin();
 
-        $this->spa()->actingAs($owner)->getJson('/api/v1/backups')->assertOk()->assertJsonCount(0, 'data');
+        // Doanh nghiệp không có API sao lưu nào (chỉ Super Admin): đường dẫn không tồn tại.
+        $this->spa()->actingAs($owner)->getJson('/api/v1/backups')->assertNotFound();
         $this->spa()->actingAs($owner)->getJson("/api/v1/backups/{$backup->uuid}")->assertNotFound();
         $this->spa()->actingAs($owner)->getJson("/api/v1/backups/{$backup->uuid}/download")->assertNotFound();
         $this->spa()->actingAs($owner)->getJson('/api/v1/platform/backups')->assertForbidden();

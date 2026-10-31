@@ -45,7 +45,6 @@ return [
         'notification.message' => ['Thông báo Zalo/SMS', 'VCU'],
         'report.report' => ['Báo cáo', 'VE'],
         'audit.log' => ['Nhật ký hoạt động', 'V'],
-        'backup.backup' => ['Sao lưu & khôi phục', 'VCER'],
         'sales.online_order' => ['Đơn đặt hàng online', 'VCUAX'],
         'einvoice.invoice' => ['Hóa đơn điện tử', 'VCXE'],
     ],

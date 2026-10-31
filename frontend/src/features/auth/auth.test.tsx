@@ -13,7 +13,7 @@ async function fillLogin(login: string, password: string) {
 describe('đăng nhập', () => {
   it('chuyển người chưa đăng nhập về trang đăng nhập', async () => {
     mockApi({ 'GET /api/v1/auth/me': notSignedIn() })
-    const { router } = renderApp('/backups')
+    const { router } = renderApp('/branches')
 
     expect(await screen.findByRole('heading', { name: 'Đăng nhập' })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/login')
@@ -70,15 +70,14 @@ describe('đăng nhập', () => {
     mockApi({
       'GET /api/v1/auth/me': notSignedIn(),
       'POST /api/v1/auth/login': meOk(tenantUser()),
-      'GET /api/v1/backups': { json: { data: [] } },
-      'GET /api/v1/backups/restores': { json: { data: [] } },
+      'GET /api/v1/branches': { json: { data: [], meta: { current_page: 1, last_page: 1, total: 0 } } },
     })
-    const { router } = renderApp('/backups')
+    const { router } = renderApp('/branches')
 
     await fillLogin('a@nongphat.vn', 'Mat-khau-2026')
 
-    expect(await screen.findByRole('heading', { name: 'Sao lưu dữ liệu' })).toBeInTheDocument()
-    expect(router.state.location.pathname).toBe('/backups')
+    expect(await screen.findByRole('heading', { name: 'Chi nhánh' })).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/branches')
   })
 
   it.each([
@@ -106,10 +105,9 @@ describe('đăng nhập', () => {
   it('đưa người đang dùng về trang đăng nhập kèm lý do khi API báo hết phiên giữa chừng', async () => {
     mockApi({
       'GET /api/v1/auth/me': meOk(tenantUser()),
-      'GET /api/v1/backups': problem(401, 'unauthenticated', 'Chưa đăng nhập hoặc phiên đã hết hạn.'),
-      'GET /api/v1/backups/restores': problem(401, 'unauthenticated', 'Chưa đăng nhập hoặc phiên đã hết hạn.'),
+      'GET /api/v1/branches': problem(401, 'unauthenticated', 'Chưa đăng nhập hoặc phiên đã hết hạn.'),
     })
-    const { router } = renderApp('/backups')
+    const { router } = renderApp('/branches')
 
     await waitFor(() => expect(router.state.location.pathname).toBe('/login'))
     expect(await screen.findByRole('alert')).toHaveTextContent('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.')
@@ -130,7 +128,7 @@ describe('đăng nhập', () => {
 describe('đổi mật khẩu bắt buộc', () => {
   it('tài khoản dùng mật khẩu tạm bị đưa tới trang đổi mật khẩu từ bất kỳ trang nào', async () => {
     mockApi({ 'GET /api/v1/auth/me': meOk(tenantUser({ must_change_password: true })) })
-    const { router } = renderApp('/backups')
+    const { router } = renderApp('/branches')
 
     expect(await screen.findByText('Bạn đang dùng mật khẩu tạm. Hãy đặt mật khẩu mới để tiếp tục.')).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/change-password')
@@ -197,10 +195,10 @@ describe('phân quyền trên giao diện', () => {
 
   it('chặn trang khi không có quyền, kể cả gõ thẳng đường dẫn', async () => {
     const server = mockApi({ 'GET /api/v1/auth/me': meOk(tenantUser({ permissions: {} })) })
-    renderApp('/backups')
+    renderApp('/branches')
 
     expect(await screen.findByText('Bạn không có quyền truy cập')).toBeInTheDocument()
-    expect(server.to('GET', '/api/v1/backups')).toHaveLength(0)
+    expect(server.to('GET', '/api/v1/branches')).toHaveLength(0)
   })
 
   it('người dùng Tenant không vào được trang quản trị nền tảng', async () => {

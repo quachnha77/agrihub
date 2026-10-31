@@ -24,6 +24,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
 use RuntimeException;
+use Tests\Concerns\AdministersBackups;
 use Tests\Concerns\CreatesTenants;
 use Tests\Concerns\ReadsAuditLog;
 use Tests\Concerns\UsesBackupTables;
@@ -32,7 +33,7 @@ use Tests\TestCase;
 /** Thông báo về trạng thái sao lưu: giám sát định kỳ (quá hạn...), sự kiện (thất bại...) và hộp thông báo của người dùng. */
 class BackupAlertsTest extends TestCase
 {
-    use CreatesTenants, ReadsAuditLog, RefreshDatabase, UsesBackupTables;
+    use AdministersBackups, CreatesTenants, ReadsAuditLog, RefreshDatabase, UsesBackupTables;
 
     private const PASSWORD = 'Mat-khau-cu-2026';
 
@@ -399,58 +400,61 @@ class BackupAlertsTest extends TestCase
         return $this->makeTenant(['name' => $name], ['password' => self::PASSWORD]);
     }
 
-    public function test_the_requester_is_told_when_a_tenant_backup_is_ready(): void
+    public function test_the_super_admin_who_requested_a_tenant_backup_is_told_when_it_is_ready(): void
     {
-        [$tenant, $owner] = $this->shop('Cửa hàng A');
-        $colleague = $this->makeUserIn($tenant, [Role::OWNER]);
+        [, $owner] = $this->shop('Cửa hàng A');
         [, $stranger] = $this->shop('Cửa hàng B');
-        $admin = $this->admin();
+        $requester = $this->backupAdmin();
+        $otherAdmin = $this->admin();
 
-        $this->freshBrowser()->spa()->actingAs($owner)->postJson('/api/v1/backups')->assertStatus(202);
+        $this->adminBackup($this->platform(fn () => Tenant::where('name', 'Cửa hàng A')->firstOrFail()));
 
-        $mine = $this->inbox($owner)->assertOk()->assertJsonPath('unread_count', 1)->assertJsonCount(1, 'data')
+        $mine = $this->inbox($requester)->assertOk()->assertJsonPath('unread_count', 1)->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.type', 'backup.tenant.completed')->assertJsonPath('data.0.level', 'info')
             ->assertJsonPath('data.0.read_at', null);
         $this->assertStringContainsString('tải về', $mine->json('data.0.body'));
+        $this->assertStringContainsString('Cửa hàng A', $mine->json('data.0.body'), 'nêu rõ là của doanh nghiệp nào');
 
-        $this->inbox($colleague)->assertOk()->assertJsonCount(0, 'data')->assertJsonPath('unread_count', 0);
+        // Chủ doanh nghiệp không có chức năng sao lưu nên không nhận thông báo; Super Admin khác và doanh nghiệp khác cũng không.
+        $this->inbox($owner)->assertOk()->assertJsonCount(0, 'data')->assertJsonPath('unread_count', 0);
         $this->inbox($stranger)->assertOk()->assertJsonCount(0, 'data');
-        $this->inbox($admin)->assertOk()->assertJsonCount(0, 'data');
-        $this->assertSame([], $this->sentMail(), 'thông báo của Tenant chỉ ở trong ứng dụng, không gửi email');
+        $this->inbox($otherAdmin)->assertOk()->assertJsonCount(0, 'data');
+        $this->assertSame([], $this->sentMail(), 'thông báo của doanh nghiệp chỉ ở trong ứng dụng, không gửi email');
     }
 
     public function test_the_requester_is_told_when_a_tenant_backup_fails(): void
     {
-        [, $owner] = $this->shop('Cửa hàng A');
+        [$tenant] = $this->shop('Cửa hàng A');
         $this->mock(TenantExporter::class, fn ($m) => $m->shouldReceive('export')->andThrow(new BackupException('Ổ đĩa đầy')));
 
-        $this->freshBrowser()->spa()->actingAs($owner)->postJson('/api/v1/backups')->assertStatus(202);
+        $this->asBackupAdmin()->postJson($this->backupPath($tenant))->assertStatus(202);
 
-        $this->inbox($owner)->assertOk()->assertJsonCount(1, 'data')
+        $this->inbox($this->backupAdmin())->assertOk()->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.type', 'backup.tenant.failed')->assertJsonPath('data.0.level', 'critical')
-            ->assertJsonPath('data.0.body', 'Lý do: Ổ đĩa đầy')->assertJsonStructure(['data' => [['id', 'payload' => ['backup']]]]);
+            ->assertJsonPath('data.0.body', 'Doanh nghiệp Cửa hàng A. Lý do: Ổ đĩa đầy')->assertJsonStructure(['data' => [['id', 'payload' => ['backup']]]]);
     }
 
     public function test_restore_results_are_reported_and_the_internal_restore_point_is_not(): void
     {
-        [$tenant, $owner] = $this->shop('Cửa hàng A');
-        $uuid = $this->freshBrowser()->spa()->actingAs($owner)->postJson('/api/v1/backups')->json('data.id');
+        [$tenant] = $this->shop('Cửa hàng A');
+        $backup = $this->adminBackup($tenant);
+        $requester = $this->backupAdmin();
 
-        $restore = fn () => $this->freshBrowser()->spa()->actingAs($owner)->postJson("/api/v1/backups/{$uuid}/restore", ['password' => self::PASSWORD, 'confirm_name' => $tenant->name]);
-
-        $restore()->assertStatus(202);
-        $types = collect($this->inbox($owner)->json('data'))->pluck('type')->all();
+        $this->adminRestore($backup)->assertStatus(202);
+        $types = collect($this->inbox($requester)->json('data'))->pluck('type')->all();
         // 1 thông báo sao lưu xong + 1 khôi phục xong; bản "điểm quay lại" tự tạo trước khi khôi phục không sinh thông báo riêng.
         $this->assertEqualsCanonicalizing(['backup.tenant.completed', 'backup.restore.completed'], $types);
+        $done = collect($this->inbox($requester)->json('data'))->firstWhere('type', 'backup.restore.completed');
+        $this->assertStringContainsString('Cửa hàng A', $done['body']);
 
         // File bị mất => khôi phục thất bại, dữ liệu giữ nguyên, người yêu cầu được báo.
-        $path = $this->platform(fn () => Backup::where('uuid', $uuid)->value('path'));
-        Storage::disk('backups')->delete($path);
-        $restore()->assertStatus(202);
+        Storage::disk('backups')->delete($backup->path);
+        $this->adminRestore($backup)->assertStatus(202);
 
-        $failed = collect($this->inbox($owner)->json('data'))->firstWhere('type', 'backup.restore.failed');
+        $failed = collect($this->inbox($requester)->json('data'))->firstWhere('type', 'backup.restore.failed');
         $this->assertSame('critical', $failed['level']);
         $this->assertStringContainsString('giữ nguyên', $failed['body']);
+        $this->assertStringContainsString('Cửa hàng A', $failed['body']);
     }
 
     // --- hộp thông báo -------------------------------------------------------------------------

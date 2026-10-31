@@ -9,6 +9,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Tests\Concerns\AdministersBackups;
 use Tests\Concerns\CreatesTenants;
 use Tests\Concerns\MakesCatalog;
 use Tests\TestCase;
@@ -19,9 +20,7 @@ use Tests\TestCase;
  */
 class CatalogBackupTest extends TestCase
 {
-    use CreatesTenants, MakesCatalog, RefreshDatabase;
-
-    private const PASSWORD = 'Mat-khau-cu-2026';
+    use AdministersBackups, CreatesTenants, MakesCatalog, RefreshDatabase;
 
     protected function setUp(): void
     {
@@ -42,7 +41,7 @@ class CatalogBackupTest extends TestCase
 
     public function test_restoring_brings_back_deleted_and_changed_products_exactly(): void
     {
-        [$tenant, $owner, $branch] = $this->makeTenant(['name' => 'Cửa hàng Nông Phát'], ['password' => self::PASSWORD]);
+        [$tenant, $owner, $branch] = $this->makeTenant(['name' => 'Cửa hàng Nông Phát']);
         [$otherTenant, $otherOwner, $otherBranch] = $this->makeTenant();
         $kg = $this->makeUnit($tenant, 'Kg');
         $bao = $this->makeUnit($tenant, 'Bao');
@@ -58,7 +57,7 @@ class CatalogBackupTest extends TestCase
         $gone = $api($owner)->postJson('/api/v1/products', $this->productPayload($branch, $kg, ['sku' => 'GONE', 'name' => 'Sẽ bị xóa']))->assertCreated()->json('data.id');
         $theirs = $api($otherOwner)->postJson('/api/v1/products', $this->productPayload($otherBranch, $other, ['sku' => 'THEIRS']))->assertCreated()->json('data.id');
 
-        $backup = $api($owner)->postJson('/api/v1/backups')->assertStatus(202)->assertJsonPath('data.status', 'completed')->json('data');
+        $backup = $this->asBackupAdmin()->postJson($this->backupPath($tenant))->assertStatus(202)->assertJsonPath('data.status', 'completed')->json('data');
         $this->assertEqualsCanonicalizing(['units', 'categories', 'products', 'product_units'], array_keys(array_filter($backup['row_counts'], fn ($n) => $n > 0)));
 
         // Sau khi sao lưu: sửa giá, xóa một sản phẩm, thêm một sản phẩm mới.
@@ -66,7 +65,7 @@ class CatalogBackupTest extends TestCase
         $api($owner)->deleteJson("/api/v1/products/{$gone}")->assertNoContent();
         $api($owner)->postJson('/api/v1/products', $this->productPayload($branch, $kg, ['sku' => 'NEW', 'name' => 'Mới thêm sau sao lưu']))->assertCreated();
 
-        $api($owner)->postJson("/api/v1/backups/{$backup['id']}/restore", ['password' => self::PASSWORD, 'confirm_name' => 'Cửa hàng Nông Phát'])
+        $this->asBackupAdmin()->postJson($this->backupPath($tenant, "/{$backup['id']}/restore"), ['password' => self::ADMIN_PASSWORD, 'confirm_name' => 'Cửa hàng Nông Phát'])
             ->assertStatus(202)->assertJsonPath('data.status', 'completed');
 
         $restored = $api($owner)->getJson('/api/v1/products?per_page=50')->assertOk()->json('data');
@@ -94,21 +93,21 @@ class CatalogBackupTest extends TestCase
 
     public function test_the_pre_restore_point_undoes_a_restore(): void
     {
-        [$tenant, $owner, $branch] = $this->makeTenant(['name' => 'Cửa hàng Nông Phát'], ['password' => self::PASSWORD]);
+        [$tenant, $owner, $branch] = $this->makeTenant(['name' => 'Cửa hàng Nông Phát']);
         $kg = $this->makeUnit($tenant, 'Kg');
-        $api = fn () => $this->spa()->actingAs($owner);
+        $api = fn () => $this->freshBrowser()->spa()->actingAs($owner); // cùng một test dùng cả chủ doanh nghiệp và Super Admin: mỗi lần là một trình duyệt mới
 
         $api()->postJson('/api/v1/products', $this->productPayload($branch, $kg, ['sku' => 'OLD']))->assertCreated();
-        $backup = $api()->postJson('/api/v1/backups')->assertStatus(202)->json('data.id');
+        $backup = $this->asBackupAdmin()->postJson($this->backupPath($tenant))->assertStatus(202)->json('data.id');
         $api()->postJson('/api/v1/products', $this->productPayload($branch, $kg, ['sku' => 'LATER']))->assertCreated();
 
-        $run = $api()->postJson("/api/v1/backups/{$backup}/restore", ['password' => self::PASSWORD, 'confirm_name' => 'Cửa hàng Nông Phát'])->assertStatus(202)->json('data');
+        $run = $this->asBackupAdmin()->postJson($this->backupPath($tenant, "/{$backup}/restore"), ['password' => self::ADMIN_PASSWORD, 'confirm_name' => 'Cửa hàng Nông Phát'])->assertStatus(202)->json('data');
         $this->assertSame(['OLD'], array_column($api()->getJson('/api/v1/products')->json('data'), 'sku'));
 
         // Khôi phục lại điểm quay lại ⇒ sản phẩm thêm sau sao lưu trở lại.
-        $pre = $api()->getJson('/api/v1/backups/restores')->json('data.0.pre_restore_backup_id');
+        $pre = $this->asBackupAdmin()->getJson($this->backupPath($tenant, '/restores'))->json('data.0.pre_restore_backup_id');
         $this->assertNotNull($pre);
-        $api()->postJson("/api/v1/backups/{$pre}/restore", ['password' => self::PASSWORD, 'confirm_name' => 'Cửa hàng Nông Phát'])->assertStatus(202)->assertJsonPath('data.status', 'completed');
+        $this->asBackupAdmin()->postJson($this->backupPath($tenant, "/{$pre}/restore"), ['password' => self::ADMIN_PASSWORD, 'confirm_name' => 'Cửa hàng Nông Phát'])->assertStatus(202)->assertJsonPath('data.status', 'completed');
         $this->assertEqualsCanonicalizing(['OLD', 'LATER'], array_column($api()->getJson('/api/v1/products')->json('data'), 'sku'));
         $this->assertNotNull($run);
         $this->assertSame(2, $this->platform(fn () => Product::count()));

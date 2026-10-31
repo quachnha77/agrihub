@@ -64,7 +64,7 @@ Backend kiểm tra bằng Policy/Gate trên mọi endpoint; frontend chỉ ẩn/
 | Delivery | VCUE | VCUE | VCUE | – | V | VC | VU (own) | V (own) |
 | Zalo/Notification | VCU | VCU | V | V | – | – | – | – |
 | Reports | VE | VE | VE (branch) | VE | V (kho) | V (own) | – | – |
-| Backup/Restore | VCE+Restore | – | – | – | – | – | – | – |
+| Backup/Restore | – (chỉ Super Admin, ngoài hệ thống phân quyền của doanh nghiệp; quyền `backup.*` đã gỡ 2026-10-31) | – | – | – | – | – | – | – |
 | Online orders (xác nhận) | VCUAX | VCUAX | VCUAX | V | V | VUA | – | C (own) |
 | E-invoice | VCXE | VCXE | VCE | VCXE | – | V | – | V (own) |
 | Audit log | V | V | V (branch) | – | – | – | – | – |

@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Alert, Button, Card, Spinner } from '../../components/ui.tsx'
 import { describeError } from '../../lib/forms.ts'
 import { formatDateTime } from '../../lib/format.ts'
-import { backupPath, isRestoringError, useBackups, useCreateBackup, useRestoreRuns, type BackupRow, type RestoreRunRow, type TenantBackupSource } from './api.ts'
+import { backupPath, useBackups, useCreateBackup, useRestoreRuns, type BackupRow, type RestoreRunRow, type TenantBackupSource } from './api.ts'
 import { BackupTable } from './BackupTable.tsx'
 import { ImportDialog } from './ImportDialog.tsx'
 import { RestoreDialog } from './RestoreDialog.tsx'
@@ -14,24 +14,10 @@ import { RestoreHistory } from './RestoreHistory.tsx'
 const unfinished = (run: RestoreRunRow | undefined) => run?.status === 'pending' || run?.status === 'running'
 
 /**
- * Sao lưu của MỘT doanh nghiệp: danh sách theo ngày giờ, sao lưu ngay, Export (tải về), Import (tải file lên), Khôi phục và lịch sử khôi phục.
- * Dùng cho Chủ doanh nghiệp (chính doanh nghiệp mình) và Super Admin (doanh nghiệp được chọn) — quyền thật do máy chủ kiểm tra,
- * các cờ `can*` chỉ để ẩn nút không dùng được.
+ * Sao lưu của MỘT doanh nghiệp, dành cho Super Admin (doanh nghiệp không có chức năng này): danh sách theo ngày giờ, sao lưu ngay,
+ * tải về (Export), Import (tải file lên), Khôi phục và lịch sử khôi phục. Quyền thật do máy chủ kiểm tra (chỉ Super Admin).
  */
-export function TenantBackupsPanel({
-  source,
-  tenantName,
-  canCreate,
-  canExport,
-  canRestore,
-}: {
-  source: TenantBackupSource
-  /** Tên doanh nghiệp: người khôi phục phải gõ lại đúng tên này để xác nhận. */
-  tenantName: string
-  canCreate: boolean
-  canExport: boolean
-  canRestore: boolean
-}) {
+export function TenantBackupsPanel({ source, tenantName }: { source: TenantBackupSource; /** Người khôi phục phải gõ lại đúng tên này để xác nhận. */ tenantName: string }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const backups = useBackups(source)
@@ -41,12 +27,12 @@ export function TenantBackupsPanel({
   // Lần khôi phục vừa yêu cầu: theo dõi đến khi xong để báo kết quả ngay trên trang.
   const [watching, setWatching] = useState<string | null>(null)
 
-  // Trong lúc khôi phục doanh nghiệp bị đặt ở chế độ bảo trì: máy chủ trả 503 `tenant_restoring` cho mọi yêu cầu.
-  const restoring = unfinished(runs.data?.find((run) => unfinished(run))) || isRestoringError(backups.error) || isRestoringError(runs.error)
+  // Trong lúc khôi phục doanh nghiệp ở chế độ bảo trì (người dùng của họ nhận 503); Super Admin vẫn gọi được và theo dõi qua lịch sử khôi phục.
+  const restoring = runs.data?.some((run) => unfinished(run)) ?? false
   const creating = backups.data?.some((row) => row.status === 'pending' || row.status === 'running') ?? false
   const outcome = watching === null ? undefined : runs.data?.find((run) => run.id === watching && !unfinished(run))
 
-  // Khôi phục xong thì dữ liệu ở mọi màn hình khác đã đổi: bắt mọi truy vấn lấy lại.
+  // Khôi phục xong thì dữ liệu của doanh nghiệp đã đổi: bắt mọi truy vấn lấy lại.
   const wasRestoring = useRef(false)
   useEffect(() => {
     if (wasRestoring.current && !restoring) void queryClient.invalidateQueries()
@@ -75,52 +61,42 @@ export function TenantBackupsPanel({
           title={t('backup.list.title')}
           actions={
             <div className="flex flex-wrap gap-2">
-              {canCreate && (
-                <Button variant="secondary" onClick={() => setDialog('import')}>
-                  <Upload className="h-4 w-4" aria-hidden="true" />
-                  {t('backup.actions.import')}
-                </Button>
-              )}
-              {canCreate && (
-                <Button onClick={() => create.mutate()} loading={create.isPending} disabled={creating}>
-                  {create.isPending ? t('backup.actions.creating') : t('backup.actions.create')}
-                </Button>
-              )}
+              <Button variant="secondary" onClick={() => setDialog('import')}>
+                <Upload className="h-4 w-4" aria-hidden="true" />
+                {t('backup.actions.import')}
+              </Button>
+              <Button onClick={() => create.mutate()} loading={create.isPending} disabled={creating}>
+                {create.isPending ? t('backup.actions.creating') : t('backup.actions.create')}
+              </Button>
             </div>
           }
         >
           {create.isSuccess && <Alert tone="success" className="mb-3">{t('backup.actions.requested')}</Alert>}
           {create.isError && <Alert tone="danger" className="mb-3">{describeError(create.error, t)}</Alert>}
-          {canExport && <p className="mb-3 text-xs text-slate-500">{t('backup.tenant.exportNote')}</p>}
+          <p className="mb-3 text-xs text-slate-500">{t('backup.admin.exportNote')}</p>
 
           {backups.isPending ? (
             <div className="flex justify-center py-6"><Spinner /></div>
           ) : backups.isError ? (
             <Alert tone="danger">{t('common.loadError')}</Alert>
           ) : (
-            <BackupTable
-              rows={backups.data}
-              downloadHref={canExport ? (row) => `/api/v1${backupPath(source)}/${row.id}/download` : undefined}
-              onRestore={canRestore ? (row) => setDialog({ restore: row }) : undefined}
-            />
+            <BackupTable rows={backups.data} downloadHref={(row) => `/api/v1${backupPath(source)}/${row.id}/download`} onRestore={(row) => setDialog({ restore: row })} />
           )}
         </Card>
       )}
 
-      {canRestore && (
-        <Card title={t('backup.history.title')}>
-          {runs.isPending ? (
-            <div className="flex justify-center py-6"><Spinner /></div>
-          ) : runs.isError ? (
-            restoring ? null : <Alert tone="danger">{t('common.loadError')}</Alert>
-          ) : (
-            <>
-              {runCount > 0 && <p className="mb-3 text-xs text-slate-500">{t('backup.history.undoHint')}</p>}
-              <RestoreHistory runs={runs.data} backups={backups.data ?? []} />
-            </>
-          )}
-        </Card>
-      )}
+      <Card title={t('backup.history.title')}>
+        {runs.isPending ? (
+          <div className="flex justify-center py-6"><Spinner /></div>
+        ) : runs.isError ? (
+          restoring ? null : <Alert tone="danger">{t('common.loadError')}</Alert>
+        ) : (
+          <>
+            {runCount > 0 && <p className="mb-3 text-xs text-slate-500">{t('backup.history.undoHint')}</p>}
+            <RestoreHistory runs={runs.data} backups={backups.data ?? []} />
+          </>
+        )}
+      </Card>
 
       {dialog === 'import' && <ImportDialog source={source} onClose={() => setDialog(null)} />}
       {dialog !== null && dialog !== 'import' && (

@@ -37,14 +37,22 @@ class RbacCatalogTest extends TestCase
         $this->assertSame(['tenant'], array_values(array_unique($grants)));
     }
 
-    public function test_only_owner_can_manage_backups_and_subscription_changes(): void
+    public function test_only_owner_can_change_the_subscription(): void
     {
         foreach (array_diff(Catalog::roleKeys(), ['owner']) as $role) {
             $grants = Catalog::roleGrants($role);
-            $this->assertArrayNotHasKey('backup.backup.restore', $grants, $role);
-            $this->assertArrayNotHasKey('backup.backup.create', $grants, $role);
+            $this->assertArrayNotHasKey('billing.subscription.create', $grants, $role);
             $this->assertArrayNotHasKey('billing.subscription.update', $grants, $role);
         }
+    }
+
+    /** Sao lưu / khôi phục chỉ còn ở Super Admin (2026-10-31): doanh nghiệp không có quyền nào về việc này, kể cả Owner. */
+    public function test_tenants_have_no_backup_permissions_at_all(): void
+    {
+        $backupKeys = array_filter(array_keys(Catalog::permissions()), fn (string $key) => str_starts_with($key, 'backup.'));
+
+        $this->assertSame([], array_values($backupKeys));
+        $this->assertArrayNotHasKey('backup.backup', config('rbac.resources'));
     }
 
     public function test_the_role_hierarchy_is_owner_over_admin_over_everyone_else(): void

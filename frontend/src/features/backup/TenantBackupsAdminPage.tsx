@@ -35,7 +35,7 @@ export default function TenantBackupsAdminPage() {
         <p className="mt-1 text-sm text-slate-600">{t('backup.admin.intro')}</p>
       </div>
 
-      <TenantBackupsPanel source={{ tenantId: id }} tenantName={tenant.data.name} canCreate canExport canRestore />
+      <TenantBackupsPanel source={{ tenantId: id }} tenantName={tenant.data.name} />
     </div>
   )
 }

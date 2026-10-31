@@ -25,7 +25,7 @@ Trạng thái: chính sách thiết kế; chưa triển khai.
 
 ### Sao lưu / khôi phục (đã triển khai)
 - File sao lưu được **mã hóa và xác thực** (libsodium secretstream) trước khi nằm trên disk; chỉ file do hệ thống tạo ra và còn nguyên vẹn mới được nhận khi Import. Lưu trên disk riêng tư, không có URL công khai; tải xuống qua API có kiểm quyền, ghi audit, `no-store`.
-- Chỉ Chủ doanh nghiệp (và Super Admin) có quyền; khôi phục cần nhập lại mật khẩu + gõ tên doanh nghiệp; có bản `pre_restore` để hoàn tác; Tenant ở chế độ bảo trì khi khôi phục.
+- **Chỉ Super Admin** có quyền (từ 2026-10-31 doanh nghiệp không có API, quyền hay giao diện sao lưu: `backup.*` không còn trong catalog, `/backups` của doanh nghiệp trả 404; một tài khoản doanh nghiệp bị chiếm cũng không tải hay ghi đè được bản sao lưu); khôi phục cần nhập lại mật khẩu của chính Super Admin + gõ tên doanh nghiệp; có bản `pre_restore` để hoàn tác; Tenant ở chế độ bảo trì khi khôi phục.
 - Khôi phục **không bao giờ ghi sang Tenant khác** (kiểm tra Tenant trong file, ghi đè `tenant_id`, chỉ bảng trong danh sách cho phép, RLS) và không đụng tài khoản/mật khẩu/phân quyền/audit log. File sao lưu theo Tenant vì vậy không chứa mật khẩu băm của nhân viên.
 - Chống file độc hại/phình to: giới hạn dung lượng tải lên và sau giải nén, giới hạn độ dài dòng, từ chối giá trị lồng/kiểu lạ.
 

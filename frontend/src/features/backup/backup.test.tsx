@@ -170,57 +170,22 @@ describe('hộp thoại tải về', () => {
   })
 })
 
-describe('trang sao lưu dữ liệu (Chủ doanh nghiệp)', () => {
-  const tenantRow = (overrides: Partial<BackupRow> = {}) => row({ id: 't1', scope: 'tenant', key_fingerprint: null, verify_status: null, ...overrides })
-  const noRestores = { 'GET /api/v1/backups/restores': { json: { data: [] } } }
-
-  it('liệt kê bản tự động và thủ công, tải về bằng liên kết trực tiếp, không có cột của sao lưu hệ thống', async () => {
-    mockApi({
-      'GET /api/v1/auth/me': meOk(tenantUser()),
-      'GET /api/v1/backups': { json: { data: [tenantRow(), tenantRow({ id: 't2', kind: 'manual' })] } },
-      ...noRestores,
-    })
+describe('doanh nghiệp không có chức năng sao lưu', () => {
+  it('Chủ doanh nghiệp không thấy mục Sao lưu trong menu và đường dẫn /backups không tồn tại', async () => {
+    const server = mockApi({ 'GET /api/v1/auth/me': meOk(tenantUser()) })
     renderApp('/backups')
 
-    const table = await screen.findByRole('table')
-    expect(within(table).getByText('Tự động')).toBeInTheDocument()
-    expect(within(table).getByText('Thủ công')).toBeInTheDocument()
-    expect(within(table).queryByText('Khôi phục thử')).not.toBeInTheDocument()
-
-    const links = within(table).getAllByRole('link', { name: /Tải về/ })
-    expect(links.map((a) => a.getAttribute('href'))).toEqual(['/api/v1/backups/t1/download', '/api/v1/backups/t2/download'])
+    expect(await screen.findByText('Không tìm thấy trang')).toBeInTheDocument()
+    const nav = screen.getByRole('navigation', { name: 'Menu chính' })
+    expect(nav).not.toHaveTextContent('Sao lưu')
+    expect(server.calls.filter((call) => call.path.includes('/backups'))).toHaveLength(0)
   })
 
-  it('ẩn nút tạo và nút tải khi không có quyền tương ứng', async () => {
-    mockApi({
-      'GET /api/v1/auth/me': meOk(tenantUser({ permissions: { 'backup.backup.view': 'tenant' } })),
-      'GET /api/v1/backups': { json: { data: [tenantRow()] } },
-      ...noRestores,
-    })
-    renderApp('/backups')
+  it('Super Admin vẫn thấy "Sao lưu hệ thống" trong menu', async () => {
+    mockApi({ 'GET /api/v1/auth/me': meOk(platformAdmin()), 'GET /api/v1/platform/backups/status': status(), 'GET /api/v1/platform/backups': { json: { data: [] } } })
+    renderApp('/platform/backups')
 
-    await screen.findByRole('table')
-    expect(screen.queryByRole('button', { name: 'Sao lưu ngay' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Nhập từ file' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /^Khôi phục/ })).not.toBeInTheDocument()
-    expect(screen.queryByText('Lịch sử khôi phục')).not.toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /Tải về/ })).not.toBeInTheDocument()
-  })
-
-  it('tạo bản sao lưu thủ công', async () => {
-    const server = mockApi({
-      'GET /api/v1/auth/me': meOk(tenantUser()),
-      'GET /api/v1/backups': { json: { data: [] } },
-      'POST /api/v1/backups': { status: 202, json: { data: tenantRow({ status: 'pending' }) } },
-      ...noRestores,
-    })
-    renderApp('/backups')
-    const user = userEvent.setup()
-
-    expect(await screen.findByText('Chưa có bản sao lưu nào.')).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Sao lưu ngay' }))
-
-    expect(await screen.findByText(/Đã gửi yêu cầu sao lưu/)).toBeInTheDocument()
-    expect(server.to('POST', '/api/v1/backups')).toHaveLength(1)
+    const nav = await screen.findByRole('navigation', { name: 'Menu chính' })
+    expect(within(nav).getByRole('link', { name: 'Sao lưu hệ thống' })).toBeInTheDocument()
   })
 })

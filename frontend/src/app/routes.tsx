@@ -44,10 +44,6 @@ export const routes: RouteObject[] = [
                 children: [{ path: 'roles', lazy: async () => ({ Component: (await import('../features/roles/RolesPage.tsx')).default }) }],
               },
               {
-                element: <RequireAccess permission="backup.backup.view" />,
-                children: [{ path: 'backups', lazy: async () => ({ Component: (await import('../features/backup/TenantBackupsPage.tsx')).default }) }],
-              },
-              {
                 element: <RequireAccess platform />,
                 children: [
                   { path: 'platform/tenants', lazy: async () => ({ Component: (await import('../features/platform/TenantsPage.tsx')).default }) },

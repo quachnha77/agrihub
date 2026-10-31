@@ -2,7 +2,6 @@
 
 use App\Http\Controllers\Api\V1\AuditLogController;
 use App\Http\Controllers\Api\V1\AuthController;
-use App\Http\Controllers\Api\V1\BackupController;
 use App\Http\Controllers\Api\V1\BranchController;
 use App\Http\Controllers\Api\V1\BrandController;
 use App\Http\Controllers\Api\V1\CategoryController;
@@ -123,14 +122,6 @@ Route::middleware(['auth:sanctum', 'tenant.context'])->group(function () {
             Route::apiResource('units', UnitController::class)->except('show');
             Route::apiResource('categories', CategoryController::class)->except('show');
             Route::apiResource('brands', BrandController::class)->except('show');
-
-            Route::get('/backups', [BackupController::class, 'index']);
-            Route::post('/backups', [BackupController::class, 'store'])->middleware('throttle:sensitive');
-            Route::post('/backups/import', [BackupController::class, 'import'])->middleware('throttle:sensitive');
-            Route::get('/backups/restores', [BackupController::class, 'restores']);
-            Route::get('/backups/{backup}', [BackupController::class, 'show']);
-            Route::get('/backups/{backup}/download', [BackupController::class, 'download'])->middleware('throttle:sensitive');
-            Route::post('/backups/{backup}/restore', [BackupController::class, 'restore'])->middleware('throttle:sensitive');
 
             Route::get('/permissions', [PermissionController::class, 'index']);
             Route::apiResource('roles', RoleController::class);

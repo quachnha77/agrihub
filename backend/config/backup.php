@@ -27,7 +27,7 @@ return [
     'restore_lock_minutes' => 120,
 
     /**
-     * Sao lưu TỰ ĐỘNG hằng ngày dữ liệu nghiệp vụ của TỪNG Tenant (loại `auto`, Chủ doanh nghiệp xem/tải/khôi phục như bản thủ công).
+     * Sao lưu TỰ ĐỘNG hằng ngày dữ liệu nghiệp vụ của TỪNG Tenant (loại `auto`; chỉ Super Admin xem/tải/khôi phục, doanh nghiệp không có chức năng này).
      * Chạy qua queue worker. Mặc định chỉ bật ở production.
      */
     'tenant_auto' => [

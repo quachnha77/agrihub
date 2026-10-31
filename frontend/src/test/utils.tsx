@@ -97,7 +97,7 @@ export const tenantUser = (overrides: Partial<Me> = {}): Me => ({
   email: 'a@nongphat.vn',
   is_platform_admin: false,
   tenant: { id: 'tenant-1', name: 'Cửa hàng Nông Phát', slug: 'nong-phat' },
-  permissions: { 'backup.backup.view': 'tenant', 'backup.backup.create': 'tenant', 'backup.backup.export': 'tenant' },
+  permissions: { 'tenant.branch.view': 'tenant' },
   must_change_password: false,
   subscription_notice: null,
   ...overrides,

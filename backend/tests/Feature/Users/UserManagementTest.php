@@ -236,11 +236,11 @@ class UserManagementTest extends TestCase
     {
         [$tenant, $owner] = $this->makeTenant();
         $admin = $this->makeUserIn($tenant, ['admin']);
-        // Một vai trò tùy chỉnh có cả quyền sao lưu mà Admin không có.
+        // Một vai trò tùy chỉnh có cả quyền đổi gói dịch vụ mà Admin không có.
         $strong = $this->platform(function () use ($tenant) {
             $role = new Role(['name' => 'Quản trị cấp cao']);
             $role->forceFill(['tenant_id' => $tenant->id, 'key' => 'custom-cao-cap', 'is_system' => false])->save();
-            app(RoleService::class)->setGrants($role, ['tenant.user.view' => 'tenant', 'backup.backup.restore' => 'tenant']);
+            app(RoleService::class)->setGrants($role, ['tenant.user.view' => 'tenant', 'billing.subscription.update' => 'tenant']);
 
             return $role;
         });

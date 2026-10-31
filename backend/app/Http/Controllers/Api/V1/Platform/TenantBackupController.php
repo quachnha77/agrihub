@@ -15,8 +15,9 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
- * Super Admin: sao lưu / khôi phục dữ liệu của MỘT doanh nghiệp được chọn (cùng quy tắc an toàn như Chủ doanh nghiệp).
- * Mọi thao tác ghi audit thuộc về Tenant nên Chủ doanh nghiệp thấy trong nhật ký của mình.
+ * Super Admin: sao lưu / khôi phục dữ liệu của MỘT doanh nghiệp được chọn. Đây là NƠI DUY NHẤT làm việc này: doanh nghiệp không có
+ * API hay quyền sao lưu/khôi phục riêng (yêu cầu 2026-10-31). Xác nhận bằng mật khẩu của chính Super Admin + tên doanh nghiệp.
+ * Mọi thao tác ghi audit thuộc về Tenant nên Chủ doanh nghiệp vẫn thấy trong nhật ký hoạt động của mình (minh bạch).
  */
 class TenantBackupController extends Controller
 {

@@ -12,17 +12,19 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Testing\TestResponse;
+use Tests\Concerns\AdministersBackups;
 use Tests\Concerns\CreatesTenants;
 use Tests\Concerns\ReadsAuditLog;
 use Tests\Concerns\UsesBackupTables;
 use Tests\TestCase;
 
+/**
+ * Sao lưu / khôi phục dữ liệu của MỘT doanh nghiệp. Chỉ Super Admin làm được (đường dẫn /platform/tenants/{id}/backups…); doanh nghiệp
+ * (kể cả Chủ doanh nghiệp) không có API hay quyền nào về việc này. Dữ liệu nghiệp vụ trong các test dùng bảng giả (UsesBackupTables).
+ */
 class TenantBackupTest extends TestCase
 {
-    use CreatesTenants, ReadsAuditLog, RefreshDatabase, UsesBackupTables;
-
-    private const PASSWORD = 'Mat-khau-cu-2026';
+    use AdministersBackups, CreatesTenants, ReadsAuditLog, RefreshDatabase, UsesBackupTables;
 
     protected function setUp(): void
     {
@@ -30,28 +32,12 @@ class TenantBackupTest extends TestCase
         $this->setUpBackupTables();
     }
 
-    /** @return array{0: Tenant, 1: User} */
+    /** @return array{0: Tenant, 1: User} doanh nghiệp và Chủ doanh nghiệp (chỉ để thử rằng họ KHÔNG có quyền sao lưu) */
     private function shop(string $name = 'Cửa hàng Nông Phát'): array
     {
-        [$t, $owner] = $this->makeTenant(['name' => $name], ['password' => self::PASSWORD]);
+        [$t, $owner] = $this->makeTenant(['name' => $name]);
 
         return [$t, $owner];
-    }
-
-    private function makeBackup(User $owner): Backup
-    {
-        $uuid = $this->spa()->actingAs($owner)->postJson('/api/v1/backups')->assertStatus(202)->assertJsonPath('data.status', 'completed')->json('data.id');
-
-        return $this->platform(fn () => Backup::where('uuid', $uuid)->firstOrFail());
-    }
-
-    private function restore(User $owner, Backup $backup, ?string $name = null, string $password = self::PASSWORD): TestResponse
-    {
-        $tenant = $this->platform(fn () => Tenant::find($backup->tenant_id));
-
-        return $this->spa()->actingAs($owner)->postJson("/api/v1/backups/{$backup->uuid}/restore", [
-            'password' => $password, 'confirm_name' => $name ?? $tenant->name,
-        ]);
     }
 
     /** Tạo file sao lưu giả (hợp lệ về mã hóa) từ các dòng tùy ý, để kiểm thử file độc hại. */
@@ -77,14 +63,20 @@ class TenantBackupTest extends TestCase
         ];
     }
 
+    /** Super Admin tải một file lên làm bản sao lưu của $tenant (Import). */
+    private function adminImport(Tenant $tenant, UploadedFile|array $file)
+    {
+        return $this->asBackupAdmin()->post($this->backupPath($tenant, '/import'), $file instanceof UploadedFile ? ['file' => $file] : $file, ['Accept' => 'application/json']);
+    }
+
     // --- Sao lưu ---------------------------------------------------------------------------
 
-    public function test_owner_creates_a_backup_that_is_listed_encrypted_and_checksummed(): void
+    public function test_super_admin_creates_a_backup_that_is_listed_encrypted_and_checksummed(): void
     {
-        [$t, $owner] = $this->shop();
+        [$t] = $this->shop();
         $this->seedBusinessData($t, 3);
 
-        $res = $this->spa()->actingAs($owner)->postJson('/api/v1/backups')
+        $res = $this->asBackupAdmin()->postJson($this->backupPath($t))
             ->assertStatus(202)
             ->assertJsonPath('data.kind', 'manual')
             ->assertJsonPath('data.status', 'completed')
@@ -101,49 +93,36 @@ class TenantBackupTest extends TestCase
         $this->assertStringNotContainsString($t->uuid, $stored);
         $this->assertStringContainsString($t->uuid, $backup->path);
 
-        $this->spa()->actingAs($owner)->getJson('/api/v1/backups')->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $backup->uuid);
+        $this->asBackupAdmin()->getJson($this->backupPath($t))->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $backup->uuid);
         $this->assertSame(1, $this->auditCount(['module' => 'backup', 'action' => 'created', 'tenant_id' => $t->id]));
     }
 
     public function test_a_backup_with_no_data_tables_registered_is_still_valid(): void
     {
         config(['backup.tenant_tables' => []]);
-        [, $owner] = $this->shop();
+        [$t] = $this->shop();
 
-        $this->spa()->actingAs($owner)->postJson('/api/v1/backups')->assertStatus(202)->assertJsonPath('data.status', 'completed');
-    }
-
-    public function test_backups_are_isolated_between_tenants(): void
-    {
-        [$a, $ownerA] = $this->shop('Cửa hàng A');
-        [, $ownerB] = $this->shop('Cửa hàng B');
-        $backupA = $this->makeBackup($ownerA);
-
-        $this->freshBrowser()->spa()->actingAs($ownerB)->getJson('/api/v1/backups')->assertOk()->assertJsonCount(0, 'data');
-        $this->spa()->actingAs($ownerB)->getJson("/api/v1/backups/{$backupA->uuid}")->assertNotFound();
-        $this->spa()->actingAs($ownerB)->getJson("/api/v1/backups/{$backupA->uuid}/download")->assertNotFound();
-        $this->restore($ownerB, $backupA, 'Cửa hàng B')->assertNotFound();
-        $this->assertSame($a->id, $backupA->tenant_id);
+        $this->asBackupAdmin()->postJson($this->backupPath($t))->assertStatus(202)->assertJsonPath('data.status', 'completed');
     }
 
     // --- Khôi phục -------------------------------------------------------------------------
 
     public function test_restore_brings_the_data_back_exactly_with_original_ids_and_leaves_other_tenants_alone(): void
     {
-        [$a, $ownerA] = $this->shop('Cửa hàng A');
+        [$a] = $this->shop('Cửa hàng A');
         [$b] = $this->shop('Cửa hàng B');
         $this->seedBusinessData($a, 3);
         $this->seedBusinessData($b, 2, 'Khách của B');
         $original = $this->businessState($a);
         $stateB = $this->businessState($b);
-        $backup = $this->makeBackup($ownerA);
+        $backup = $this->adminBackup($a);
 
         // Làm hỏng dữ liệu hiện tại: xóa sạch rồi thêm dữ liệu khác.
         $this->wipeBusinessData($a);
         $this->seedBusinessData($a, 1, 'Dữ liệu mới');
         $this->assertNotSame($original, $this->businessState($a));
 
-        $this->restore($ownerA, $backup)->assertStatus(202)->assertJsonPath('data.status', 'completed')->assertJsonPath('data.row_counts.bk_customers', 3);
+        $this->adminRestore($backup)->assertStatus(202)->assertJsonPath('data.status', 'completed')->assertJsonPath('data.row_counts.bk_customers', 3);
 
         $this->assertSame($original, $this->businessState($a), 'Dữ liệu (kể cả id, JSON, số tiền) phải giống hệt bản sao lưu');
         $this->assertSame($stateB, $this->businessState($b), 'Doanh nghiệp khác không bị ảnh hưởng');
@@ -155,15 +134,15 @@ class TenantBackupTest extends TestCase
 
     public function test_every_restore_first_takes_a_pre_restore_safety_backup_that_can_undo_it(): void
     {
-        [$t, $owner] = $this->shop();
+        [$t] = $this->shop();
         $this->seedBusinessData($t, 2, 'Bản cũ');
-        $old = $this->makeBackup($owner);
+        $old = $this->adminBackup($t);
 
         $this->wipeBusinessData($t);
         $this->seedBusinessData($t, 4, 'Bản hiện tại');
         $current = $this->businessState($t);
 
-        $run = $this->restore($owner, $old)->assertStatus(202)->json('data');
+        $run = $this->adminRestore($old)->assertStatus(202)->json('data');
         $this->assertNotSame($current, $this->businessState($t));
 
         $pre = $this->platform(fn () => RestoreRun::where('uuid', $run['id'])->firstOrFail()->preBackup);
@@ -171,20 +150,20 @@ class TenantBackupTest extends TestCase
         $this->assertSame(4, $pre->row_counts['bk_customers']);
 
         // Quay lại hiện trạng trước khi khôi phục.
-        $this->restore($owner, $pre)->assertStatus(202)->assertJsonPath('data.status', 'completed');
+        $this->adminRestore($pre)->assertStatus(202)->assertJsonPath('data.status', 'completed');
         $this->assertSame($current, $this->businessState($t));
     }
 
-    public function test_restore_requires_the_password_and_the_exact_tenant_name_and_changes_nothing_otherwise(): void
+    public function test_restore_requires_the_admins_password_and_the_exact_tenant_name_and_changes_nothing_otherwise(): void
     {
-        [$t, $owner] = $this->shop('Cửa hàng A');
+        [$t] = $this->shop('Cửa hàng A');
         $this->seedBusinessData($t, 2);
-        $backup = $this->makeBackup($owner);
+        $backup = $this->adminBackup($t);
         $this->wipeBusinessData($t);
 
-        $this->restore($owner, $backup, 'Cửa hàng A', 'sai-mat-khau')->assertUnprocessable()->assertJsonPath('code', 'confirmation_failed');
-        $this->restore($owner, $backup, 'cửa hàng a')->assertUnprocessable()->assertJsonPath('code', 'confirmation_failed');
-        $this->spa()->actingAs($owner)->postJson("/api/v1/backups/{$backup->uuid}/restore", [])->assertUnprocessable();
+        $this->adminRestore($backup, 'Cửa hàng A', 'sai-mat-khau')->assertUnprocessable()->assertJsonPath('code', 'confirmation_failed');
+        $this->adminRestore($backup, 'cửa hàng a')->assertUnprocessable()->assertJsonPath('code', 'confirmation_failed');
+        $this->asBackupAdmin()->postJson($this->backupPath($t, "/{$backup->uuid}/restore"), [])->assertUnprocessable();
 
         $this->assertSame([], $this->businessState($t)['customers']);
         $this->assertSame(0, $this->platform(fn () => RestoreRun::count()));
@@ -193,29 +172,29 @@ class TenantBackupTest extends TestCase
 
     public function test_restore_is_audited_and_recorded(): void
     {
-        [$t, $owner] = $this->shop();
+        [$t] = $this->shop();
         $this->seedBusinessData($t);
-        $backup = $this->makeBackup($owner);
-        $this->restore($owner, $backup)->assertStatus(202);
+        $backup = $this->adminBackup($t);
+        $this->adminRestore($backup)->assertStatus(202);
 
         $this->assertSame(1, $this->auditCount(['module' => 'backup', 'action' => 'restore_requested', 'tenant_id' => $t->id]));
         $row = $this->lastAudit(['module' => 'backup', 'action' => 'restored', 'tenant_id' => $t->id]);
         $this->assertNotNull($row);
-        $this->assertSame($owner->id, (int) $row->actor_id);
+        $this->assertSame($this->backupAdmin()->id, (int) $row->actor_id);
         $this->assertArrayHasKey('pre_restore_backup', $row->metadata);
 
-        $this->spa()->actingAs($owner)->getJson('/api/v1/backups/restores')->assertOk()->assertJsonCount(1, 'data')
+        $this->asBackupAdmin()->getJson($this->backupPath($t, '/restores'))->assertOk()->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.status', 'completed')->assertJsonPath('data.0.backup_id', $backup->uuid);
     }
 
     public function test_audit_log_is_never_overwritten_by_a_restore(): void
     {
-        [$t, $owner] = $this->shop();
+        [$t] = $this->shop();
         $this->seedBusinessData($t);
-        $backup = $this->makeBackup($owner);
+        $backup = $this->adminBackup($t);
         $before = $this->auditCount(['tenant_id' => $t->id]);
 
-        $this->restore($owner, $backup)->assertStatus(202);
+        $this->adminRestore($backup)->assertStatus(202);
 
         $this->assertGreaterThan($before, $this->auditCount(['tenant_id' => $t->id]));
         $this->assertSame(2, $this->auditCount(['module' => 'backup', 'action' => 'created', 'tenant_id' => $t->id]), 'Bản sao lưu thủ công + bản điểm quay lại');
@@ -223,15 +202,15 @@ class TenantBackupTest extends TestCase
 
     public function test_a_tampered_stored_file_is_refused_and_data_is_untouched(): void
     {
-        [$t, $owner] = $this->shop();
+        [$t] = $this->shop();
         $this->seedBusinessData($t, 2);
-        $backup = $this->makeBackup($owner);
+        $backup = $this->adminBackup($t);
         $this->wipeBusinessData($t);
 
         $content = Storage::disk('backups')->get($backup->path);
         Storage::disk('backups')->put($backup->path, substr($content, 0, -3).'xyz');
 
-        $this->restore($owner, $backup)->assertStatus(202)->assertJsonPath('data.status', 'failed');
+        $this->adminRestore($backup)->assertStatus(202)->assertJsonPath('data.status', 'failed');
         $this->assertSame([], $this->businessState($t)['customers']);
         $this->assertNull($this->platform(fn () => Tenant::find($t->id)->restoring_at), 'Cờ bảo trì phải được gỡ sau khi thất bại');
         $this->assertSame(1, $this->auditCount(['module' => 'backup', 'action' => 'restore_failed']));
@@ -239,27 +218,27 @@ class TenantBackupTest extends TestCase
 
     public function test_incompatible_schema_fails_before_any_data_is_deleted(): void
     {
-        [$t, $owner] = $this->shop();
+        [$t] = $this->shop();
         $this->seedBusinessData($t, 2);
-        $backup = $this->makeBackup($owner);
+        $backup = $this->adminBackup($t);
 
         $this->platform(fn () => Schema::table('bk_customers', fn ($table) => $table->dropColumn('meta')));
 
-        $this->restore($owner, $backup)->assertStatus(202)->assertJsonPath('data.status', 'failed');
+        $this->adminRestore($backup)->assertStatus(202)->assertJsonPath('data.status', 'failed');
         $this->assertSame(2, $this->platform(fn () => DB::table('bk_customers')->where('tenant_id', $t->id)->count()));
     }
 
     public function test_restoring_parents_while_children_still_reference_them_fails_atomically(): void
     {
-        [$t, $owner] = $this->shop();
+        [$t] = $this->shop();
         $this->seedBusinessData($t, 2);
 
         config(['backup.tenant_tables' => ['bk_customers']]); // bản cũ chỉ có bảng cha
-        $backup = $this->makeBackup($owner);
+        $backup = $this->adminBackup($t);
         config(['backup.tenant_tables' => ['bk_customers', 'bk_orders']]);
         $before = $this->businessState($t);
 
-        $this->restore($owner, $backup)->assertStatus(202)->assertJsonPath('data.status', 'failed');
+        $this->adminRestore($backup)->assertStatus(202)->assertJsonPath('data.status', 'failed');
 
         $this->assertSame($before, $this->businessState($t), 'Lỗi giữa chừng => rollback toàn bộ, dữ liệu nguyên vẹn');
         $this->assertNull($this->platform(fn () => Tenant::find($t->id)->restoring_at));
@@ -267,13 +246,13 @@ class TenantBackupTest extends TestCase
 
     public function test_only_tables_present_in_the_file_are_replaced(): void
     {
-        [$t, $owner] = $this->shop();
+        [$t] = $this->shop();
         $this->seedBusinessData($t, 2);
         $this->platform(fn () => DB::table('bk_notes')->insert(['tenant_id' => $t->id, 'body' => 'ghi chú gốc']));
 
         // Bản sao lưu cũ chỉ có bk_notes (bk_customers được thêm vào phạm vi sau đó).
         config(['backup.tenant_tables' => ['bk_notes']]);
-        $backup = $this->makeBackup($owner);
+        $backup = $this->adminBackup($t);
         config(['backup.tenant_tables' => ['bk_notes', 'bk_customers']]);
 
         $this->platform(function () use ($t) {
@@ -281,7 +260,7 @@ class TenantBackupTest extends TestCase
             DB::table('bk_customers')->where('tenant_id', $t->id)->update(['name' => 'Đã đổi']);
         });
 
-        $this->restore($owner, $backup)->assertStatus(202)->assertJsonPath('data.status', 'completed');
+        $this->adminRestore($backup)->assertStatus(202)->assertJsonPath('data.status', 'completed');
 
         $this->assertSame('ghi chú gốc', $this->platform(fn () => DB::table('bk_notes')->where('tenant_id', $t->id)->value('body')));
         $this->assertSame('Đã đổi', $this->businessState($t)['customers'][0]['name'], 'Bảng không có trong file được giữ nguyên');
@@ -289,8 +268,8 @@ class TenantBackupTest extends TestCase
 
     public function test_a_second_restore_cannot_start_while_one_is_pending(): void
     {
-        [$t, $owner] = $this->shop();
-        $backup = $this->makeBackup($owner);
+        [$t] = $this->shop();
+        $backup = $this->adminBackup($t);
 
         $this->platform(function () use ($t, $backup) {
             $run = new RestoreRun(['backup_id' => $backup->id, 'status' => 'running']);
@@ -298,7 +277,7 @@ class TenantBackupTest extends TestCase
             $run->save();
         });
 
-        $this->restore($owner, $backup)->assertStatus(409)->assertJsonPath('code', 'restore_in_progress');
+        $this->adminRestore($backup)->assertStatus(409)->assertJsonPath('code', 'restore_in_progress');
     }
 
     public function test_the_tenant_is_in_maintenance_only_while_restoring(): void
@@ -318,12 +297,12 @@ class TenantBackupTest extends TestCase
 
     public function test_export_then_import_into_the_same_tenant_then_restore(): void
     {
-        [$t, $owner] = $this->shop();
+        [$t] = $this->shop();
         $this->seedBusinessData($t, 3);
         $original = $this->businessState($t);
-        $backup = $this->makeBackup($owner);
+        $backup = $this->adminBackup($t);
 
-        $download = $this->spa()->actingAs($owner)->get("/api/v1/backups/{$backup->uuid}/download")->assertOk();
+        $download = $this->asBackupAdmin()->get($this->backupPath($t, "/{$backup->uuid}/download"))->assertOk();
         $this->assertStringContainsString('attachment', $download->headers->get('Content-Disposition'));
         $this->assertStringContainsString('no-store', $download->headers->get('Cache-Control'));
         $file = $download->streamedContent();
@@ -332,49 +311,45 @@ class TenantBackupTest extends TestCase
 
         $this->wipeBusinessData($t);
 
-        $imported = $this->spa()->actingAs($owner)->post('/api/v1/backups/import', ['file' => UploadedFile::fake()->createWithContent('export.agbk', $file)], ['Accept' => 'application/json'])
+        $imported = $this->adminImport($t, UploadedFile::fake()->createWithContent('export.agbk', $file))
             ->assertCreated()->assertJsonPath('data.kind', 'upload')->assertJsonPath('data.status', 'completed')->assertJsonPath('data.row_counts.bk_customers', 3)
             ->assertJsonPath('data.original_name', 'export.agbk')->json('data.id');
 
-        $this->restore($owner, $this->platform(fn () => Backup::where('uuid', $imported)->firstOrFail()))->assertStatus(202)->assertJsonPath('data.status', 'completed');
+        $this->adminRestore($this->platform(fn () => Backup::where('uuid', $imported)->firstOrFail()))->assertStatus(202)->assertJsonPath('data.status', 'completed');
         $this->assertSame($original, $this->businessState($t));
     }
 
     public function test_a_file_from_another_tenant_is_rejected_on_import(): void
     {
-        [$a, $ownerA] = $this->shop('Cửa hàng A');
-        [$tb, $ownerB] = $this->shop('Cửa hàng B');
+        [$a] = $this->shop('Cửa hàng A');
+        [$tb] = $this->shop('Cửa hàng B');
         $this->seedBusinessData($a);
-        $backupA = $this->makeBackup($ownerA);
-        $file = Storage::disk('backups')->get($backupA->path);
+        $file = Storage::disk('backups')->get($this->adminBackup($a)->path);
 
-        $this->freshBrowser()->spa()->actingAs($ownerB)
-            ->post('/api/v1/backups/import', ['file' => UploadedFile::fake()->createWithContent('a.agbk', $file)], ['Accept' => 'application/json'])
-            ->assertUnprocessable()->assertJsonPath('code', 'backup_invalid');
+        $this->adminImport($tb, UploadedFile::fake()->createWithContent('a.agbk', $file))->assertUnprocessable()->assertJsonPath('code', 'backup_invalid');
 
         $this->assertSame(0, $this->platform(fn () => Backup::where('tenant_id', $tb->id)->where('status', 'completed')->count()));
     }
 
     public function test_garbage_and_tampered_uploads_are_rejected_and_never_listed_as_usable(): void
     {
-        [$t, $owner] = $this->shop();
+        [$t] = $this->shop();
         $this->seedBusinessData($t);
-        $good = Storage::disk('backups')->get($this->makeBackup($owner)->path);
+        $good = Storage::disk('backups')->get($this->adminBackup($t)->path);
         $tampered = $good;
         $tampered[strlen($tampered) - 5] = chr(ord($tampered[strlen($tampered) - 5]) ^ 1);
 
         foreach (['rác' => 'đây không phải file sao lưu', 'sửa đổi' => $tampered, 'cắt bớt' => substr($good, 0, 60)] as $content) {
-            $this->spa()->actingAs($owner)->post('/api/v1/backups/import', ['file' => UploadedFile::fake()->createWithContent('x.agbk', $content)], ['Accept' => 'application/json'])
-                ->assertUnprocessable()->assertJsonPath('code', 'backup_invalid');
+            $this->adminImport($t, UploadedFile::fake()->createWithContent('x.agbk', $content))->assertUnprocessable()->assertJsonPath('code', 'backup_invalid');
         }
 
         $this->assertSame(1, $this->platform(fn () => Backup::where('status', 'completed')->count()), 'Chỉ bản sao lưu thật sự hợp lệ');
-        $this->spa()->actingAs($owner)->post('/api/v1/backups/import', [], ['Accept' => 'application/json'])->assertUnprocessable();
+        $this->adminImport($t, [])->assertUnprocessable();
     }
 
     public function test_malicious_but_correctly_encrypted_files_are_refused(): void
     {
-        [$t, $owner] = $this->shop();
+        [$t] = $this->shop();
         [$other] = $this->shop('Doanh nghiệp khác');
         $columns = ['id', 'tenant_id', 'name', 'meta', 'active', 'created_at', 'updated_at'];
         $row = ['id' => 1, 'tenant_id' => $t->id, 'name' => 'X', 'meta' => null, 'active' => true, 'created_at' => null, 'updated_at' => null];
@@ -392,7 +367,7 @@ class TenantBackupTest extends TestCase
         ];
 
         foreach ($cases as $label => $lines) {
-            $response = $this->spa()->actingAs($owner)->post('/api/v1/backups/import', ['file' => $this->craft($lines)], ['Accept' => 'application/json']);
+            $response = $this->adminImport($t, $this->craft($lines));
             $this->assertSame(422, $response->getStatusCode(), "Trường hợp \"{$label}\" phải bị từ chối");
             $this->assertSame('backup_invalid', $response->json('code'), $label);
         }
@@ -400,7 +375,7 @@ class TenantBackupTest extends TestCase
 
     public function test_tenant_id_inside_a_file_can_never_redirect_rows_to_another_tenant(): void
     {
-        [$a, $ownerA] = $this->shop('Cửa hàng A');
+        [$a] = $this->shop('Cửa hàng A');
         [$b] = $this->shop('Cửa hàng B');
         $this->seedBusinessData($b, 2, 'Của B');
         $stateB = $this->businessState($b);
@@ -413,86 +388,87 @@ class TenantBackupTest extends TestCase
             ['type' => 'footer', 'row_counts' => ['bk_customers' => 2]],
         ]);
 
-        $id = $this->spa()->actingAs($ownerA)->post('/api/v1/backups/import', ['file' => $file], ['Accept' => 'application/json'])->assertCreated()->json('data.id');
-        $this->restore($ownerA, $this->platform(fn () => Backup::where('uuid', $id)->firstOrFail()), 'Cửa hàng A')->assertStatus(202)->assertJsonPath('data.status', 'completed');
+        $id = $this->adminImport($a, $file)->assertCreated()->json('data.id');
+        $this->adminRestore($this->platform(fn () => Backup::where('uuid', $id)->firstOrFail()), 'Cửa hàng A')->assertStatus(202)->assertJsonPath('data.status', 'completed');
 
         $this->assertSame($stateB, $this->businessState($b), 'Dữ liệu của B không đổi');
         $names = array_column($this->businessState($a)['customers'], 'name');
         $this->assertSame(['Tiêm nhiễm 9001', 'Tiêm nhiễm 9002'], $names, 'Cả hai dòng đều thuộc A');
     }
 
-    // --- Phân quyền ------------------------------------------------------------------------
+    // --- Chỉ Super Admin -------------------------------------------------------------------
 
-    public function test_only_owner_has_backup_permissions(): void
+    /** Yêu cầu 2026-10-31: sao lưu dữ liệu chỉ có ở Super Admin. Doanh nghiệp không có endpoint nào, kể cả Chủ doanh nghiệp. */
+    public function test_tenant_users_have_no_backup_endpoints_or_permissions_at_all(): void
     {
-        [$t, $owner, $b] = $this->makeTenant(['name' => 'Shop'], ['password' => self::PASSWORD]);
-        $backup = $this->makeBackup($owner);
+        [$t, $owner, $b] = $this->makeTenant(['name' => 'Shop']);
+        $backup = $this->adminBackup($t);
 
-        foreach (['admin', 'sales', 'accountant', 'warehouse'] as $role) {
-            $user = $this->makeUserIn($t, [$role], $b);
+        foreach (['owner' => $owner, 'admin' => $this->makeUserIn($t, ['admin'], $b), 'warehouse' => $this->makeUserIn($t, ['warehouse'], $b)] as $label => $user) {
             $this->freshBrowser()->spa()->actingAs($user);
 
-            $this->getJson('/api/v1/backups')->assertForbidden();
-            $this->postJson('/api/v1/backups')->assertForbidden();
-            $this->getJson("/api/v1/backups/{$backup->uuid}/download")->assertForbidden();
-            $this->postJson("/api/v1/backups/{$backup->uuid}/restore", ['password' => 'x', 'confirm_name' => 'Shop'])->assertForbidden();
-            $this->getJson('/api/v1/backups/restores')->assertForbidden();
+            $this->getJson('/api/v1/backups')->assertNotFound();
+            $this->postJson('/api/v1/backups')->assertNotFound();
+            $this->postJson('/api/v1/backups/import')->assertNotFound();
+            $this->getJson('/api/v1/backups/restores')->assertNotFound();
+            $this->getJson("/api/v1/backups/{$backup->uuid}")->assertNotFound();
+            $this->getJson("/api/v1/backups/{$backup->uuid}/download")->assertNotFound();
+            $this->postJson("/api/v1/backups/{$backup->uuid}/restore", ['password' => 'x', 'confirm_name' => 'Shop'])->assertNotFound();
+
+            // Và đường dẫn của Super Admin thì họ không vào được.
+            $this->getJson($this->backupPath($t))->assertForbidden();
+            $this->postJson($this->backupPath($t))->assertForbidden();
+            $this->getJson($this->backupPath($t, "/{$backup->uuid}/download"))->assertForbidden();
+            $this->postJson($this->backupPath($t, "/{$backup->uuid}/restore"), ['password' => 'x', 'confirm_name' => 'Shop'])->assertForbidden();
+
+            // Quyền sao lưu không còn trong catalog nên không cấp được cho ai (vai trò tùy chỉnh cũng vậy).
+            if ($label !== 'warehouse') { // nhân viên kho không có quyền xem vai trò/phân quyền
+                $this->assertStringNotContainsString('"backup', $this->getJson('/api/v1/permissions')->assertOk()->getContent(), $label);
+            }
         }
+
+        $this->assertSame(0, $this->platform(fn () => DB::table('permissions')->where('key', 'like', 'backup.%')->count()));
+        $this->assertSame(0, $this->platform(fn () => DB::table('role_permissions')->join('permissions', 'permissions.id', '=', 'role_permissions.permission_id')->where('permissions.key', 'like', 'backup.%')->count()));
     }
 
     public function test_unauthenticated_access_is_rejected(): void
     {
-        $this->getJson('/api/v1/backups')->assertUnauthorized();
-        $this->postJson('/api/v1/backups')->assertUnauthorized();
+        [$t] = $this->shop();
+
+        $this->getJson($this->backupPath($t))->assertUnauthorized();
+        $this->postJson($this->backupPath($t))->assertUnauthorized();
     }
 
-    // --- Super Admin -----------------------------------------------------------------------
-
-    public function test_platform_admin_can_back_up_and_restore_a_chosen_tenant_and_the_owner_sees_it(): void
+    public function test_super_admin_backs_up_and_restores_a_chosen_tenant_and_the_owner_can_see_it_in_the_audit_log(): void
     {
         [$t, $owner] = $this->shop('Cửa hàng A');
         $this->seedBusinessData($t, 2);
         $original = $this->businessState($t);
-        $admin = $this->makePlatformAdmin(['password' => 'Admin-mat-khau-2026']);
 
-        $backupId = $this->spa()->actingAs($admin)->postJson("/api/v1/platform/tenants/{$t->uuid}/backups")->assertStatus(202)->assertJsonPath('data.status', 'completed')->json('data.id');
-        $this->spa()->actingAs($admin)->getJson("/api/v1/platform/tenants/{$t->uuid}/backups")->assertOk()->assertJsonCount(1, 'data');
-        $this->spa()->actingAs($admin)->get("/api/v1/platform/tenants/{$t->uuid}/backups/{$backupId}/download")->assertOk();
+        $backup = $this->adminBackup($t);
+        $this->asBackupAdmin()->getJson($this->backupPath($t))->assertOk()->assertJsonCount(1, 'data');
+        $this->asBackupAdmin()->get($this->backupPath($t, "/{$backup->uuid}/download"))->assertOk();
 
         $this->wipeBusinessData($t);
-
-        $url = "/api/v1/platform/tenants/{$t->uuid}/backups/{$backupId}/restore";
-        $this->spa()->actingAs($admin)->postJson($url, ['password' => 'sai', 'confirm_name' => 'Cửa hàng A'])->assertUnprocessable();
-        $this->spa()->actingAs($admin)->postJson($url, ['password' => 'Admin-mat-khau-2026', 'confirm_name' => 'Cửa hàng A'])
-            ->assertStatus(202)->assertJsonPath('data.status', 'completed');
-
+        $this->adminRestore($backup)->assertStatus(202)->assertJsonPath('data.status', 'completed');
         $this->assertSame($original, $this->businessState($t));
 
+        // Minh bạch: Chủ doanh nghiệp không thao tác được nhưng vẫn thấy trong nhật ký hoạt động rằng dữ liệu của mình đã được sao lưu/khôi phục.
         $actions = $this->freshBrowser()->spa()->actingAs($owner)->getJson('/api/v1/audit-logs?module=backup')->assertOk()->json('data.*.action');
         $this->assertContains('restored', $actions);
         $this->assertContains('downloaded', $actions);
     }
 
-    public function test_platform_admin_cannot_mix_up_tenants(): void
+    public function test_super_admin_cannot_mix_up_tenants(): void
     {
-        [$a, $ownerA] = $this->shop('Cửa hàng A');
+        [$a] = $this->shop('Cửa hàng A');
         [$b] = $this->shop('Cửa hàng B');
-        $backupA = $this->makeBackup($ownerA);
-        $admin = $this->makePlatformAdmin(['password' => 'Admin-mat-khau-2026']);
+        $backupA = $this->adminBackup($a);
 
-        $this->freshBrowser()->spa()->actingAs($admin);
-        $this->getJson("/api/v1/platform/tenants/{$b->uuid}/backups/{$backupA->uuid}")->assertNotFound();
-        $this->getJson("/api/v1/platform/tenants/{$b->uuid}/backups/{$backupA->uuid}/download")->assertNotFound();
-        $this->postJson("/api/v1/platform/tenants/{$b->uuid}/backups/{$backupA->uuid}/restore", ['password' => 'Admin-mat-khau-2026', 'confirm_name' => 'Cửa hàng B'])->assertNotFound();
-        $this->getJson("/api/v1/platform/tenants/{$b->uuid}/backups")->assertJsonCount(0, 'data');
-    }
-
-    public function test_tenant_users_cannot_use_the_platform_backup_endpoints(): void
-    {
-        [$t, $owner] = $this->shop();
-
-        $this->spa()->actingAs($owner)->postJson("/api/v1/platform/tenants/{$t->uuid}/backups")->assertForbidden();
-        $this->spa()->actingAs($owner)->getJson("/api/v1/platform/tenants/{$t->uuid}/backups")->assertForbidden();
+        $this->asBackupAdmin()->getJson($this->backupPath($b, "/{$backupA->uuid}"))->assertNotFound();
+        $this->getJson($this->backupPath($b, "/{$backupA->uuid}/download"))->assertNotFound();
+        $this->postJson($this->backupPath($b, "/{$backupA->uuid}/restore"), ['password' => self::ADMIN_PASSWORD, 'confirm_name' => 'Cửa hàng B'])->assertNotFound();
+        $this->getJson($this->backupPath($b))->assertOk()->assertJsonCount(0, 'data');
     }
 
     // --- Bảo vệ cho các module tương lai ---------------------------------------------------

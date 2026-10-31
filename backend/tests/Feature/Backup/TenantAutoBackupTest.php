@@ -15,6 +15,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Storage;
+use Tests\Concerns\AdministersBackups;
 use Tests\Concerns\CreatesTenants;
 use Tests\Concerns\ReadsAuditLog;
 use Tests\Concerns\UsesBackupTables;
@@ -23,7 +24,7 @@ use Tests\TestCase;
 /** Sao lưu tự động hằng ngày theo Tenant, chính sách giữ bản, cảnh báo khi lỗi và dấu vân tay khóa mã hóa. */
 class TenantAutoBackupTest extends TestCase
 {
-    use CreatesTenants, ReadsAuditLog, RefreshDatabase, UsesBackupTables;
+    use AdministersBackups, CreatesTenants, ReadsAuditLog, RefreshDatabase, UsesBackupTables;
 
     protected function setUp(): void
     {
@@ -213,7 +214,7 @@ class TenantAutoBackupTest extends TestCase
 
     // --- Cảnh báo khi lỗi ------------------------------------------------------------------
 
-    public function test_a_failed_automatic_backup_alerts_the_tenant_owner_and_staff_once_a_day(): void
+    public function test_a_failed_automatic_backup_alerts_only_the_platform_admins_once_a_day(): void
     {
         [$tenant, $owner] = $this->makeTenant(['name' => 'Cửa hàng Nông Phát']);
         $staff = $this->makePlatformAdmin();
@@ -223,18 +224,19 @@ class TenantAutoBackupTest extends TestCase
 
         $this->assertSame('failed', $this->backups($tenant, 'auto')->sole()->status);
 
-        $mine = $this->platform(fn () => Notice::query()->where('user_id', $owner->id)->get())->sole();
-        $this->assertSame('backup.tenant.auto_failed', $mine->type);
-        $this->assertSame('critical', $mine->level);
-        $this->assertStringContainsString('Ổ đĩa đầy', $mine->body);
+        // Chủ doanh nghiệp không có chức năng sao lưu nên không nhận thông báo này (họ cũng không xử lý được).
+        $this->assertCount(0, $this->platform(fn () => Notice::query()->where('user_id', $owner->id)->get()));
 
         $theirs = $this->platform(fn () => Notice::query()->where('user_id', $staff->id)->get())->sole();
+        $this->assertSame('backup.tenant.auto_failed', $theirs->type);
+        $this->assertSame('critical', $theirs->level);
         $this->assertStringContainsString('Cửa hàng Nông Phát', $theirs->body);
+        $this->assertStringContainsString('Ổ đĩa đầy', $theirs->body);
 
         // Chạy lại cùng ngày => không báo trùng.
         $this->artisan('agrihub:backup:tenants')->assertExitCode(0);
         $this->assertCount(2, $this->backups($tenant, 'auto'));
-        $this->assertCount(2, $this->platform(fn () => Notice::query()->get()));
+        $this->assertCount(1, $this->platform(fn () => Notice::query()->get()));
     }
 
     // --- Khóa mã hóa -----------------------------------------------------------------------
@@ -259,12 +261,12 @@ class TenantAutoBackupTest extends TestCase
 
     public function test_exports_carry_the_fingerprint_and_the_command_reports_it(): void
     {
-        [, $owner] = $this->makeTenant(['name' => 'Cửa hàng A'], ['password' => 'Mat-khau-cu-2026']);
-        $uuid = $this->spa()->actingAs($owner)->postJson('/api/v1/backups')->assertStatus(202)->json('data.id');
+        [$tenant] = $this->makeTenant(['name' => 'Cửa hàng A']);
+        $uuid = $this->adminBackup($tenant)->uuid;
         $fingerprint = app(BackupCrypto::class)->keyFingerprint();
 
-        $this->spa()->actingAs($owner)->getJson("/api/v1/backups/{$uuid}")->assertJsonPath('data.key_fingerprint', $fingerprint);
-        $this->spa()->actingAs($owner)->get("/api/v1/backups/{$uuid}/download")->assertOk()->assertHeader('X-Backup-Key-Fingerprint', $fingerprint);
+        $this->asBackupAdmin()->getJson($this->backupPath($tenant, "/{$uuid}"))->assertJsonPath('data.key_fingerprint', $fingerprint);
+        $this->asBackupAdmin()->get($this->backupPath($tenant, "/{$uuid}/download"))->assertOk()->assertHeader('X-Backup-Key-Fingerprint', $fingerprint);
 
         $this->artisan('agrihub:backup:key')->expectsOutputToContain($fingerprint)->assertExitCode(0);
     }

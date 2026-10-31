@@ -122,7 +122,6 @@ const vi = {
     main: 'Menu chính',
     dashboard: 'Tổng quan',
     notifications: 'Thông báo',
-    backups: 'Sao lưu dữ liệu',
     platformBackups: 'Sao lưu hệ thống',
     health: 'Sức khỏe hệ thống',
     users: 'Người dùng',
@@ -426,15 +425,11 @@ const vi = {
       title: 'Sao lưu toàn hệ thống',
       intro: 'Bản sao lưu chứa dữ liệu của mọi doanh nghiệp, đã được mã hóa. Hãy tải về và cất ở nơi khác với máy chủ.',
     },
-    tenant: {
-      title: 'Sao lưu dữ liệu',
-      intro:
-        'Sao lưu dữ liệu của doanh nghiệp. Hệ thống tự sao lưu mỗi ngày; bạn có thể tạo thêm bản thủ công, tải về để lưu riêng, nhập lại file đã tải và khôi phục dữ liệu từ một bản sao lưu.',
-      exportNote: 'File tải về đã được mã hóa; chỉ khôi phục được trên hệ thống AgriHub.',
-    },
     admin: {
       title: 'Sao lưu của {{name}}',
-      intro: 'Sao lưu, nhập file và khôi phục dữ liệu của doanh nghiệp này. Mọi thao tác được ghi vào nhật ký hoạt động của doanh nghiệp.',
+      intro:
+        'Chỉ Super Admin có chức năng này; doanh nghiệp không thấy mục sao lưu. Hệ thống tự sao lưu mỗi ngày; bạn có thể tạo thêm bản thủ công, tải về để lưu riêng, nhập lại file đã tải và khôi phục dữ liệu của doanh nghiệp này. Mọi thao tác được ghi vào nhật ký hoạt động của doanh nghiệp (Chủ doanh nghiệp xem được).',
+      exportNote: 'File tải về đã được mã hóa; chỉ khôi phục được trên hệ thống AgriHub.',
       back: 'Quay lại {{name}}',
     },
     restoring: {

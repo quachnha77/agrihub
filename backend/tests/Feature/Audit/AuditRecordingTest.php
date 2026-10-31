@@ -308,14 +308,14 @@ class AuditRecordingTest extends TestCase
         $admin = $this->makeUserIn($tenant, ['admin']);
 
         $this->spa()->actingAs($admin)->postJson('/api/v1/roles', [
-            'name' => 'Leo thang', 'permissions' => [['key' => 'backup.backup.restore', 'scope' => 'tenant']],
+            'name' => 'Leo thang', 'permissions' => [['key' => 'billing.subscription.update', 'scope' => 'tenant']],
         ])->assertForbidden();
 
         $log = $this->lastAudit(['action' => 'privilege_escalation_blocked']);
         $this->assertSame('denied', $log->result);
         $this->assertSame('permission_exceeds_privileges', $log->reason);
         $this->assertSame($admin->uuid, $log->actor_uuid);
-        $this->assertSame('tenant', $log->metadata['exceeding']['backup.backup.restore']);
+        $this->assertSame('tenant', $log->metadata['exceeding']['billing.subscription.update']);
     }
 
     public function test_user_role_changes_and_blocked_attempts_are_audited(): void

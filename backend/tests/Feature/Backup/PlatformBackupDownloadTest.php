@@ -8,6 +8,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Testing\TestResponse;
+use Tests\Concerns\AdministersBackups;
 use Tests\Concerns\CreatesTenants;
 use Tests\Concerns\ReadsAuditLog;
 use Tests\TestCase;
@@ -15,7 +16,7 @@ use Tests\TestCase;
 /** Tải bản sao lưu toàn hệ thống về nơi lưu riêng: nhập lại mật khẩu → liên kết ký, dùng một lần → file đã mã hóa. */
 class PlatformBackupDownloadTest extends TestCase
 {
-    use CreatesTenants, ReadsAuditLog, RefreshDatabase;
+    use AdministersBackups, CreatesTenants, ReadsAuditLog, RefreshDatabase;
 
     private const PASSWORD = 'Mat-khau-quan-tri-2026';
 
@@ -212,13 +213,13 @@ class PlatformBackupDownloadTest extends TestCase
         $this->link($admin, $tenantBackup)->assertNotFound();
     }
 
-    public function test_the_tenant_export_also_records_the_download_time(): void
+    public function test_the_per_tenant_download_by_the_super_admin_also_records_the_download_time(): void
     {
-        [$tenant, $owner] = $this->makeTenant(['name' => 'Cửa hàng C'], ['password' => self::PASSWORD]);
-        $uuid = $this->spa()->actingAs($owner)->postJson('/api/v1/backups')->assertStatus(202)->json('data.id');
+        [$tenant] = $this->makeTenant(['name' => 'Cửa hàng C']);
+        $uuid = $this->adminBackup($tenant)->uuid;
 
-        $this->assertNull($this->spa()->actingAs($owner)->getJson("/api/v1/backups/{$uuid}")->json('data.downloaded_at'));
-        $this->spa()->actingAs($owner)->get("/api/v1/backups/{$uuid}/download")->assertOk();
-        $this->assertNotNull($this->spa()->actingAs($owner)->getJson("/api/v1/backups/{$uuid}")->json('data.downloaded_at'));
+        $this->assertNull($this->asBackupAdmin()->getJson($this->backupPath($tenant, "/{$uuid}"))->json('data.downloaded_at'));
+        $this->asBackupAdmin()->get($this->backupPath($tenant, "/{$uuid}/download"))->assertOk();
+        $this->assertNotNull($this->asBackupAdmin()->getJson($this->backupPath($tenant, "/{$uuid}"))->json('data.downloaded_at'));
     }
 }

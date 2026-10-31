@@ -1,14 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ApiError, get, post, postForm } from '../../lib/api.ts'
+import { get, post, postForm } from '../../lib/api.ts'
 
 export type BackupScope = 'platform' | 'tenant'
 export type BackupStatusValue = 'pending' | 'running' | 'completed' | 'failed'
 
 /**
- * Nơi lấy bản sao lưu: toàn hệ thống (Super Admin), chính doanh nghiệp của người đăng nhập ('tenant'),
+ * Nơi lấy bản sao lưu. Sao lưu / khôi phục CHỈ có ở Super Admin (doanh nghiệp không có chức năng này): hoặc toàn hệ thống,
  * hoặc MỘT doanh nghiệp do Super Admin chọn.
  */
-export type BackupSource = BackupScope | { tenantId: string }
+export type BackupSource = 'platform' | { tenantId: string }
 
 /** Nguồn có Import / Khôi phục (sao lưu toàn hệ thống chỉ khôi phục bằng dòng lệnh trên máy chủ). */
 export type TenantBackupSource = Exclude<BackupSource, 'platform'>
@@ -68,26 +68,18 @@ export interface PlatformBackupState {
 }
 
 /** Đường dẫn API (sau /api/v1) của danh sách bản sao lưu theo nguồn. */
-export const backupPath = (source: BackupSource): string =>
-  source === 'platform' ? '/platform/backups' : source === 'tenant' ? '/backups' : `/platform/tenants/${source.tenantId}/backups`
+export const backupPath = (source: BackupSource): string => (source === 'platform' ? '/platform/backups' : `/platform/tenants/${source.tenantId}/backups`)
 
 const sourceKey = (source: BackupSource): string => (typeof source === 'string' ? source : source.tenantId)
 
 const inFlight = (rows: { status: BackupStatusValue }[] | undefined) => rows?.some((row) => row.status === 'pending' || row.status === 'running') ?? false
 
-/** Trong lúc khôi phục, máy chủ trả 503 `tenant_restoring` cho mọi yêu cầu của doanh nghiệp: đó là tín hiệu "đang khôi phục", không phải lỗi. */
-export const isRestoringError = (error: unknown): boolean => error instanceof ApiError && error.code === 'tenant_restoring'
-
-/** Không thử lại lỗi "đang khôi phục" (đã có vòng làm mới riêng); các lỗi khác thử lại một lần như mặc định của ứng dụng. */
-const retryUnlessRestoring = (count: number, error: unknown) => !isRestoringError(error) && count < 1
-
-/** Danh sách bản sao lưu; tự làm mới nhanh hơn khi đang có bản chạy dở hoặc doanh nghiệp đang khôi phục. */
+/** Danh sách bản sao lưu; tự làm mới nhanh hơn khi đang có bản chạy dở. */
 export function useBackups(source: BackupSource) {
   return useQuery({
     queryKey: ['backups', sourceKey(source)],
     queryFn: async () => (await get<{ data: BackupRow[] }>(`${backupPath(source)}?per_page=50`)).data,
-    refetchInterval: (query) => (inFlight(query.state.data) || isRestoringError(query.state.error) ? 4_000 : 60_000),
-    retry: retryUnlessRestoring,
+    refetchInterval: (query) => (inFlight(query.state.data) ? 4_000 : 60_000),
   })
 }
 
@@ -96,8 +88,7 @@ export function useRestoreRuns(source: TenantBackupSource) {
   return useQuery({
     queryKey: ['backups', sourceKey(source), 'restores'],
     queryFn: async () => (await get<{ data: RestoreRunRow[] }>(`${backupPath(source)}/restores?per_page=10`)).data,
-    refetchInterval: (query) => (inFlight(query.state.data) || isRestoringError(query.state.error) ? 3_000 : 60_000),
-    retry: retryUnlessRestoring,
+    refetchInterval: (query) => (inFlight(query.state.data) ? 3_000 : 60_000),
   })
 }
 

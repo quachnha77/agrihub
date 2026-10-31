@@ -84,11 +84,11 @@ class RoleManagementTest extends TestCase
     public function test_cannot_grant_permissions_beyond_own_privileges(): void
     {
         [$tenant] = $this->makeTenant();
-        $admin = $this->makeUserIn($tenant, ['admin']); // Admin KHÔNG có backup.* và billing.subscription.update
+        $admin = $this->makeUserIn($tenant, ['admin']); // Admin KHÔNG có billing.subscription.update (chỉ xem gói dịch vụ)
 
         $this->spa()->actingAs($admin)->postJson('/api/v1/roles', [
             'name' => 'Leo thang',
-            'permissions' => [['key' => 'backup.backup.restore', 'scope' => 'tenant']],
+            'permissions' => [['key' => 'billing.subscription.update', 'scope' => 'tenant']],
         ])->assertForbidden()->assertJsonPath('code', 'permission_exceeds_privileges');
 
         // Cũng không được nâng phạm vi: Admin có crm.customer ở tenant, nhưng Branch Manager chỉ ở branch
@@ -171,7 +171,7 @@ class RoleManagementTest extends TestCase
         $strong = $this->platform(function () use ($tenant) {
             $role = new Role(['name' => 'Cao cấp']);
             $role->forceFill(['tenant_id' => $tenant->id, 'key' => 'custom-cao-cap', 'is_system' => false])->save();
-            app(RoleService::class)->setGrants($role, ['backup.backup.restore' => 'tenant']); // Admin không có quyền này
+            app(RoleService::class)->setGrants($role, ['billing.subscription.update' => 'tenant']); // Admin không có quyền này
 
             return $role;
         });

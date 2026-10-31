@@ -37,13 +37,13 @@ Mục tiêu tham khảo: RTO ≤ 4 giờ, RPO ≤ 24 giờ (dump) / ≤ 15 phút
 ## 6. Giao diện Backup/Restore cho quản trị viên (đã chốt 2026-10-30)
 - Màn hình danh sách backup **theo ngày/giờ** (loại, kích thước, checksum, trạng thái, người tạo).
 - **Tạo backup thủ công**, **Export** (tải file đã mã hóa), **Import** (tải lên file backup để restore).
-- Phạm vi (đã chốt: cả hai): Super Admin → toàn hệ thống hoặc chọn một Tenant; Tenant Owner → chỉ dữ liệu Tenant của mình.
+- Phạm vi (**sửa 2026-10-31: chỉ Super Admin**): toàn hệ thống hoặc chọn một Tenant. Tenant Owner KHÔNG còn chức năng sao lưu/khôi phục/Import/Export (trước đó từng chốt cho cả hai).
 - Quy tắc an toàn khi Import/Restore:
   1. Chỉ chấp nhận file do AgriHub tạo (chữ ký + checksum + phiên bản schema); từ chối file hỏng/không khớp.
   2. Tự động tạo **backup trước khi restore** (điểm quay lại).
   3. Restore Tenant chạy trong transaction/DB tạm, kiểm tra tenant_id đúng; không bao giờ ghi vào Tenant khác.
   4. Xác nhận 2 bước (nhập lại mật khẩu/2FA + gõ tên Tenant) và đặt Tenant ở chế độ bảo trì trong lúc restore.
-  5. Mọi thao tác ghi audit và `restore_runs`; thông báo cho Owner.
+  5. Mọi thao tác ghi audit và `restore_runs`; thông báo cho Super Admin đã yêu cầu (nêu tên doanh nghiệp).
   6. File export mã hóa; tải qua link ngắn hạn; giới hạn tần suất và kích thước.
 
 ## 7. Hiện thực sao lưu / khôi phục theo Tenant (bước 8a – đã triển khai)
@@ -63,14 +63,14 @@ Mục tiêu tham khảo: RTO ≤ 4 giờ, RPO ≤ 24 giờ (dump) / ≤ 15 phút
 4. Tự tạo bản **`pre_restore`** (điểm quay lại) trước khi ghi đè; không tạo được thì **không khôi phục**. Có thể khôi phục lại chính bản này để hoàn tác.
 5. Trong **một transaction**: xóa dữ liệu hiện tại của Tenant ở các bảng **có trong file** (con trước cha) rồi nạp lại với **id gốc**; `tenant_id` của mọi dòng bị **ghi đè bằng Tenant đang khôi phục** (file không thể ghi sang Tenant khác; RLS chặn thêm một lớp); lỗi bất kỳ ⇒ rollback toàn bộ, dữ liệu nguyên vẹn. Sau đó đưa sequence lên ≥ id lớn nhất.
 6. Bảng không có trong file (module thêm sau thời điểm sao lưu) **không bị xóa**. Nếu dữ liệu con còn tham chiếu dữ liệu cha mà file không chứa con ⇒ vi phạm khóa ngoại ⇒ rollback.
-7. Mọi bước ghi audit (`backup.created|uploaded|downloaded|restore_requested|restored|restore_failed|restore_confirmation_failed`) thuộc về Tenant nên Chủ doanh nghiệp xem được trong nhật ký của mình (kể cả khi do Super Admin làm).
+7. Mọi bước ghi audit (`backup.created|uploaded|downloaded|restore_requested|restored|restore_failed|restore_confirmation_failed`) thuộc về Tenant nên Chủ doanh nghiệp vẫn xem được trong nhật ký hoạt động của mình (minh bạch; mọi thao tác đều do Super Admin làm).
 
-**Phân quyền**: chỉ **Chủ doanh nghiệp** (`backup.backup.{view,create,export,restore}`); Admin và các vai trò khác bị 403. **Super Admin** thao tác trên một Tenant được chọn qua `/platform/tenants/{id}/backups…` với cùng quy tắc (xác nhận bằng mật khẩu của chính Super Admin + tên doanh nghiệp). Phiên hỗ trợ (chỉ đọc) không dùng được `export`/`restore`.
+**Phân quyền**: **chỉ Super Admin** (từ 2026-10-31). Doanh nghiệp, kể cả Chủ doanh nghiệp, không có API (`/backups…` của doanh nghiệp đã gỡ, trả 404), không có quyền (`backup.backup.*` đã xóa khỏi catalog và khỏi vai trò, migration `2026_10_31_130000`), không có trang và không nhận thông báo về sao lưu. Super Admin thao tác trên một Tenant được chọn qua `/platform/tenants/{id}/backups…` (xác nhận bằng mật khẩu của chính Super Admin + tên doanh nghiệp). Người dùng doanh nghiệp vẫn thấy các thao tác này trong **nhật ký hoạt động** của mình (minh bạch) và bị chặn `503 tenant_restoring` trong lúc khôi phục.
 
-**Giao diện** (đã có, 2026-10-31): *Chủ doanh nghiệp* ở `/backups` (quyền `backup.backup.{view,create,export,restore}` quyết định nút nào hiện; quyền thật do API kiểm tra) và *Super Admin* ở `/platform/tenants/:id/backups` (nút "Sao lưu & khôi phục" ở trang chi tiết doanh nghiệp; dùng đường dẫn `/platform/tenants/{id}/backups…`). Cùng một khối giao diện cho cả hai: danh sách theo ngày giờ (tên file với bản tải lên), **Sao lưu ngay**, **Tải về**, **Nhập từ file** (chọn `.agbk`; máy chủ kiểm tra toàn bộ; file hỏng để lại dòng "Thất bại" kèm lý do), **Khôi phục** và **Lịch sử khôi phục** (bản đã dùng, điểm quay lại, kết quả). Hộp Khôi phục nêu rõ hậu quả (dữ liệu nghiệp vụ hiện tại bị thay, tự có điểm quay lại, doanh nghiệp tạm ngừng vài phút, tài khoản/chi nhánh/vai trò/gói/nhật ký không đổi), bắt nhập lại mật khẩu của chính mình và gõ đúng tên doanh nghiệp (nút chỉ mở khi tên khớp; máy chủ kiểm tra lại cả hai) và nói thẳng khi bản sao lưu chưa chứa dữ liệu nghiệp vụ nào. Trong lúc khôi phục máy chủ trả `503 tenant_restoring` cho mọi yêu cầu của doanh nghiệp: giao diện coi đó là "đang khôi phục" (không phải lỗi tải), ẩn danh sách, hỏi lại mỗi 3 giây và báo kết quả khi xong rồi làm mới mọi dữ liệu khác trên màn hình. Hoàn tác = khôi phục lại bản "Điểm quay lại" của lần đó.
+**Giao diện** (đã có, 2026-10-31): chỉ ở Super Admin, trang `/platform/tenants/:id/backups` (nút "Sao lưu & khôi phục" ở trang chi tiết doanh nghiệp). Gồm: danh sách theo ngày giờ (tên file với bản tải lên), **Sao lưu ngay**, **Tải về**, **Nhập từ file** (chọn `.agbk`; máy chủ kiểm tra toàn bộ; file hỏng để lại dòng "Thất bại" kèm lý do), **Khôi phục** và **Lịch sử khôi phục** (bản đã dùng, điểm quay lại, kết quả). Hộp Khôi phục nêu rõ hậu quả (dữ liệu nghiệp vụ hiện tại bị thay, tự có điểm quay lại, doanh nghiệp tạm ngừng vài phút, tài khoản/chi nhánh/vai trò/gói/nhật ký không đổi), bắt nhập lại mật khẩu của chính Super Admin và gõ đúng tên doanh nghiệp (nút chỉ mở khi tên khớp; máy chủ kiểm tra lại cả hai). Trang theo dõi tiến trình qua lịch sử khôi phục (hỏi lại mỗi 3 giây khi có lần đang chạy), báo kết quả khi xong rồi làm mới dữ liệu. Hoàn tác = khôi phục lại bản "Điểm quay lại" của lần đó. Sao lưu toàn hệ thống ở `/platform/backups`; tình trạng hạ tầng ở `/platform/health`.
 
 **Giới hạn đã biết**
-- Chưa có thông báo chủ động cho Owner khi Super Admin khôi phục (chỉ có audit) — chờ nền tảng Notification.
+- Chủ doanh nghiệp không được báo khi Super Admin sao lưu/khôi phục dữ liệu của họ (chỉ thấy trong nhật ký hoạt động). Chính sách báo cho khách là việc của Super Admin (liên hệ trực tiếp) — chưa có thông báo tự động.
 - Cột nhị phân (`bytea`) chưa được hỗ trợ: sao lưu sẽ báo lỗi rõ ràng; module cần lưu file phải dùng bảng `files` (đường dẫn) thay vì bytea.
 - Danh sách `tenant_tables` mới có danh mục sản phẩm (2026-10-31; đã kiểm thử khôi phục và hoàn tác bằng bảng thật, kể cả cột JSONB và số thập phân) — chưa có khách hàng, kho, chứng từ. Trước đó bản sao lưu chỉ chứa phần đầu/cuối (đã kiểm thử khuôn khổ bằng bảng giả có khóa ngoại + RLS).
 - Dung lượng lớn: job đọc/ghi theo luồng (bộ nhớ không phụ thuộc kích thước) nhưng thời gian khôi phục tỉ lệ với dữ liệu; cần đo lại khi có dữ liệu thật.
@@ -146,8 +146,8 @@ Quy trình khi mất database/máy chủ:
 | **Quá hạn**: bản hoàn tất gần nhất cũ hơn 36 giờ, hoặc hệ thống đã tồn tại > 36 giờ mà chưa có bản nào | critical | như trên; nhắc lại tối đa mỗi 24 giờ nếu chưa hết |
 | Lâu chưa khôi phục thử đạt (> 10 ngày) | warning | như trên |
 | Chưa tải bản sao lưu ra nơi lưu riêng (> 7 ngày) | warning | như trên |
-| Sao lưu thủ công của Tenant xong / thất bại | info / critical | người yêu cầu (chỉ trong ứng dụng) |
-| Khôi phục của Tenant xong / thất bại (dữ liệu hiện tại được giữ nguyên nếu thất bại) | info / critical | người yêu cầu (chỉ trong ứng dụng) |
+| Sao lưu thủ công của Tenant xong / thất bại | info / critical | Super Admin đã yêu cầu (chỉ trong ứng dụng, nêu tên doanh nghiệp) |
+| Khôi phục của Tenant xong / thất bại (dữ liệu hiện tại được giữ nguyên nếu thất bại) | info / critical | Super Admin đã yêu cầu (chỉ trong ứng dụng, nêu tên doanh nghiệp) |
 
 - **Sự kiện** (thất bại, gián đoạn) được báo **ngay lúc xảy ra**. **Trạng thái** (quá hạn, chưa khôi phục thử, chưa tải ra ngoài) do lệnh `agrihub:backup:check` kiểm tra **mỗi giờ** (phút 17); cùng một vấn đề chỉ báo lại sau `BACKUP_ALERT_DEDUPE_HOURS` (24) giờ. `--no-notify` chỉ in tình trạng; lệnh trả mã thoát 1 khi tình trạng nghiêm trọng nên công cụ giám sát bên ngoài (cron, Uptime Kuma…) cũng dùng được.
 - `GET /platform/backups/status` trả `state` (`ok|warning|critical|disabled`), bản hoàn tất/lần thử/lần khôi phục thử gần nhất, `last_downloaded_at`, danh sách `issues` và các ngưỡng — để màn hình quản trị hiện đèn trạng thái.
@@ -158,7 +158,7 @@ Quy trình khi mất database/máy chủ:
 
 ## 10. Sao lưu tự động hằng ngày theo Tenant và dấu vân tay khóa mã hóa (đã triển khai)
 
-**Sao lưu tự động theo Tenant** (`agrihub:backup:tenants --scheduled`, 02:00 hằng ngày, chỉ chạy khi `BACKUP_TENANT_AUTO_ENABLED=true`, mặc định bật ở production): với MỌI Tenant, tạo một bản loại `auto` chạy qua queue worker (cần worker + scheduler). Bỏ qua Tenant đang được khôi phục hoặc đang có bản chưa xong; bản chờ/đang chạy quá 12 giờ bị đánh dấu "gián đoạn". Chủ doanh nghiệp thấy bản tự động trong danh sách (theo ngày giờ), tải về và khôi phục như bản thủ công. Thành công thì im lặng; **thất bại thì báo Chủ doanh nghiệp (trong ứng dụng) và nhân viên AgriHub (trong ứng dụng + email)**, mỗi bên tối đa một lần mỗi ngày.
+**Sao lưu tự động theo Tenant** (`agrihub:backup:tenants --scheduled`, 02:00 hằng ngày, chỉ chạy khi `BACKUP_TENANT_AUTO_ENABLED=true`, mặc định bật ở production): với MỌI Tenant, tạo một bản loại `auto` chạy qua queue worker (cần worker + scheduler). Bỏ qua Tenant đang được khôi phục hoặc đang có bản chưa xong; bản chờ/đang chạy quá 12 giờ bị đánh dấu "gián đoạn". Super Admin thấy bản tự động trong trang Sao lưu & khôi phục của doanh nghiệp (theo ngày giờ), tải về và khôi phục như bản thủ công. Thành công thì im lặng; **thất bại thì báo các Super Admin (trong ứng dụng + email)**, mỗi doanh nghiệp tối đa một lần mỗi ngày; Chủ doanh nghiệp không được báo.
 **Giữ bản** (`agrihub:backup:prune`, 03:30, cùng lệnh với phần toàn hệ thống): giữ mọi bản tự động trong `BACKUP_TENANT_KEEP_DAYS` (30) ngày và luôn giữ ít nhất `BACKUP_TENANT_MIN_KEEP` (3) bản mới nhất của mỗi Tenant. Bản **thủ công, tải lên và điểm quay lại không bao giờ bị xóa**; bản đang là nguồn hoặc điểm quay lại của một lần khôi phục được giữ lại. `--dry-run` để xem trước.
 Lưu ý dung lượng: mỗi Tenant × số bản × kích thước dữ liệu — cần theo dõi đĩa khi số Tenant và dữ liệu tăng. Dữ liệu nghiệp vụ của Tenant hiện mới có danh mục sản phẩm nên bản tự động còn nhỏ; sẽ lớn dần khi có kho và chứng từ.
 

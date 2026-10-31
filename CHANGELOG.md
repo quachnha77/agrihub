@@ -4,7 +4,11 @@
 
 ## [Unreleased]
 
+### Changed
+- **Sao lưu/khôi phục dữ liệu chỉ còn ở Super Admin** (đảo quyết định cũ cho cả Chủ doanh nghiệp): gỡ API `/backups…`, trang và menu "Sao lưu dữ liệu" của doanh nghiệp; xóa quyền `backup.backup.*` khỏi catalog và vai trò (migration `2026_10_31_130000`, kèm xóa thông báo sao lưu cũ của người dùng doanh nghiệp); thông báo sao lưu/khôi phục (kể cả sao lưu tự động thất bại) chỉ gửi Super Admin và nêu tên doanh nghiệp. Super Admin làm tại `/platform/tenants/:id/backups` và `/platform/backups`; Chủ doanh nghiệp vẫn thấy các thao tác trong nhật ký hoạt động.
+
 ### Fixed
+- Thông báo trong ứng dụng gửi từ queue worker bị mất từ job thứ hai trở đi (`InAppChannel` giữ `TenantContext` cũ qua nhiều job, lỗi "Không có Tenant context" bị nuốt): nay lấy context hiện tại lúc gửi; có test tái hiện.
 - Test `test_renewing_an_expired_subscription_starts_from_today` sai vào các ngày cuối tháng dài (dùng `addMonth()` tràn sang tháng sau, còn gia hạn đúng là cộng tháng không tràn: 31/10 + 1 tháng = 30/11); chỉ sửa test.
 - `GET /platform/subscriptions/renewals?within_days=…` trả 500 (tham số URL là chuỗi nhưng truyền thẳng vào Carbon); thông báo lỗi kiểm tra dữ liệu của thuê bao/gói hiện tên trường tiếng Việt ("Số người dùng phải từ 1 trở lên" thay vì "Seats…").
 

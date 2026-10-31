@@ -37,14 +37,15 @@ const restoreRun = (overrides: Partial<RestoreRunRow> = {}): RestoreRunRow => ({
   ...overrides,
 })
 
-const ownerWithRestore = () =>
-  tenantUser({ permissions: { 'backup.backup.view': 'tenant', 'backup.backup.create': 'tenant', 'backup.backup.export': 'tenant', 'backup.backup.restore': 'tenant' } })
+const PAGE = '/platform/tenants/tn1/backups'
+const API = '/api/v1/platform/tenants/tn1/backups'
 
-const ownerApi = (extra: Record<string, unknown> = {}) =>
+const adminApi = (extra: Record<string, unknown> = {}) =>
   ({
-    'GET /api/v1/auth/me': meOk(ownerWithRestore()),
-    'GET /api/v1/backups': { json: { data: [backup(), backup({ id: 't0', kind: 'pre_restore' })] } },
-    'GET /api/v1/backups/restores': { json: { data: [] } },
+    'GET /api/v1/auth/me': meOk(platformAdmin()),
+    'GET /api/v1/platform/tenants/tn1': { json: { data: { id: 'tn1', name: 'Cửa hàng Nông Phát', slug: 'nong-phat', status: 'active' } } },
+    [`GET ${API}`]: { json: { data: [backup(), backup({ id: 't0', kind: 'pre_restore' })] } },
+    [`GET ${API}/restores`]: { json: { data: [] } },
     ...extra,
   }) as never
 
@@ -61,10 +62,10 @@ async function confirmRestore(user: ReturnType<typeof userEvent.setup>, dialog: 
   await user.click(within(dialog).getByRole('button', { name: 'Khôi phục dữ liệu' }))
 }
 
-describe('Import bản sao lưu (Chủ doanh nghiệp)', () => {
+describe('Import bản sao lưu (Super Admin)', () => {
   it('gửi file .agbk bằng multipart và báo file hợp lệ đã vào danh sách', async () => {
-    const server = mockApi(ownerApi({ 'POST /api/v1/backups/import': { status: 201, json: { data: backup({ id: 'u1', kind: 'upload', original_name: 'x.agbk' }) } } }))
-    renderApp('/backups')
+    const server = mockApi(adminApi({ [`POST ${API}/import`]: { status: 201, json: { data: backup({ id: 'u1', kind: 'upload', original_name: 'x.agbk' }) } } }))
+    renderApp(PAGE)
     const user = userEvent.setup()
 
     await user.click(await screen.findByRole('button', { name: 'Nhập từ file' }))
@@ -73,16 +74,16 @@ describe('Import bản sao lưu (Chủ doanh nghiệp)', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Tải lên và kiểm tra' }))
 
     expect(await within(dialog).findByText(/File hợp lệ và đã được thêm vào danh sách/)).toBeInTheDocument()
-    const sent = server.to('POST', '/api/v1/backups/import')
+    const sent = server.to('POST', `${API}/import`)
     expect(sent).toHaveLength(1)
     expect((sent[0]?.body as { file?: File } | undefined)?.file?.name).toBe('x.agbk')
     // Danh sách được lấy lại để bản vừa nhập xuất hiện.
-    await waitFor(() => expect(server.to('GET', '/api/v1/backups').length).toBeGreaterThan(1))
+    await waitFor(() => expect(server.to('GET', API).length).toBeGreaterThan(1))
   })
 
   it('chưa chọn file thì báo ngay và không gửi gì', async () => {
-    const server = mockApi(ownerApi())
-    renderApp('/backups')
+    const server = mockApi(adminApi())
+    renderApp(PAGE)
     const user = userEvent.setup()
 
     await user.click(await screen.findByRole('button', { name: 'Nhập từ file' }))
@@ -90,12 +91,12 @@ describe('Import bản sao lưu (Chủ doanh nghiệp)', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Tải lên và kiểm tra' }))
 
     expect(await within(dialog).findByText('Vui lòng chọn một file.')).toBeInTheDocument()
-    expect(server.to('POST', '/api/v1/backups/import')).toHaveLength(0)
+    expect(server.to('POST', `${API}/import`)).toHaveLength(0)
   })
 
   it('file không hợp lệ: nói rõ lý do do máy chủ trả về và không báo thành công', async () => {
-    mockApi(ownerApi({ 'POST /api/v1/backups/import': problem(422, 'backup_invalid', 'File này thuộc về doanh nghiệp khác.') }))
-    renderApp('/backups')
+    mockApi(adminApi({ [`POST ${API}/import`]: problem(422, 'backup_invalid', 'File này thuộc về doanh nghiệp khác.') }))
+    renderApp(PAGE)
     const user = userEvent.setup()
 
     await user.click(await screen.findByRole('button', { name: 'Nhập từ file' }))
@@ -108,8 +109,8 @@ describe('Import bản sao lưu (Chủ doanh nghiệp)', () => {
   })
 
   it('máy chủ từ chối vì file quá lớn (413, thân trả về không phải JSON)', async () => {
-    mockApi(ownerApi({ 'POST /api/v1/backups/import': { status: 413 } }))
-    renderApp('/backups')
+    mockApi(adminApi({ [`POST ${API}/import`]: { status: 413 } }))
+    renderApp(PAGE)
     const user = userEvent.setup()
 
     await user.click(await screen.findByRole('button', { name: 'Nhập từ file' }))
@@ -121,10 +122,10 @@ describe('Import bản sao lưu (Chủ doanh nghiệp)', () => {
   })
 })
 
-describe('Khôi phục dữ liệu (Chủ doanh nghiệp)', () => {
+describe('Khôi phục dữ liệu (Super Admin)', () => {
   it('cảnh báo hậu quả, chỉ mở nút khi gõ đúng tên doanh nghiệp, nói rõ khi bản chưa có dữ liệu nghiệp vụ', async () => {
-    mockApi(ownerApi())
-    renderApp('/backups')
+    mockApi(adminApi())
+    renderApp(PAGE)
     const user = userEvent.setup()
 
     const dialog = await openRestoreDialog(user)
@@ -142,8 +143,8 @@ describe('Khôi phục dữ liệu (Chủ doanh nghiệp)', () => {
   })
 
   it('hiện số bảng và số dòng khi bản sao lưu có dữ liệu', async () => {
-    mockApi(ownerApi({ 'GET /api/v1/backups': { json: { data: [backup({ row_counts: { products: 120, customers: 30 } })] } } }))
-    renderApp('/backups')
+    mockApi(adminApi({ [`GET ${API}`]: { json: { data: [backup({ row_counts: { products: 120, customers: 30 } })] } } }))
+    renderApp(PAGE)
     const user = userEvent.setup()
 
     const dialog = await openRestoreDialog(user)
@@ -152,16 +153,16 @@ describe('Khôi phục dữ liệu (Chủ doanh nghiệp)', () => {
 
   it('bắt nhập mật khẩu; sai mật khẩu báo ngay ở ô mật khẩu và không đóng hộp', async () => {
     const server = mockApi(
-      ownerApi({ 'POST /api/v1/backups/t1/restore': problem(422, 'confirmation_failed', 'Mật khẩu không đúng.', { errors: { password: ['Mật khẩu không đúng.'] } }) }),
+      adminApi({ [`POST ${API}/t1/restore`]: problem(422, 'confirmation_failed', 'Mật khẩu không đúng.', { errors: { password: ['Mật khẩu không đúng.'] } }) }),
     )
-    renderApp('/backups')
+    renderApp(PAGE)
     const user = userEvent.setup()
 
     const dialog = await openRestoreDialog(user)
     await user.type(within(dialog).getByLabelText(/Gõ đúng tên doanh nghiệp/), 'Cửa hàng Nông Phát')
     await user.click(within(dialog).getByRole('button', { name: 'Khôi phục dữ liệu' }))
     expect(await within(dialog).findByText('Vui lòng nhập mật khẩu.')).toBeInTheDocument()
-    expect(server.to('POST', '/api/v1/backups/t1/restore')).toHaveLength(0)
+    expect(server.to('POST', `${API}/t1/restore`)).toHaveLength(0)
 
     await user.type(within(dialog).getByLabelText('Mật khẩu của bạn'), 'sai')
     await user.click(within(dialog).getByRole('button', { name: 'Khôi phục dữ liệu' }))
@@ -173,22 +174,22 @@ describe('Khôi phục dữ liệu (Chủ doanh nghiệp)', () => {
   it('gửi mật khẩu + tên doanh nghiệp, đóng hộp rồi báo kết quả khi lần khôi phục xong', async () => {
     let requested = false
     const server = mockApi(
-      ownerApi({
-        'POST /api/v1/backups/t1/restore': () => {
+      adminApi({
+        [`POST ${API}/t1/restore`]: () => {
           requested = true
 
           return { status: 202, json: { data: restoreRun({ status: 'pending', finished_at: null, started_at: null }) } }
         },
-        'GET /api/v1/backups/restores': () => ({ json: { data: requested ? [restoreRun()] : [] } }),
+        [`GET ${API}/restores`]: () => ({ json: { data: requested ? [restoreRun()] : [] } }),
       }),
     )
-    renderApp('/backups')
+    renderApp(PAGE)
     const user = userEvent.setup()
 
     await confirmRestore(user, await openRestoreDialog(user))
 
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-    expect(server.to('POST', '/api/v1/backups/t1/restore')[0]?.body).toEqual({ password: 'Mat-khau-2026', confirm_name: 'Cửa hàng Nông Phát' })
+    expect(server.to('POST', `${API}/t1/restore`)[0]?.body).toEqual({ password: 'Mat-khau-2026', confirm_name: 'Cửa hàng Nông Phát' })
     expect(await screen.findByText('Khôi phục xong')).toBeInTheDocument()
     expect(screen.getByText(/Dữ liệu đã được khôi phục lúc/)).toBeInTheDocument()
   })
@@ -196,18 +197,18 @@ describe('Khôi phục dữ liệu (Chủ doanh nghiệp)', () => {
   it('lần khôi phục thất bại: báo dữ liệu được giữ nguyên và lý do', async () => {
     let requested = false
     mockApi(
-      ownerApi({
-        'POST /api/v1/backups/t1/restore': () => {
+      adminApi({
+        [`POST ${API}/t1/restore`]: () => {
           requested = true
 
           return { status: 202, json: { data: restoreRun({ status: 'pending', finished_at: null }) } }
         },
-        'GET /api/v1/backups/restores': () => ({
+        [`GET ${API}/restores`]: () => ({
           json: { data: requested ? [restoreRun({ status: 'failed', error: 'File sao lưu bị mất hoặc đã bị thay đổi (checksum không khớp).' })] : [] },
         }),
       }),
     )
-    renderApp('/backups')
+    renderApp(PAGE)
     const user = userEvent.setup()
 
     await confirmRestore(user, await openRestoreDialog(user))
@@ -217,8 +218,8 @@ describe('Khôi phục dữ liệu (Chủ doanh nghiệp)', () => {
   })
 
   it('đang có lần khôi phục khác: báo đã có lần đang chạy và không đóng hộp', async () => {
-    mockApi(ownerApi({ 'POST /api/v1/backups/t1/restore': problem(409, 'restore_in_progress', 'Đang có một lần khôi phục khác chưa hoàn tất.') }))
-    renderApp('/backups')
+    mockApi(adminApi({ [`POST ${API}/t1/restore`]: problem(409, 'restore_in_progress', 'Đang có một lần khôi phục khác chưa hoàn tất.') }))
+    renderApp(PAGE)
     const user = userEvent.setup()
 
     const dialog = await openRestoreDialog(user)
@@ -228,8 +229,8 @@ describe('Khôi phục dữ liệu (Chủ doanh nghiệp)', () => {
   })
 
   it('đang khôi phục: báo đang khôi phục, ẩn danh sách và các nút thao tác', async () => {
-    mockApi(ownerApi({ 'GET /api/v1/backups/restores': { json: { data: [restoreRun({ status: 'running', finished_at: null })] } } }))
-    renderApp('/backups')
+    mockApi(adminApi({ [`GET ${API}/restores`]: { json: { data: [restoreRun({ status: 'running', finished_at: null })] } } }))
+    renderApp(PAGE)
 
     expect(await screen.findByText('Đang khôi phục dữ liệu')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Sao lưu ngay' })).not.toBeInTheDocument()
@@ -237,24 +238,15 @@ describe('Khôi phục dữ liệu (Chủ doanh nghiệp)', () => {
     expect(screen.queryByRole('button', { name: /^Khôi phục \d/ })).not.toBeInTheDocument()
   })
 
-  it('máy chủ trả 503 tenant_restoring: là "đang khôi phục" chứ không phải lỗi tải dữ liệu', async () => {
-    const busy = problem(503, 'tenant_restoring', 'Doanh nghiệp đang được khôi phục dữ liệu. Vui lòng thử lại sau ít phút.')
-    mockApi(ownerApi({ 'GET /api/v1/backups': busy, 'GET /api/v1/backups/restores': busy }))
-    renderApp('/backups')
-
-    expect(await screen.findByText('Đang khôi phục dữ liệu')).toBeInTheDocument()
-    expect(screen.queryByText('Không tải được dữ liệu. Vui lòng thử lại.')).not.toBeInTheDocument()
-  })
-
   it('lịch sử khôi phục: bản đã dùng, điểm quay lại để hoàn tác và lý do thất bại', async () => {
     mockApi(
-      ownerApi({
-        'GET /api/v1/backups/restores': {
+      adminApi({
+        [`GET ${API}/restores`]: {
           json: { data: [restoreRun({ id: 'r2', status: 'failed', pre_restore_backup_id: null, error: 'Không tạo được điểm quay lại.' }), restoreRun({ id: 'r1' })] },
         },
       }),
     )
-    renderApp('/backups')
+    renderApp(PAGE)
 
     expect(await screen.findByText(/Muốn hoàn tác một lần khôi phục/)).toBeInTheDocument()
     expect(screen.getByText('Lịch sử khôi phục')).toBeInTheDocument()
@@ -268,46 +260,22 @@ describe('Khôi phục dữ liệu (Chủ doanh nghiệp)', () => {
   })
 })
 
-describe('Sao lưu của một doanh nghiệp (Super Admin)', () => {
-  const adminApi = (extra: Record<string, unknown> = {}) =>
-    ({
-      'GET /api/v1/auth/me': meOk(platformAdmin()),
-      'GET /api/v1/platform/tenants/tn1': { json: { data: { id: 'tn1', name: 'Cửa hàng Nông Phát', slug: 'nong-phat', status: 'active' } } },
-      'GET /api/v1/platform/tenants/tn1/backups': { json: { data: [backup({ id: 'b9' })] } },
-      'GET /api/v1/platform/tenants/tn1/backups/restores': { json: { data: [] } },
-      ...extra,
-    }) as never
-
-  it('dùng đường dẫn theo doanh nghiệp: tải về và khôi phục đều nhắm đúng doanh nghiệp, xác nhận bằng tên doanh nghiệp đó', async () => {
-    const server = mockApi(
-      adminApi({ 'POST /api/v1/platform/tenants/tn1/backups/b9/restore': { status: 202, json: { data: restoreRun({ status: 'pending', finished_at: null }) } } }),
-    )
-    renderApp('/platform/tenants/tn1/backups')
+describe('Trang sao lưu của một doanh nghiệp (Super Admin)', () => {
+  it('đúng doanh nghiệp: tiêu đề, liên kết tải về theo đường dẫn doanh nghiệp, gõ đúng tên doanh nghiệp đó để khôi phục', async () => {
+    const server = mockApi(adminApi({ [`POST ${API}/t1/restore`]: { status: 202, json: { data: restoreRun({ status: 'pending', finished_at: null }) } } }))
+    renderApp(PAGE)
     const user = userEvent.setup()
 
     expect(await screen.findByRole('heading', { name: 'Sao lưu của Cửa hàng Nông Phát' })).toBeInTheDocument()
+    expect(screen.getByText(/Chỉ Super Admin có chức năng này/)).toBeInTheDocument()
     const table = await screen.findByRole('table')
-    expect(within(table).getByRole('link', { name: /Tải về/ })).toHaveAttribute('href', '/api/v1/platform/tenants/tn1/backups/b9/download')
+    expect(within(table).getAllByRole('link', { name: /Tải về/ })[0]).toHaveAttribute('href', `${API}/t1/download`)
 
-    await user.click(within(table).getByRole('button', { name: /^Khôi phục/ }))
+    await user.click(within(table).getAllByRole('button', { name: /^Khôi phục/ })[0])
     await confirmRestore(user, await screen.findByRole('dialog', { name: 'Khôi phục dữ liệu' }), 'Mat-khau-admin-2026')
 
-    await waitFor(() => expect(server.to('POST', '/api/v1/platform/tenants/tn1/backups/b9/restore')).toHaveLength(1))
-    expect(server.to('POST', '/api/v1/platform/tenants/tn1/backups/b9/restore')[0]?.body).toEqual({ password: 'Mat-khau-admin-2026', confirm_name: 'Cửa hàng Nông Phát' })
-  })
-
-  it('nhập file gửi tới đường dẫn của doanh nghiệp được chọn', async () => {
-    const server = mockApi(adminApi({ 'POST /api/v1/platform/tenants/tn1/backups/import': { status: 201, json: { data: backup({ id: 'u1', kind: 'upload' }) } } }))
-    renderApp('/platform/tenants/tn1/backups')
-    const user = userEvent.setup()
-
-    await user.click(await screen.findByRole('button', { name: 'Nhập từ file' }))
-    const dialog = await screen.findByRole('dialog')
-    await user.upload(within(dialog).getByLabelText('File sao lưu (.agbk)'), new File(['xyz'], 'x.agbk'))
-    await user.click(within(dialog).getByRole('button', { name: 'Tải lên và kiểm tra' }))
-
-    expect(await within(dialog).findByText(/File hợp lệ/)).toBeInTheDocument()
-    expect(server.to('POST', '/api/v1/platform/tenants/tn1/backups/import')).toHaveLength(1)
+    await waitFor(() => expect(server.to('POST', `${API}/t1/restore`)).toHaveLength(1))
+    expect(server.to('POST', `${API}/t1/restore`)[0]?.body).toEqual({ password: 'Mat-khau-admin-2026', confirm_name: 'Cửa hàng Nông Phát' })
   })
 
   it('doanh nghiệp không tồn tại thì báo không tìm thấy', async () => {
@@ -320,11 +288,12 @@ describe('Sao lưu của một doanh nghiệp (Super Admin)', () => {
     expect(await screen.findByText(/Không tìm thấy doanh nghiệp/)).toBeInTheDocument()
   })
 
-  it('người không phải Super Admin không vào được trang này', async () => {
-    mockApi({ 'GET /api/v1/auth/me': meOk(ownerWithRestore()) })
-    renderApp('/platform/tenants/tn1/backups')
+  it('người dùng của doanh nghiệp (kể cả Chủ doanh nghiệp) không vào được trang này', async () => {
+    const server = mockApi({ 'GET /api/v1/auth/me': meOk(tenantUser({ permissions: { 'tenant.user.view': 'tenant' } })) })
+    renderApp(PAGE)
 
-    await waitFor(() => expect(screen.queryByRole('heading', { name: /Sao lưu của/ })).not.toBeInTheDocument())
+    expect(await screen.findByText('Bạn không có quyền truy cập')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Nhập từ file' })).not.toBeInTheDocument()
+    expect(server.calls.filter((call) => call.path.includes('/backups'))).toHaveLength(0)
   })
 })

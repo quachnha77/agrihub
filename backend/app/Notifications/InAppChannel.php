@@ -6,18 +6,22 @@ use App\Models\Notice;
 use App\Models\User;
 use App\Support\Tenancy\TenantContext;
 
-/** Kênh "trong ứng dụng": ghi một dòng vào `notices` cho người nhận (hiện khi họ đăng nhập). */
+/**
+ * Kênh "trong ứng dụng": ghi một dòng vào `notices` cho người nhận (hiện khi họ đăng nhập).
+ *
+ * Không nhận TenantContext qua constructor: ChannelManager giữ nguyên một đối tượng kênh suốt vòng đời tiến trình (queue worker chạy
+ * hàng giờ), trong khi TenantContext là "scoped" và được tạo lại cho mỗi job. Giữ bản cũ thì quyền nền tảng đặt trên bản cũ còn
+ * model đọc bản mới => từ job thứ hai trở đi mọi thông báo đều lỗi "Không có Tenant context". Vì vậy luôn lấy bản hiện tại lúc gửi.
+ */
 class InAppChannel
 {
-    public function __construct(private TenantContext $context) {}
-
     public function send(object $notifiable, SystemAlert $alert): void
     {
         if (! $notifiable instanceof User) {
             return; // địa chỉ email ngoài hệ thống không có hộp thông báo
         }
 
-        $this->context->runAsPlatform(function () use ($notifiable, $alert) {
+        app(TenantContext::class)->runAsPlatform(function () use ($notifiable, $alert) {
             $notice = new Notice([
                 'type' => $alert->type,
                 'level' => $alert->level,

@@ -48,7 +48,7 @@ Thực thể tổ chức: **Platform Admin → Tenant → Branch → User**; **C
 - **Hóa đơn điện tử**: hỗ trợ mọi nhà cung cấp, do từng Tenant tự cấu hình; **phát triển sau** (không chặn các giai đoạn đầu).
 - **Giá subscription**: tính theo user, theo tháng hoặc năm; **thanh toán năm rẻ hơn** thanh toán tháng.
 - **Hết hạn/gia hạn**: hệ thống chỉ **thông báo**; nhân viên AgriHub liên hệ khách để gia hạn/hỗ trợ (Super Admin gia hạn thủ công).
-- **Backup/Restore**: cả Super Admin và Tenant Owner.
+- **Backup/Restore**: **chỉ Super Admin** (đổi ngày 2026-10-31; trước đó từng chốt cho cả Chủ doanh nghiệp). Super Admin là nơi xử lý sự cố, sao lưu, tải về, nhập file và khôi phục dữ liệu của từng doanh nghiệp và của toàn hệ thống; doanh nghiệp (kể cả Chủ doanh nghiệp) không có chức năng, quyền hay API này.
 - Đây là hệ thống mới, không cần import dữ liệu từ phần mềm cũ.
 - **Backup/Restore**: có giao diện cho quản trị viên (xem BACKUP_DISASTER_RECOVERY.md).
 

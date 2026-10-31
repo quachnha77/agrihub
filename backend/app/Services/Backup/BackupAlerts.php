@@ -5,7 +5,6 @@ namespace App\Services\Backup;
 use App\Models\Backup;
 use App\Models\Notice;
 use App\Models\RestoreRun;
-use App\Models\Role;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Notifications\SystemAlert;
@@ -77,7 +76,9 @@ class BackupAlerts
         ));
     }
 
-    // --- Theo Tenant → người yêu cầu --------------------------------------------------------
+    // --- Theo doanh nghiệp → Super Admin -----------------------------------------------------
+    // Sao lưu / khôi phục chỉ do Super Admin thực hiện (doanh nghiệp không có chức năng này) nên mọi thông báo đi tới Super Admin,
+    // và luôn nêu rõ là của doanh nghiệp nào.
 
     /** Chỉ cho bản do người dùng yêu cầu (thủ công): tự động/điểm quay lại/tải lên đã có kết quả ngay ở nơi gọi. */
     public function tenantBackupFinished(Backup $backup): void
@@ -94,18 +95,21 @@ class BackupAlerts
 
         $this->safely(function () use ($backup) {
             $ok = $backup->isCompleted();
+            $name = $this->tenantName($backup->tenant_id);
 
             $this->alerts->toUser($this->requester($backup->created_by), new SystemAlert(
                 $ok ? 'backup.tenant.completed' : 'backup.tenant.failed',
                 $ok ? Notice::LEVEL_INFO : Notice::LEVEL_CRITICAL,
                 $ok ? 'Bản sao lưu đã sẵn sàng' : 'Sao lưu thất bại',
-                $ok ? 'Bản sao lưu đã hoàn tất ('.$this->size((int) $backup->size_bytes).'). Vào mục Sao lưu để tải về và lưu riêng.' : "Lý do: {$backup->error}",
+                $ok
+                    ? "Doanh nghiệp {$name}: bản sao lưu đã hoàn tất (".$this->size((int) $backup->size_bytes).'). Vào chi tiết doanh nghiệp, mục Sao lưu & khôi phục để tải về và lưu riêng.'
+                    : "Doanh nghiệp {$name}. Lý do: {$backup->error}",
                 ['backup' => $backup->uuid],
             ));
         });
     }
 
-    /** Sao lưu tự động: thành công thì im lặng; thất bại thì báo Chủ doanh nghiệp và nhân viên AgriHub (mỗi bên tối đa 1 lần/ngày). */
+    /** Sao lưu tự động của một doanh nghiệp: thành công thì im lặng; thất bại thì báo Super Admin (tối đa 1 lần/ngày cho mỗi doanh nghiệp). */
     private function tenantAutoBackupFinished(Backup $backup): void
     {
         if ($backup->isCompleted()) {
@@ -114,17 +118,6 @@ class BackupAlerts
 
         $this->safely(function () use ($backup) {
             $tenant = $this->context->runAsPlatform(fn () => Tenant::find($backup->tenant_id));
-            $owners = $this->context->runAsPlatform(fn () => User::query()
-                ->where('tenant_id', $backup->tenant_id)->where('status', User::STATUS_ACTIVE)
-                ->whereHas('roles', fn ($q) => $q->where('roles.key', Role::OWNER))->get());
-
-            foreach ($owners as $owner) {
-                $this->alerts->toUser($owner, new SystemAlert(
-                    'backup.tenant.auto_failed', Notice::LEVEL_CRITICAL, 'Sao lưu tự động thất bại',
-                    "Lý do: {$backup->error}\nHệ thống sẽ thử lại vào lần sao lưu tự động kế tiếp; bạn cũng có thể tạo bản sao lưu thủ công.",
-                    ['backup' => $backup->uuid],
-                ), dedupeKey: "backup.tenant.auto_failed:{$backup->tenant_id}:{$owner->id}");
-            }
 
             $this->alerts->toPlatformAdmins(new SystemAlert(
                 'backup.tenant.auto_failed', Notice::LEVEL_CRITICAL, 'Sao lưu tự động của một doanh nghiệp thất bại',
@@ -138,18 +131,28 @@ class BackupAlerts
     {
         $this->safely(function () use ($run) {
             $ok = $run->status === RestoreRun::STATUS_COMPLETED;
+            $name = $this->tenantName($run->tenant_id);
 
             $this->alerts->toUser($this->requester($run->performed_by), new SystemAlert(
                 $ok ? 'backup.restore.completed' : 'backup.restore.failed',
                 $ok ? Notice::LEVEL_INFO : Notice::LEVEL_CRITICAL,
                 $ok ? 'Khôi phục dữ liệu hoàn tất' : 'Khôi phục dữ liệu thất bại',
-                $ok ? 'Dữ liệu đã được khôi phục từ bản sao lưu. Bản hiện trạng trước khi khôi phục được giữ làm điểm quay lại.' : "Dữ liệu hiện tại được giữ nguyên. Lý do: {$run->error}",
+                $ok
+                    ? "Doanh nghiệp {$name}: dữ liệu đã được khôi phục từ bản sao lưu. Bản hiện trạng trước khi khôi phục được giữ làm điểm quay lại."
+                    : "Doanh nghiệp {$name}: dữ liệu hiện tại được giữ nguyên. Lý do: {$run->error}",
                 ['restore_run' => $run->uuid],
             ));
         });
     }
 
     // --- nội bộ ---------------------------------------------------------------------------
+
+    private function tenantName(?int $tenantId): string
+    {
+        $name = $tenantId === null ? null : $this->context->runAsPlatform(fn () => Tenant::whereKey($tenantId)->value('name'));
+
+        return is_string($name) ? $name : "#{$tenantId}";
+    }
 
     private function requester(?int $userId): ?User
     {
