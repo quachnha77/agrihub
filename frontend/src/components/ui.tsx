@@ -1,5 +1,5 @@
 import { X } from 'lucide-react'
-import { useEffect, useId, useRef, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type Ref } from 'react'
+import { useEffect, useId, useRef, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type Ref, type SelectHTMLAttributes } from 'react'
 import { useTranslation } from 'react-i18next'
 
 export type Tone = 'info' | 'success' | 'warning' | 'danger' | 'neutral'
@@ -131,6 +131,51 @@ export function TextField({ label, error, hint, id, className = '', ref, ...rest
       )}
       {error && (
         <p id={`${inputId}-error`} role="alert" className="mt-1 text-sm text-red-700">
+          {error}
+        </p>
+      )}
+    </div>
+  )
+}
+
+interface SelectFieldProps extends SelectHTMLAttributes<HTMLSelectElement> {
+  label: string
+  error?: string
+  hint?: string
+  /** `ref` của react-hook-form (React 19 nhận ref như một prop thường). */
+  ref?: Ref<HTMLSelectElement>
+}
+
+/** Ô chọn một giá trị trong danh sách, cùng kiểu và cách báo lỗi với TextField. */
+export function SelectField({ label, error, hint, id, className = '', children, ref, ...rest }: SelectFieldProps) {
+  const autoId = useId()
+  const selectId = id ?? autoId
+  const describedBy = [error ? `${selectId}-error` : null, hint ? `${selectId}-hint` : null].filter(Boolean).join(' ') || undefined
+
+  return (
+    <div className={className}>
+      <label htmlFor={selectId} className="mb-1 block text-sm font-medium text-slate-800">
+        {label}
+      </label>
+      <select
+        id={selectId}
+        ref={ref}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={describedBy}
+        className={`block w-full rounded-md border bg-white px-3 py-2 text-sm shadow-sm outline-none transition-colors focus:ring-2 disabled:bg-slate-100 disabled:text-slate-500 ${
+          error ? 'border-red-500 focus:ring-red-200' : 'border-slate-300 focus:border-emerald-600 focus:ring-emerald-200'
+        }`}
+        {...rest}
+      >
+        {children}
+      </select>
+      {hint && !error && (
+        <p id={`${selectId}-hint`} className="mt-1 text-xs text-slate-500">
+          {hint}
+        </p>
+      )}
+      {error && (
+        <p id={`${selectId}-error`} role="alert" className="mt-1 text-sm text-red-700">
           {error}
         </p>
       )}

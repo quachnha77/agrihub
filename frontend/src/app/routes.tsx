@@ -36,6 +36,18 @@ export const routes: RouteObject[] = [
                 children: [{ path: 'users', lazy: async () => ({ Component: (await import('../features/users/UsersPage.tsx')).default }) }],
               },
               {
+                element: <RequireAccess permission="catalog.product.view" />,
+                children: [
+                  { path: 'products', lazy: async () => ({ Component: (await import('../features/catalog/ProductsPage.tsx')).default }) },
+                  { path: 'products/lists', lazy: async () => ({ Component: (await import('../features/catalog/CatalogListsPage.tsx')).default }) },
+                  { path: 'products/:id', lazy: async () => ({ Component: (await import('../features/catalog/ProductFormPage.tsx')).default }) },
+                ],
+              },
+              {
+                element: <RequireAccess permission="catalog.product.create" />,
+                children: [{ path: 'products/new', lazy: async () => ({ Component: (await import('../features/catalog/ProductFormPage.tsx')).default }) }],
+              },
+              {
                 element: <RequireAccess permission="tenant.branch.view" />,
                 children: [{ path: 'branches', lazy: async () => ({ Component: (await import('../features/branches/BranchesPage.tsx')).default }) }],
               },
