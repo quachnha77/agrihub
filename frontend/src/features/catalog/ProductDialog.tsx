@@ -2,7 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect, useMemo, useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import { DialogSkeleton, DialogSubject, FormSection, RequiredNote, UnsavedChangesDialog } from '../../components/dialog-parts.tsx'
+import { DialogSkeleton, DialogSubject, Disclosure, FormSection, RequiredNote, UnsavedChangesDialog } from '../../components/dialog-parts.tsx'
 import { fieldBase, fieldTone } from '../../components/styles.ts'
 import { Alert, Badge, Button, CheckboxField, Modal, ModalActions, SelectField, TextField } from '../../components/ui.tsx'
 import { ApiError } from '../../lib/api.ts'
@@ -53,7 +53,7 @@ export default function ProductDialog({ arg: id, onClose }: DialogProps) {
           </div>
         </div>
       ) : loading || !types.data ? (
-        <DialogSkeleton fields={10} />
+        <DialogSkeleton fields={4} />
       ) : (
         <ProductForm
           key={loaded?.id ?? 'new'}
@@ -105,6 +105,9 @@ function ProductForm({ product, types, maxUnits, lists, onClose }: { product?: P
   // Chỉ có một chi nhánh được phép dùng thì chọn sẵn.
   const openBranches = lists.branches.filter((branch) => branch.status === 'active')
   const onlyBranch = openBranches.length === 1 ? openBranches[0].id : ''
+  // Chỉ có một chi nhánh (hoặc đang sửa): chi nhánh là chữ cố định, không bắt người dùng "chọn" một lựa chọn duy nhất.
+  const shownBranch: { code: string; name: string } | null = creating ? (openBranches.length === 1 ? openBranches[0] : null) : product.branch
+  const extraHasError = Boolean(errors.category_id || errors.brand_id || errors.description || errors.status || errors.min_stock)
   useEffect(() => {
     if (creating && branchId === '' && onlyBranch !== '') form.setValue('branch_id', onlyBranch)
   }, [creating, branchId, onlyBranch, form])
@@ -140,13 +143,13 @@ function ProductForm({ product, types, maxUnits, lists, onClose }: { product?: P
         <fieldset disabled={!editable} className="space-y-5">
           <FormSection title={t('catalog.form.general')}>
             <div className="grid gap-4 sm:grid-cols-2">
-              {creating ? (
+              {shownBranch ? (
+                <ReadOnly label={t('catalog.form.branch')} value={`${shownBranch.code} — ${shownBranch.name}`} />
+              ) : (
                 <SelectField required label={t('catalog.form.branch')} error={errors.branch_id?.message} hint={t('catalog.form.branchHint')} {...form.register('branch_id')}>
                   <option value="">{t('catalog.form.choose')}</option>
                   {openBranches.map((branch) => <option key={branch.id} value={branch.id}>{branch.code} — {branch.name}</option>)}
                 </SelectField>
-              ) : (
-                <ReadOnly label={t('catalog.form.branch')} value={`${product.branch.code} — ${product.branch.name}`} />
               )}
 
               {creating ? (
@@ -154,6 +157,7 @@ function ProductForm({ product, types, maxUnits, lists, onClose }: { product?: P
                   required
                   label={t('catalog.form.type')}
                   error={errors.type?.message}
+                  hint={batchForced ? t('catalog.form.typeBatchHint') : undefined}
                   {...form.register('type', {
                     // Đổi loại hàng thì thông tin đặc thù của loại cũ không còn áp dụng; loại bắt buộc theo dõi lô thì bật sẵn.
                     onChange: (event) => {
@@ -172,7 +176,46 @@ function ProductForm({ product, types, maxUnits, lists, onClose }: { product?: P
 
               <TextField required label={t('catalog.form.sku')} hint={t('catalog.form.skuHint')} error={errors.sku?.message} autoComplete="off" {...form.register('sku')} />
               <TextField required label={t('catalog.form.name')} error={errors.name?.message} {...form.register('name')} />
+            </div>
+          </FormSection>
 
+          {definition && definition.fields.length > 0 && (
+            <FormSection title={t('catalog.form.specs', { type: definition.label })}>
+              <div className="grid gap-4 sm:grid-cols-2">
+                {definition.fields.map((field) => {
+                  const name = `specs.${field.key}` as const
+                  const error = errors.specs?.[field.key]?.message
+
+                  return field.type === 'select' ? (
+                    <SelectField key={field.key} required={field.required} label={field.label} error={error} {...form.register(name)}>
+                      <option value="">{t('catalog.form.none')}</option>
+                      {(field.options ?? []).map((option) => <option key={option} value={option}>{option}</option>)}
+                    </SelectField>
+                  ) : (
+                    <TextField key={field.key} required={field.required} label={field.label} error={error} inputMode={field.type === 'text' ? undefined : 'decimal'} autoComplete="off" {...form.register(name)} />
+                  )
+                })}
+              </div>
+            </FormSection>
+          )}
+
+          <FormSection title={t('catalog.form.unitsTitle')} description={t('catalog.form.unitsIntro')}>
+            <div className="max-w-sm">
+              {creating ? (
+                <SelectField required label={t('catalog.form.baseUnit')} error={errors.base_unit_id?.message} hint={t('catalog.form.baseUnitHint')} {...form.register('base_unit_id')}>
+                  <option value="">{t('catalog.form.choose')}</option>
+                  {unitOptions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                </SelectField>
+              ) : (
+                <ReadOnly label={t('catalog.form.baseUnit')} value={product.base_unit.name} />
+              )}
+            </div>
+            <UnitsEditor form={form} unitOptions={unitOptions} baseUnitName={baseUnitName} maxUnits={maxUnits} />
+            <p className="text-xs text-slate-500">{t('catalog.form.creditHint')}</p>
+          </FormSection>
+
+          <Disclosure title={t('catalog.form.moreTitle')} hint={t('catalog.form.moreHint')} forceOpen={extraHasError}>
+            <div className="grid gap-4 sm:grid-cols-2">
               <SelectField label={t('catalog.form.category')} error={errors.category_id?.message} {...form.register('category_id')}>
                 <option value="">{t('catalog.form.none')}</option>
                 {optionsFor(lists.categories, product?.category?.id).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
@@ -212,42 +255,7 @@ function ProductForm({ product, types, maxUnits, lists, onClose }: { product?: P
                 {...form.register('min_stock')}
               />
             </div>
-          </FormSection>
-
-          {definition && definition.fields.length > 0 && (
-            <FormSection title={t('catalog.form.specs', { type: definition.label })}>
-              <div className="grid gap-4 sm:grid-cols-2">
-                {definition.fields.map((field) => {
-                  const name = `specs.${field.key}` as const
-                  const error = errors.specs?.[field.key]?.message
-
-                  return field.type === 'select' ? (
-                    <SelectField key={field.key} required={field.required} label={field.label} error={error} {...form.register(name)}>
-                      <option value="">{t('catalog.form.none')}</option>
-                      {(field.options ?? []).map((option) => <option key={option} value={option}>{option}</option>)}
-                    </SelectField>
-                  ) : (
-                    <TextField key={field.key} required={field.required} label={field.label} error={error} inputMode={field.type === 'text' ? undefined : 'decimal'} autoComplete="off" {...form.register(name)} />
-                  )
-                })}
-              </div>
-            </FormSection>
-          )}
-
-          <FormSection title={t('catalog.form.unitsTitle')} description={t('catalog.form.unitsIntro')}>
-            <div className="max-w-sm">
-              {creating ? (
-                <SelectField required label={t('catalog.form.baseUnit')} error={errors.base_unit_id?.message} hint={t('catalog.form.baseUnitHint')} {...form.register('base_unit_id')}>
-                  <option value="">{t('catalog.form.choose')}</option>
-                  {unitOptions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-                </SelectField>
-              ) : (
-                <ReadOnly label={t('catalog.form.baseUnit')} value={product.base_unit.name} />
-              )}
-            </div>
-            <UnitsEditor form={form} unitOptions={unitOptions} baseUnitName={baseUnitName} maxUnits={maxUnits} />
-            <p className="text-xs text-slate-500">{t('catalog.form.creditHint')}</p>
-          </FormSection>
+          </Disclosure>
         </fieldset>
 
         <ModalActions>

@@ -610,3 +610,39 @@ describe('nhà cung cấp', () => {
     expect(await screen.findByText('Bạn không có quyền truy cập')).toBeInTheDocument()
   })
 })
+
+describe('danh sách: bấm tên để mở popup sửa', () => {
+  it('khách hàng: bấm tên mở popup sửa ngay trên danh sách; nút Sửa và Xóa có chữ cạnh biểu tượng', async () => {
+    mockApi(base({ 'GET /api/v1/customers/c1': { json: { data: customer() } } }))
+    const { router } = renderApp('/customers')
+    const user = userEvent.setup()
+
+    const table = await screen.findByRole('table')
+    const row = within(table).getByText('Nguyễn Văn Nông').closest('tr')!
+    expect(within(row).getByRole('link', { name: /Sửa Nguyễn Văn Nông/ })).toHaveTextContent('Sửa')
+    expect(within(row).getByRole('button', { name: /Xóa Nguyễn Văn Nông/ })).toHaveTextContent('Xóa')
+
+    await user.click(within(table).getByRole('link', { name: 'Nguyễn Văn Nông' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Sửa khách hàng' })
+    await waitFor(() => expect(dialog).toHaveAccessibleDescription(/Nguyễn Văn Nông/))
+    expect(router.state.location.pathname).toBe('/customers')
+    expect(router.state.location.search).toBe('?dialog=customer:c1')
+  })
+
+  it('nhà cung cấp: bấm tên mở popup sửa ngay trên danh sách; nút Sửa và Xóa có chữ cạnh biểu tượng', async () => {
+    mockApi(base({ 'GET /api/v1/suppliers/s1': { json: { data: supplier() } } }))
+    const { router } = renderApp('/suppliers')
+    const user = userEvent.setup()
+
+    const table = await screen.findByRole('table')
+    const row = within(table).getByText('Công ty Phân bón Miền Nam').closest('tr')!
+    expect(within(row).getByRole('link', { name: /Sửa Công ty Phân bón Miền Nam/ })).toHaveTextContent('Sửa')
+    expect(within(row).getByRole('button', { name: /Xóa Công ty Phân bón Miền Nam/ })).toHaveTextContent('Xóa')
+
+    await user.click(within(table).getByRole('link', { name: 'Công ty Phân bón Miền Nam' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Sửa nhà cung cấp' })
+    await waitFor(() => expect(dialog).toHaveAccessibleDescription(/Công ty Phân bón Miền Nam/))
+    expect(router.state.location.pathname).toBe('/suppliers')
+    expect(router.state.location.search).toBe('?dialog=supplier:s1')
+  })
+})

@@ -1,6 +1,7 @@
 import { Copy, Eye, Package, Pencil, Plus, Trash2 } from 'lucide-react'
 import { Fragment, useDeferredValue, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router'
 import { EmptyState, FilterBar, FilterSelect, PageHeader, SearchField } from '../../components/page.tsx'
 import { Refreshable, TableSkeleton } from '../../components/skeleton.tsx'
 import { DataTable } from '../../components/table.tsx'
@@ -194,7 +195,7 @@ export default function ProductsPage() {
                       )}
                       <td className="py-3 pr-4 font-mono text-xs whitespace-nowrap text-slate-600">{product.sku}</td>
                       <td className="py-3 pr-4">
-                        <span className="font-medium text-slate-900">{product.name}</span>
+                        <Link {...link('product', product.id)} className="font-medium text-slate-900 hover:text-brand-700 hover:underline">{product.name}</Link>
                         <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-slate-500">
                           {subtitleOf(product).map((part, index) => (
                             <Fragment key={part}>
@@ -217,11 +218,11 @@ export default function ProductsPage() {
                       </td>
                       <td className="py-3 text-right">
                         <div className="flex justify-end gap-1">
-                          <IconLink {...link('product', product.id)} label={`${canUpdate ? t('common.edit') : t('catalog.view')} ${product.name}`} text={canUpdate ? t('common.edit') : t('catalog.view')}>
+                          <IconLink {...link('product', product.id)} labelled label={`${canUpdate ? t('common.edit') : t('catalog.view')} ${product.name}`} text={canUpdate ? t('common.edit') : t('catalog.view')}>
                             {canUpdate ? <Pencil className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
                           </IconLink>
                           {canDelete && (
-                            <IconButton label={`${t('common.delete')} ${product.name}`} text={t('common.delete')} onClick={() => { setDeleteError(null); setDeleting(product) }} tone="danger">
+                            <IconButton labelled label={`${t('common.delete')} ${product.name}`} text={t('common.delete')} onClick={() => { setDeleteError(null); setDeleting(product) }} tone="danger">
                               <Trash2 className="h-4 w-4" aria-hidden="true" />
                             </IconButton>
                           )}

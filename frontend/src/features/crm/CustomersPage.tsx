@@ -1,6 +1,7 @@
 import { Contact, Eye, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useDeferredValue, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router'
 import { EmptyState, FilterBar, FilterSelect, PageHeader, SearchField } from '../../components/page.tsx'
 import { Refreshable, TableSkeleton } from '../../components/skeleton.tsx'
 import { DataTable } from '../../components/table.tsx'
@@ -149,7 +150,7 @@ export default function CustomersPage() {
                   <tr key={customer.id}>
                     <td className="py-3 pr-4 font-mono text-xs whitespace-nowrap text-slate-600">{customer.code}</td>
                     <td className="py-3 pr-4">
-                      <span className="font-medium text-slate-900">{customer.name}</span>
+                      <Link {...link('customer', customer.id)} className="font-medium text-slate-900 hover:text-brand-700 hover:underline">{customer.name}</Link>
                       <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-slate-500">
                         <span>{t(`crm.types.${customer.type}`)}</span>
                         {customer.group?.name && (
@@ -168,11 +169,11 @@ export default function CustomersPage() {
                     </td>
                     <td className="py-3 text-right">
                       <div className="flex justify-end gap-1">
-                        <IconLink {...link('customer', customer.id)} label={`${canUpdate ? t('common.edit') : t('crm.view')} ${customer.name}`} text={canUpdate ? t('common.edit') : t('crm.view')}>
+                        <IconLink {...link('customer', customer.id)} labelled label={`${canUpdate ? t('common.edit') : t('crm.view')} ${customer.name}`} text={canUpdate ? t('common.edit') : t('crm.view')}>
                           {canUpdate ? <Pencil className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
                         </IconLink>
                         {canDelete && (
-                          <IconButton label={`${t('common.delete')} ${customer.name}`} text={t('common.delete')} onClick={() => { setDeleteError(null); setDeleting(customer) }} tone="danger">
+                          <IconButton labelled label={`${t('common.delete')} ${customer.name}`} text={t('common.delete')} onClick={() => { setDeleteError(null); setDeleting(customer) }} tone="danger">
                             <Trash2 className="h-4 w-4" aria-hidden="true" />
                           </IconButton>
                         )}

@@ -88,6 +88,9 @@ const base = (extra: Record<string, unknown> = {}, permissions: Permissions = FU
 
 const labelled = (name: string | RegExp) => screen.findByLabelText(name)
 
+/** Mở nhóm "Thông tin thêm" của biểu mẫu sản phẩm: các ô ít dùng (nhóm hàng, thương hiệu, mô tả, tồn tối thiểu, theo dõi lô) nằm trong đó và thu gọn sẵn. */
+const openMore = async (user: ReturnType<typeof userEvent.setup>) => user.click(await screen.findByRole('button', { name: /Thông tin thêm/ }))
+
 /** Giả lập `GET /products/:id` cho trang/popup sửa một sản phẩm. */
 const detail = (p: Product = product()) => ({ [`GET /api/v1/products/${p.id}`]: { json: { data: p } } })
 
@@ -215,6 +218,7 @@ describe('thêm sản phẩm', () => {
     const user = userEvent.setup()
 
     await user.selectOptions(await labelled('Loại hàng'), 'fertilizer')
+    await openMore(user)
     expect(await screen.findByText('Thông tin đặc thù — Phân bón')).toBeInTheDocument()
     expect(screen.getByLabelText('Thành phần / hàm lượng')).toBeInTheDocument()
     expect(screen.queryByLabelText(/Số đăng ký lưu hành/)).not.toBeInTheDocument()
@@ -246,10 +250,12 @@ describe('thêm sản phẩm', () => {
     expect(await screen.findByText('Vui lòng chọn chi nhánh.')).toBeInTheDocument()
     expect(screen.getByText('Vui lòng nhập mã sản phẩm.')).toBeInTheDocument()
     expect(screen.getByText('Vui lòng nhập tên sản phẩm.')).toBeInTheDocument()
-    expect(screen.getByText('Vui lòng chọn đơn vị cơ sở.')).toBeInTheDocument()
+    expect(screen.getByText('Vui lòng chọn đơn vị nhỏ nhất.')).toBeInTheDocument()
     expect(screen.getByText('Vui lòng nhập số đăng ký lưu hành.')).toBeInTheDocument()
     expect(screen.getByText('Vui lòng nhập hoạt chất.')).toBeInTheDocument()
-    expect(screen.getAllByText('Nhập số tiền hợp lệ (từ 0, tối đa 2 chữ số thập phân).').length).toBe(2)
+    // Chỉ giá tiền mặt bắt buộc; giá công nợ để trống được (lấy bằng giá tiền mặt) nên không báo lỗi.
+    expect(screen.getAllByText('Nhập số tiền hợp lệ (từ 0, tối đa 2 chữ số thập phân).').length).toBe(1)
+    expect(screen.getByText('Để trống = bằng giá tiền mặt')).toBeInTheDocument()
     expect(server.to('POST', '/api/v1/products')).toHaveLength(0)
   })
 
@@ -258,12 +264,13 @@ describe('thêm sản phẩm', () => {
     await user.selectOptions(screen.getByLabelText('Loại hàng'), 'pesticide')
     await user.type(screen.getByLabelText('Mã sản phẩm'), 'TS-NEW')
     await user.type(screen.getByLabelText('Tên sản phẩm'), 'Thuốc trừ nấm 250EC')
+    await openMore(user)
     await user.selectOptions(screen.getByLabelText('Nhóm hàng'), 'c-1')
     await user.type(await screen.findByLabelText('Số đăng ký lưu hành'), '1234/CP-BVTV')
     await user.type(screen.getByLabelText('Hoạt chất'), 'Difenoconazole')
     await user.selectOptions(screen.getByLabelText('Nhóm độc'), 'III')
     await user.type(screen.getByLabelText('Thời gian cách ly (ngày)'), '7')
-    await user.selectOptions(screen.getByLabelText('Đơn vị cơ sở'), unit('Chai'))
+    await user.selectOptions(screen.getByLabelText('Đơn vị nhỏ nhất (vd. Kg, Chai)'), unit('Chai'))
     await user.type(screen.getByLabelText('Giá tiền mặt của Chai'), '95.000')
     await user.type(screen.getByLabelText('Giá công nợ của Chai'), '100000')
   }
@@ -275,8 +282,8 @@ describe('thêm sản phẩm', () => {
     const user = userEvent.setup()
 
     await fillPesticide(user)
-    await user.click(screen.getByRole('button', { name: 'Thêm đơn vị quy đổi' }))
-    await user.selectOptions(screen.getByLabelText('Đơn vị quy đổi 2'), unit('Thùng'))
+    await user.click(screen.getByRole('button', { name: 'Thêm đơn vị lớn hơn' }))
+    await user.selectOptions(screen.getByLabelText('Đơn vị lớn hơn 2'), unit('Thùng'))
     await user.type(screen.getByLabelText('Hệ số quy đổi của Thùng'), '12')
     await user.type(screen.getByLabelText('Giá tiền mặt của Thùng'), '1.100.000')
     await user.type(screen.getByLabelText('Giá công nợ của Thùng'), '1150000')
@@ -330,8 +337,8 @@ describe('thêm sản phẩm', () => {
     const user = userEvent.setup()
 
     await fillPesticide(user)
-    await user.click(screen.getByRole('button', { name: 'Thêm đơn vị quy đổi' }))
-    await user.selectOptions(screen.getByLabelText('Đơn vị quy đổi 2'), unit('Thùng'))
+    await user.click(screen.getByRole('button', { name: 'Thêm đơn vị lớn hơn' }))
+    await user.selectOptions(screen.getByLabelText('Đơn vị lớn hơn 2'), unit('Thùng'))
     await user.type(screen.getByLabelText('Hệ số quy đổi của Thùng'), '12')
     await user.type(screen.getByLabelText('Giá tiền mặt của Thùng'), '1100000')
     await user.type(screen.getByLabelText('Giá công nợ của Thùng'), '1150000')
@@ -350,8 +357,8 @@ describe('thêm sản phẩm', () => {
     const user = userEvent.setup()
 
     await fillPesticide(user)
-    await user.click(screen.getByRole('button', { name: 'Thêm đơn vị quy đổi' }))
-    const row = screen.getByLabelText('Đơn vị quy đổi 2')
+    await user.click(screen.getByRole('button', { name: 'Thêm đơn vị lớn hơn' }))
+    const row = screen.getByLabelText('Đơn vị lớn hơn 2')
     // Đơn vị cơ sở (Chai) không còn trong danh sách chọn của dòng quy đổi.
     expect(within(row).queryByRole('option', { name: 'Chai' })).not.toBeInTheDocument()
     await user.selectOptions(row, unit('Thùng'))
@@ -364,11 +371,48 @@ describe('thêm sản phẩm', () => {
     expect(server.to('POST', '/api/v1/products')).toHaveLength(0)
   })
 
-  it('chỉ có một chi nhánh được dùng thì chọn sẵn', async () => {
-    mockApi(base({ 'GET /api/v1/branches': { json: page([BRANCHES[0]]) } }))
+  it('chỉ có một chi nhánh được dùng thì hiện là chữ cố định (không bắt chọn một lựa chọn duy nhất) và vẫn gửi chi nhánh đó', async () => {
+    const server = mockApi(base({ 'GET /api/v1/branches': { json: page([BRANCHES[0]]) }, 'POST /api/v1/products': { status: 201, json: { data: product() } } }))
     renderApp('/notifications?dialog=product')
+    const user = userEvent.setup()
 
-    await waitFor(() => expect(screen.getByLabelText('Chi nhánh')).toHaveValue('br-1'))
+    expect(await screen.findByText('CN-01 — Chi nhánh chính')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Chi nhánh')).not.toBeInTheDocument()
+
+    await user.selectOptions(screen.getByLabelText('Loại hàng'), 'other')
+    await user.type(screen.getByLabelText('Mã sản phẩm'), 'VT-01')
+    await user.type(screen.getByLabelText('Tên sản phẩm'), 'Dây tưới')
+    await user.selectOptions(screen.getByLabelText('Đơn vị nhỏ nhất (vd. Kg, Chai)'), unit('Kg'))
+    await user.type(screen.getByLabelText('Giá tiền mặt của Kg'), '12000')
+    await user.click(screen.getByRole('button', { name: 'Lưu' }))
+
+    await waitFor(() => expect(server.to('POST', '/api/v1/products')).toHaveLength(1))
+    expect(server.to('POST', '/api/v1/products')[0]?.body).toMatchObject({ branch_id: 'br-1', type: 'other' })
+  })
+
+  it('giá công nợ để trống thì gửi bằng giá tiền mặt; có nhập thì gửi đúng số đã nhập', async () => {
+    const server = mockApi(base({ 'POST /api/v1/products': { status: 201, json: { data: product() } } }))
+    renderApp('/notifications?dialog=product')
+    const user = userEvent.setup()
+
+    await user.selectOptions(await labelled('Chi nhánh'), 'br-1')
+    await user.selectOptions(screen.getByLabelText('Loại hàng'), 'other')
+    await user.type(screen.getByLabelText('Mã sản phẩm'), 'VT-02')
+    await user.type(screen.getByLabelText('Tên sản phẩm'), 'Dây tưới')
+    await user.selectOptions(screen.getByLabelText('Đơn vị nhỏ nhất (vd. Kg, Chai)'), unit('Kg'))
+    await user.type(screen.getByLabelText('Giá tiền mặt của Kg'), '12.000')
+    await user.click(screen.getByRole('button', { name: 'Thêm đơn vị lớn hơn' }))
+    await user.selectOptions(screen.getByLabelText('Đơn vị lớn hơn 2'), unit('Bao'))
+    await user.type(screen.getByLabelText('Hệ số quy đổi của Bao'), '50')
+    await user.type(screen.getByLabelText('Giá tiền mặt của Bao'), '600000')
+    await user.type(screen.getByLabelText('Giá công nợ của Bao'), '630000')
+    await user.click(screen.getByRole('button', { name: 'Lưu' }))
+
+    await waitFor(() => expect(server.to('POST', '/api/v1/products')).toHaveLength(1))
+    const body = server.to('POST', '/api/v1/products')[0]?.body as { units: { price_cash: number; price_credit: number }[] } | undefined
+    const units = body?.units ?? []
+    expect(units[0]).toMatchObject({ price_cash: 12000, price_credit: 12000 }) // để trống: bằng giá tiền mặt
+    expect(units[1]).toMatchObject({ price_cash: 600000, price_credit: 630000 }) // đã nhập: giữ nguyên
   })
 
   it('người không có quyền tạo không vào được trang thêm', async () => {
@@ -381,7 +425,7 @@ describe('thêm sản phẩm', () => {
 
 describe('sửa sản phẩm', () => {
 
-  it('hiện sẵn giá trị đang có; loại hàng, chi nhánh, đơn vị cơ sở chỉ đọc', async () => {
+  it('hiện sẵn giá trị đang có; loại hàng, chi nhánh, đơn vị nhỏ nhất chỉ đọc', async () => {
     mockApi(base(detail()))
     renderApp('/notifications?dialog=product:p1')
 
@@ -395,7 +439,7 @@ describe('sửa sản phẩm', () => {
     expect(screen.getByLabelText('Giá tiền mặt của Kg')).toHaveValue('15500')
     expect(screen.getByLabelText('Giá công nợ của Bao')).toHaveValue('780000')
     expect(screen.getByLabelText('Hệ số quy đổi của Bao')).toHaveValue('50')
-    expect(screen.getByLabelText('Đơn vị quy đổi 2')).toHaveValue(unit('Bao'))
+    expect(screen.getByLabelText('Đơn vị lớn hơn 2')).toHaveValue(unit('Bao'))
     expect(screen.getByLabelText('Mã vạch của Bao')).toHaveValue('8930000000012')
     expect(screen.getByText('CN-01 — Chi nhánh chính')).toBeInTheDocument()
     expect(screen.queryByLabelText('Chi nhánh')).not.toBeInTheDocument()
@@ -432,6 +476,7 @@ describe('sửa sản phẩm', () => {
     renderApp('/notifications?dialog=product:p1')
     const user = userEvent.setup()
 
+    await openMore(user)
     const field = await screen.findByLabelText('Tồn tối thiểu (Kg)')
     expect(field).toHaveValue('12.5')
     await user.clear(field)
@@ -452,6 +497,7 @@ describe('sửa sản phẩm', () => {
     renderApp('/notifications?dialog=product:p1')
     const user = userEvent.setup()
 
+    await openMore(user)
     await user.clear(await screen.findByLabelText('Tồn tối thiểu (Kg)'))
     await user.click(screen.getByRole('button', { name: 'Lưu' }))
     await waitFor(() => expect(server.to('PATCH', '/api/v1/products/p1')).toHaveLength(1))
@@ -680,8 +726,39 @@ describe('popup thêm/sửa: không chuyển trang', () => {
 
     const dialog = await screen.findByRole('dialog')
     expect(await within(dialog).findByText('Các ô có dấu * là bắt buộc.')).toBeInTheDocument()
-    for (const name of ['Chi nhánh', 'Loại hàng', 'Mã sản phẩm', 'Tên sản phẩm', 'Đơn vị cơ sở']) expect(within(dialog).getByLabelText(name)).toBeRequired()
+    for (const name of ['Chi nhánh', 'Loại hàng', 'Mã sản phẩm', 'Tên sản phẩm', 'Đơn vị nhỏ nhất (vd. Kg, Chai)']) expect(within(dialog).getByLabelText(name)).toBeRequired()
     for (const name of ['Nhóm hàng', 'Thương hiệu', 'Mô tả']) expect(within(dialog).getByLabelText(name)).not.toBeRequired()
+  })
+
+  it('ô ít dùng gom vào "Thông tin thêm" thu gọn sẵn: bấm mở/đóng, giá trị đã nhập không mất khi gập lại', async () => {
+    mockApi(base())
+    renderApp('/notifications?dialog=product')
+    const user = userEvent.setup()
+
+    const more = await screen.findByRole('button', { name: /Thông tin thêm/ })
+    expect(more).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('combobox', { name: 'Nhóm hàng' })).not.toBeInTheDocument() // ẩn khỏi người dùng và trình đọc màn hình
+
+    await user.click(more)
+    expect(more).toHaveAttribute('aria-expanded', 'true')
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Nhóm hàng' }), 'c-1')
+
+    await user.click(more)
+    expect(more).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByLabelText('Nhóm hàng')).toHaveValue('c-1') // vẫn nằm trong biểu mẫu, sẽ được gửi đi
+  })
+
+  it('có lỗi ở một ô trong "Thông tin thêm" thì nhóm tự mở để người dùng thấy lỗi', async () => {
+    mockApi(base({ ...detail(product({ min_stock: '5.000' })), 'PATCH /api/v1/products/p1': problem(422, 'validation_failed', 'Dữ liệu không hợp lệ.', { errors: { min_stock: ['Tồn tối thiểu không hợp lệ.'] } }) }))
+    renderApp('/notifications?dialog=product:p1')
+    const user = userEvent.setup()
+
+    const more = await screen.findByRole('button', { name: /Thông tin thêm/ })
+    expect(more).toHaveAttribute('aria-expanded', 'false')
+    await user.click(await screen.findByRole('button', { name: 'Lưu' }))
+
+    expect(await screen.findByText('Tồn tối thiểu không hợp lệ.')).toBeVisible()
+    expect(more).toHaveAttribute('aria-expanded', 'true')
   })
 
   it('gõ dở rồi đóng thì hỏi "Bỏ thay đổi?": "Tiếp tục nhập" giữ nguyên chữ đã gõ, "Bỏ thay đổi" mới đóng', async () => {
@@ -761,5 +838,35 @@ describe('popup thêm/sửa: không chuyển trang', () => {
 
     await closed()
     expect(router.state.location.search).toBe('')
+  })
+})
+
+describe('danh sách sản phẩm: bấm tên để sửa', () => {
+  it('bấm tên sản phẩm mở popup sửa ngay trên danh sách (không chỉ biểu tượng bút chì); nút Sửa và Xóa có chữ cạnh biểu tượng', async () => {
+    mockApi(base(detail()))
+    const { router } = renderApp('/products')
+    const user = userEvent.setup()
+
+    const table = await screen.findByRole('table')
+    const row = within(table).getByText('Phân NPK 16-16-8').closest('tr')!
+    expect(within(row).getByRole('link', { name: /Sửa Phân NPK 16-16-8/ })).toHaveTextContent('Sửa')
+    expect(within(row).getByRole('button', { name: /Xóa Phân NPK 16-16-8/ })).toHaveTextContent('Xóa')
+
+    await user.click(within(table).getByRole('link', { name: 'Phân NPK 16-16-8' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Sửa sản phẩm' })
+    await waitFor(() => expect(dialog).toHaveAccessibleDescription(/Phân NPK 16-16-8/))
+    expect(router.state.location.pathname).toBe('/products')
+    expect(router.state.location.search).toBe('?dialog=product:p1')
+  })
+
+  it('người chỉ có quyền xem: bấm tên mở popup xem (không có nút Lưu)', async () => {
+    mockApi(base(detail(), VIEW_ONLY))
+    renderApp('/products')
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('link', { name: 'Phân NPK 16-16-8' }))
+
+    expect(await screen.findByText('Bạn chỉ có quyền xem sản phẩm này.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Lưu' })).not.toBeInTheDocument()
   })
 })

@@ -1,6 +1,7 @@
 import { Eye, Pencil, Plus, Trash2, Truck } from 'lucide-react'
 import { useDeferredValue, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router'
 import { EmptyState, FilterBar, FilterSelect, PageHeader, SearchField } from '../../components/page.tsx'
 import { Refreshable, TableSkeleton } from '../../components/skeleton.tsx'
 import { DataTable } from '../../components/table.tsx'
@@ -107,7 +108,7 @@ export default function SuppliersPage() {
                   <tr key={supplier.id}>
                     <td className="py-3 pr-4 font-mono text-xs whitespace-nowrap text-slate-600">{supplier.code}</td>
                     <td className="py-3 pr-4">
-                      <span className="font-medium text-slate-900">{supplier.name}</span>
+                      <Link {...link('supplier', supplier.id)} className="font-medium text-slate-900 hover:text-brand-700 hover:underline">{supplier.name}</Link>
                       {supplier.tax_code && <span className="block text-xs text-slate-500">{t('crm.suppliers.taxCodeLine', { code: supplier.tax_code })}</span>}
                     </td>
                     <td className="py-3 pr-4 whitespace-nowrap">{supplier.phone ?? '—'}</td>
@@ -117,11 +118,11 @@ export default function SuppliersPage() {
                     </td>
                     <td className="py-3 text-right">
                       <div className="flex justify-end gap-1">
-                        <IconLink {...link('supplier', supplier.id)} label={`${canUpdate ? t('common.edit') : t('crm.view')} ${supplier.name}`} text={canUpdate ? t('common.edit') : t('crm.view')}>
+                        <IconLink {...link('supplier', supplier.id)} labelled label={`${canUpdate ? t('common.edit') : t('crm.view')} ${supplier.name}`} text={canUpdate ? t('common.edit') : t('crm.view')}>
                           {canUpdate ? <Pencil className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
                         </IconLink>
                         {canDelete && (
-                          <IconButton label={`${t('common.delete')} ${supplier.name}`} text={t('common.delete')} onClick={() => { setDeleteError(null); setDeleting(supplier) }} tone="danger">
+                          <IconButton labelled label={`${t('common.delete')} ${supplier.name}`} text={t('common.delete')} onClick={() => { setDeleteError(null); setDeleting(supplier) }} tone="danger">
                             <Trash2 className="h-4 w-4" aria-hidden="true" />
                           </IconButton>
                         )}

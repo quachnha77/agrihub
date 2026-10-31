@@ -10,11 +10,11 @@ import { emptyUnitRow, parseNumber, type FormValues } from './form.ts'
 
 const inputClass = (error: boolean) => `${fieldBase} ${fieldTone(error)}`
 
-/** Số tiền người dùng đang gõ, hiện lại đúng định dạng (750.000 ₫) để tránh nhầm dấu chấm/phẩy. */
-function Preview({ value }: { value: string }) {
+/** Số tiền người dùng đang gõ, hiện lại đúng định dạng (750.000 ₫) để tránh nhầm dấu chấm/phẩy. `empty`: chữ hiện khi chưa gõ gì. */
+function Preview({ value, empty = '' }: { value: string; empty?: string }) {
   const n = parseNumber(value)
 
-  return <p className="mt-0.5 h-4 text-xs text-slate-500">{n === null ? '' : formatVnd(n)}</p>
+  return <p className="mt-0.5 h-4 text-xs text-slate-500">{n === null ? empty : formatVnd(n)}</p>
 }
 
 /**
@@ -51,7 +51,7 @@ export function UnitsEditor({
           <tr>
             <th scope="col" className="w-40 py-2 pr-2">{t('catalog.units.unit')}</th>
             <th scope="col" className="w-36 py-2 pr-2">{t('catalog.units.factor', { base })}</th>
-            <th scope="col" className="py-2 pr-2">{t('catalog.units.priceCash')}</th>
+            <th scope="col" className="py-2 pr-2 after:ml-0.5 after:text-red-600 after:content-['*']">{t('catalog.units.priceCash')}</th>
             <th scope="col" className="py-2 pr-2">{t('catalog.units.priceCredit')}</th>
             <th scope="col" className="w-40 py-2 pr-2">{t('catalog.units.barcode')}</th>
             <th scope="col" className="w-10 py-2"><span className="sr-only">{t('backup.list.actions')}</span></th>
@@ -70,7 +70,7 @@ export function UnitsEditor({
             </td>
             <td className="py-2 pr-2">
               <input inputMode="decimal" aria-label={t('catalog.units.priceCreditOf', { unit: base })} aria-invalid={errors.base_price_credit ? true : undefined} className={inputClass(!!errors.base_price_credit)} {...form.register('base_price_credit')} />
-              {errors.base_price_credit ? <p role="alert" className="mt-0.5 text-xs text-red-700">{errors.base_price_credit.message}</p> : <Preview value={baseCredit} />}
+              {errors.base_price_credit ? <p role="alert" className="mt-0.5 text-xs text-red-700">{errors.base_price_credit.message}</p> : <Preview value={baseCredit} empty={t('catalog.units.creditSame')} />}
             </td>
             <td className="py-2 pr-2">
               <input aria-label={t('catalog.units.barcodeOf', { unit: base })} aria-invalid={errors.base_barcode ? true : undefined} className={inputClass(!!errors.base_barcode)} {...form.register('base_barcode')} />
@@ -105,7 +105,7 @@ export function UnitsEditor({
                 </td>
                 <td className="py-2 pr-2">
                   <input inputMode="decimal" aria-label={t('catalog.units.priceCreditOf', { unit: label })} aria-invalid={rowErrors?.price_credit ? true : undefined} className={inputClass(!!rowErrors?.price_credit)} {...form.register(`extra_units.${index}.price_credit`)} />
-                  {rowErrors?.price_credit ? <p role="alert" className="mt-0.5 text-xs text-red-700">{rowErrors.price_credit.message}</p> : <Preview value={current?.price_credit ?? ''} />}
+                  {rowErrors?.price_credit ? <p role="alert" className="mt-0.5 text-xs text-red-700">{rowErrors.price_credit.message}</p> : <Preview value={current?.price_credit ?? ''} empty={t('catalog.units.creditSame')} />}
                 </td>
                 <td className="py-2 pr-2">
                   <input aria-label={t('catalog.units.barcodeOf', { unit: label })} aria-invalid={rowErrors?.barcode ? true : undefined} className={inputClass(!!rowErrors?.barcode)} {...form.register(`extra_units.${index}.barcode`)} />

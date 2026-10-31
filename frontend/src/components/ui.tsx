@@ -50,27 +50,29 @@ export function ButtonLink({ variant = 'primary', size = 'md', className = '', .
 interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   /** Tên đầy đủ cho trình đọc màn hình và chú giải khi rê chuột (vd. "Sửa Phân NPK"). */
   label: string
-  /** Chữ ngắn hiện cạnh biểu tượng trong thẻ trên điện thoại (vd. "Sửa"); trên máy tính chỉ có biểu tượng. */
+  /** Chữ ngắn hiện cạnh biểu tượng trong thẻ trên điện thoại (vd. "Sửa"); trên máy tính chỉ có biểu tượng, trừ khi `labelled`. */
   text?: string
+  /** Luôn hiện chữ cạnh biểu tượng (cả trên máy tính): người không rành công nghệ đọc chữ nhanh hơn đoán biểu tượng. */
+  labelled?: boolean
   tone?: 'neutral' | 'danger'
 }
 
 /** Nút chỉ có biểu tượng (sửa, xóa, khóa...): có chú giải khi rê chuột; trên điện thoại hiện thêm chữ ngắn cạnh biểu tượng. */
-export function IconButton({ label, text, tone = 'neutral', className = '', children, type = 'button', ...rest }: IconButtonProps) {
+export function IconButton({ label, text, labelled = false, tone = 'neutral', className = '', children, type = 'button', ...rest }: IconButtonProps) {
   return (
     <button type={type} aria-label={label} title={label} className={iconButtonStyles(tone, className)} {...rest}>
       {children}
-      {text && <span className="hidden whitespace-nowrap text-sm font-medium max-md:inline">{text}</span>}
+      {text && <span className={`whitespace-nowrap text-sm font-medium ${labelled ? '' : 'hidden max-md:inline'}`}>{text}</span>}
     </button>
   )
 }
 
 /** Liên kết có giao diện như <IconButton> (vd. "Sửa" mở trang biểu mẫu). */
-export function IconLink({ label, text, className = '', children, ...rest }: LinkProps & { label: string; text?: string }) {
+export function IconLink({ label, text, labelled = false, className = '', children, ...rest }: LinkProps & { label: string; text?: string; labelled?: boolean }) {
   return (
     <Link aria-label={label} title={label} className={iconButtonStyles('neutral', className)} {...rest}>
       {children}
-      {text && <span className="hidden whitespace-nowrap text-sm font-medium max-md:inline">{text}</span>}
+      {text && <span className={`whitespace-nowrap text-sm font-medium ${labelled ? '' : 'hidden max-md:inline'}`}>{text}</span>}
     </Link>
   )
 }

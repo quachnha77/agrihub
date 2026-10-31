@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react'
+import { ChevronDown } from 'lucide-react'
+import { useId, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { UnsavedGuard } from '../lib/unsaved.ts'
 import { FieldsSkeleton, Skeleton, SkeletonRegion } from './skeleton.tsx'
@@ -13,6 +14,38 @@ export function FormSection({ title, description, children }: { title: ReactNode
         {description && <p className="mt-0.5 text-sm text-slate-600">{description}</p>}
       </div>
       {children}
+    </section>
+  )
+}
+
+/**
+ * Nhóm ô thu gọn ("Thông tin thêm — không bắt buộc"): người dùng chỉ thấy các ô cần thiết, ô ít dùng nằm sau một dòng bấm mở. Nội dung vẫn nằm
+ * trong biểu mẫu (chỉ ẩn bằng `hidden`) nên giá trị đã nhập không mất khi gập lại. `forceOpen`: tự mở khi có lỗi ở một ô bên trong, để người dùng
+ * thấy được lỗi thay vì bấm Lưu mà không biết tại sao không được.
+ */
+export function Disclosure({ title, hint, forceOpen = false, children }: { title: string; hint?: string; forceOpen?: boolean; children: ReactNode }) {
+  const [open, setOpen] = useState(false)
+  const id = useId()
+  const shown = open || forceOpen
+
+  return (
+    <section className="border-t border-slate-100 pt-5">
+      <button
+        type="button"
+        aria-expanded={shown}
+        aria-controls={id}
+        onClick={() => setOpen(!shown)}
+        className="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+      >
+        <span>
+          <span className="block text-sm font-semibold text-slate-900">{title}</span>
+          {hint && <span className="block text-sm text-slate-600">{hint}</span>}
+        </span>
+        <ChevronDown className={`h-5 w-5 shrink-0 text-slate-500 transition-transform ${shown ? 'rotate-180' : ''}`} aria-hidden="true" />
+      </button>
+      <div id={id} hidden={!shown} className="mt-4">
+        {children}
+      </div>
     </section>
   )
 }

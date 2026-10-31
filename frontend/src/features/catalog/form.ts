@@ -110,7 +110,8 @@ export function toPayload(values: FormValues, definition: TypeDefinition, creati
     unit_id: unitId,
     factor,
     price_cash: parseNumber(cash) ?? 0,
-    price_credit: parseNumber(credit) ?? 0,
+    // Giá công nợ để trống = bằng giá tiền mặt.
+    price_credit: parseNumber(credit) ?? parseNumber(cash) ?? 0,
     barcode: barcode.trim() === '' ? null : barcode.trim(),
   })
 
@@ -135,11 +136,14 @@ export function toPayload(values: FormValues, definition: TypeDefinition, creati
 
 /** Luật kiểm tra trên trình duyệt (máy chủ vẫn kiểm tra lại tất cả). Trường đặc thù lấy từ định nghĩa của loại hàng đang chọn. */
 export function buildSchema(t: TFunction, types: TypeDefinition[], creating: boolean, maxUnits: number) {
-  const money = z.string().trim().refine((v) => {
+  const isMoney = (v: string) => {
     const n = parseNumber(v)
 
     return n !== null && n >= 0 && n <= MAX_MONEY && Math.round(n * 100) / 100 === n
-  }, t('catalog.form.priceInvalid'))
+  }
+  const money = z.string().trim().refine(isMoney, t('catalog.form.priceInvalid'))
+  // Giá công nợ được để trống: khi gửi lên thì lấy bằng giá tiền mặt (xem toPayload).
+  const creditMoney = z.string().trim().refine((v) => v === '' || isMoney(v), t('catalog.form.priceInvalid'))
 
   const factor = z.string().trim().refine((v) => {
     const n = parseNumber(v)
@@ -168,10 +172,10 @@ export function buildSchema(t: TFunction, types: TypeDefinition[], creating: boo
       }, t('catalog.form.minStockInvalid')),
       base_unit_id: creating ? z.string().min(1, t('catalog.form.baseUnitRequired')) : z.string(),
       base_price_cash: money,
-      base_price_credit: money,
+      base_price_credit: creditMoney,
       base_barcode: barcode,
       extra_units: z
-        .array(z.object({ unit_id: z.string().min(1, t('catalog.form.unitRequired')), factor, price_cash: money, price_credit: money, barcode }))
+        .array(z.object({ unit_id: z.string().min(1, t('catalog.form.unitRequired')), factor, price_cash: money, price_credit: creditMoney, barcode }))
         .max(Math.max(0, maxUnits - 1), t('catalog.form.tooManyUnits', { max: maxUnits })),
       specs: z.record(z.string(), z.string()),
     })
