@@ -70,7 +70,7 @@ class PhonePerTenantTest extends TestCase
         // Số điện thoại có thể trùng giữa các doanh nghiệp nên không thể nói "bạn thuộc doanh nghiệp khác": chỉ báo chung.
         $this->login('vat-tu-xanh.agrihub.test', '0911111111', self::PASSWORD_A)->assertUnauthorized()->assertJsonPath('code', 'invalid_credentials');
 
-        // Email thì duy nhất toàn hệ thống nên vẫn chỉ đường khi mật khẩu đúng.
+        // Email chỉ một doanh nghiệp dùng nên vẫn chỉ đường khi mật khẩu đúng (xem EmailPerTenantTest cho email dùng chung).
         $this->login('vat-tu-xanh.agrihub.test', 'a@a.vn', self::PASSWORD_A)->assertForbidden()->assertJsonPath('code', 'wrong_host');
     }
 

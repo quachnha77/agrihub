@@ -38,7 +38,9 @@ class PasswordRecoveryController extends Controller
 
     public function reset(ResetPasswordRequest $request): JsonResponse
     {
-        $this->recovery->reset($request->validated('email'), $request->validated('token'), $request->validated('password'));
+        $this->recovery->reset(
+            $request->validated('email'), $request->validated('token'), $request->validated('password'), LoginScope::fromHost($this->host),
+        );
 
         return response()->json(['message' => 'Đã đặt lại mật khẩu. Hãy đăng nhập bằng mật khẩu mới.']);
     }

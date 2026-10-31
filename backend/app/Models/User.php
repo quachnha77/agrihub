@@ -68,6 +68,15 @@ class User extends Authenticatable
         return Attribute::make(set: fn (string $value) => mb_strtolower(trim($value)));
     }
 
+    /**
+     * Khóa của mã đặt lại mật khẩu (bảng password_reset_tokens, cột `email`). Email có thể trùng giữa các doanh nghiệp nên không dùng làm khóa:
+     * dùng id tài khoản để mã của người này không bao giờ mở được tài khoản khác cùng email.
+     */
+    public function getEmailForPasswordReset(): string
+    {
+        return 'user:'.$this->id;
+    }
+
     /** Số điện thoại lưu dạng chuẩn (0912345678) để dùng được làm định danh đăng nhập. Chuỗi rỗng thành NULL. */
     protected function phone(): Attribute
     {

@@ -32,7 +32,7 @@ class StoreTenantRequest extends FormRequest
 
             'owner' => ['required', 'array'],
             'owner.name' => ['required', 'string', 'max:255'],
-            'owner.email' => ['required', 'string', 'email', 'max:255', new UniqueEmail],
+            'owner.email' => ['required', 'string', 'email', 'max:255', UniqueEmail::forNewTenant()],
             // Doanh nghiệp mới chưa có tài khoản nào nên số điện thoại không thể trùng (chỉ cần duy nhất trong doanh nghiệp).
             'owner.phone' => ['nullable', 'string', new VietnamesePhone],
             // Bỏ trống => hệ thống sinh mật khẩu tạm (hiển thị một lần). Dù cách nào, Owner cũng phải đổi ở lần đăng nhập đầu.

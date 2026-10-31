@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\User;
+use App\Rules\UniqueEmail;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Validator;
@@ -34,7 +35,7 @@ class CreatePlatformAdmin extends Command
         $email = mb_strtolower(trim($this->argument('email')));
 
         $created = $context->runAsPlatform(function () use ($email, $password) {
-            if (User::withTrashed()->where('email', $email)->exists()) {
+            if (UniqueEmail::taken($email, null)) {
                 return false;
             }
 

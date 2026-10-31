@@ -40,7 +40,8 @@ final class LoginIdentifier
 
     /**
      * Khóa giới hạn tốc độ: "A@x.com" và "a@x.com", hay "0912 345 678" và "+84912345678", cùng một khóa.
-     * Số điện thoại kèm phạm vi (doanh nghiệp) vì cùng số ở hai doanh nghiệp là hai tài khoản khác nhau.
+     * Kèm phạm vi (doanh nghiệp) vì cùng email hay cùng số ở hai doanh nghiệp là hai tài khoản khác nhau: gõ sai nhiều lần ở doanh nghiệp này
+     * không được làm khóa lượt thử của doanh nghiệp kia.
      */
     public static function throttleKey(?string $raw, ?LoginScope $scope = null): string
     {
@@ -50,6 +51,6 @@ final class LoginIdentifier
             return 'raw:'.mb_strtolower(trim((string) $raw));
         }
 
-        return $id->type === 'phone' && $scope !== null ? "phone:{$scope->key()}:{$id->value}" : "{$id->type}:{$id->value}";
+        return $scope !== null ? "{$id->type}:{$scope->key()}:{$id->value}" : "{$id->type}:{$id->value}";
     }
 }

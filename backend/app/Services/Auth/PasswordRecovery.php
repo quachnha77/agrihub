@@ -106,21 +106,31 @@ class PasswordRecovery
     /**
      * Đặt mật khẩu mới bằng mã trong email.
      *
+     * Tài khoản tìm theo email VÀ địa chỉ đang truy cập (liên kết trong thư trỏ đúng subdomain của doanh nghiệp), vì cùng một email có thể
+     * có ở nhiều doanh nghiệp. Mã gắn với từng tài khoản (xem User::getEmailForPasswordReset) nên mã của tài khoản này không mở được tài khoản khác.
+     *
      * @throws ApiProblemException 422 invalid_reset_token khi email/mã sai, đã dùng hoặc đã hết hạn (không phân biệt, không lộ gì)
      */
-    public function reset(string $email, string $token, string $password): void
+    public function reset(string $email, string $token, string $password, LoginScope $scope): void
     {
         $identifier = LoginIdentifier::parse($email);
-        $user = $identifier === null ? null : $this->accounts->find($identifier, new LoginScope(HostTenant::UNRESTRICTED));
+        $user = $identifier === null ? null : $this->accounts->find($identifier, $scope);
 
-        $status = ($user === null || ! $user->isActive())
-            ? Password::INVALID_USER
-            : $this->context->runAsPlatform(fn () => Password::broker()->reset(
-                ['email' => $user->email, 'token' => $token, 'password' => $password],
-                fn (User $target, string $new) => $this->apply($target, $new),
-            ));
+        $repository = Password::broker()->getRepository();
 
-        if ($status !== Password::PASSWORD_RESET) {
+        // Phần còn lại của Password::reset() nhưng không tra lại tài khoản theo email (sẽ mơ hồ khi email trùng giữa các doanh nghiệp).
+        $reset = $user !== null && $user->isActive() && $this->context->runAsPlatform(function () use ($user, $token, $password, $repository) {
+            if (! $repository->exists($user, $token)) {
+                return false;
+            }
+
+            $this->apply($user, $password);
+            $repository->delete($user);
+
+            return true;
+        });
+
+        if (! $reset) {
             $this->audit->record('auth', 'password_reset_failed', subject: $user, result: AuditLogger::FAILURE, reason: 'invalid_token', actor: null);
 
             throw new ApiProblemException(422, 'invalid_reset_token', 'Liên kết đặt lại mật khẩu không hợp lệ hoặc đã hết hạn. Hãy yêu cầu liên kết mới.');

@@ -7,8 +7,8 @@ use App\Support\Tenancy\HostTenant;
 /**
  * Phạm vi tìm tài khoản theo ĐỊA CHỈ truy cập (xem HostTenant): doanh nghiệp nào, hay quản trị nền tảng, hay chưa giới hạn.
  *
- * Email duy nhất toàn hệ thống nên không cần phạm vi. Số điện thoại chỉ duy nhất TRONG một doanh nghiệp (hoặc trong nhóm quản trị
- * nền tảng), nên khi tra theo số điện thoại phải biết đang ở địa chỉ của ai.
+ * Email và số điện thoại chỉ duy nhất TRONG một doanh nghiệp (hoặc trong nhóm quản trị nền tảng), nên khi tra tài khoản
+ * phải biết đang ở địa chỉ của ai.
  *
  * Là giá trị thuần (không giữ kết nối) để mang được vào hàng đợi: việc gửi email khôi phục chạy ngoài request.
  */

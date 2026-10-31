@@ -20,7 +20,7 @@ class StoreUserRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'email', 'max:255', new UniqueEmail],
+            'email' => ['required', 'string', 'email', 'max:255', new UniqueEmail($this->user()?->tenant_id)],
             'phone' => ['nullable', 'string', new VietnamesePhone, new UniquePhone($this->user()?->tenant_id)],
             'password' => array_merge(['nullable'], PasswordPolicy::rules(fn () => $this->input('email'))),
             'role_ids' => ['nullable', 'array', 'max:20'],

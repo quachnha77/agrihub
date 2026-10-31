@@ -315,7 +315,8 @@ class SubscriptionTest extends TestCase
         $this->spa()->actingAs($admin)->postJson("/api/v1/platform/tenants/{$t->uuid}/subscription/renew", [])->assertOk();
 
         $this->platform(fn () => $s->refresh());
-        $this->assertEqualsWithDelta(now()->addMonth()->getTimestamp(), $s->period_end->getTimestamp(), 5);
+        // Không tràn tháng (31/10 + 1 tháng = 30/11, không phải 1/12): đúng cách tính của SubscriptionService.
+        $this->assertEqualsWithDelta(now()->addMonthNoOverflow()->getTimestamp(), $s->period_end->getTimestamp(), 5);
     }
 
     public function test_a_custom_amount_overrides_the_computed_one(): void

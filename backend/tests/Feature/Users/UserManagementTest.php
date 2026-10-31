@@ -136,7 +136,8 @@ class UserManagementTest extends TestCase
         $this->assertTrue($user->must_change_password);
     }
 
-    public function test_email_must_be_unique_across_the_whole_system_without_revealing_where(): void
+    /** Chưa bật subdomain thì địa chỉ không phân biệt được doanh nghiệp, nên email vẫn duy nhất toàn hệ thống (xem EmailPerTenantTest cho trường hợp có subdomain). */
+    public function test_without_subdomains_email_must_be_unique_across_the_whole_system_without_revealing_where(): void
     {
         [, $ownerA] = $this->makeTenant();
         [, $ownerB] = $this->makeTenant(user: ['email' => 'da-co@other.test']);

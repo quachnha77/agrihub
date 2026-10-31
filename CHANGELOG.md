@@ -5,9 +5,11 @@
 ## [Unreleased]
 
 ### Fixed
+- Test `test_renewing_an_expired_subscription_starts_from_today` sai vào các ngày cuối tháng dài (dùng `addMonth()` tràn sang tháng sau, còn gia hạn đúng là cộng tháng không tràn: 31/10 + 1 tháng = 30/11); chỉ sửa test.
 - `GET /platform/subscriptions/renewals?within_days=…` trả 500 (tham số URL là chuỗi nhưng truyền thẳng vào Carbon); thông báo lỗi kiểm tra dữ liệu của thuê bao/gói hiện tên trường tiếng Việt ("Số người dùng phải từ 1 trở lên" thay vì "Seats…").
 
 ### Added
+- **Email duy nhất theo doanh nghiệp** (thay vì toàn hệ thống; mỗi doanh nghiệp có tài khoản riêng): hai doanh nghiệp được dùng chung một email; đăng nhập, quên mật khẩu, quên tài khoản tra theo subdomain (email chỉ một nơi dùng vẫn chỉ đường `wrong_host`); chưa bật subdomain thì tạo mới vẫn bắt email duy nhất toàn hệ thống; giới hạn tốc độ kèm phạm vi doanh nghiệp; mã đặt lại mật khẩu gắn với từng tài khoản (`user:<id>`) và đặt lại tìm tài khoản theo email + địa chỉ. Migration `2026_10_31_110000` (xóa mã đặt lại đang chờ). Quên tài khoản bằng số điện thoại tìm đúng tài khoản của doanh nghiệp và gửi tới email đã đăng ký (chưa có SMS).
 - **Giao diện Super Admin**: *Doanh nghiệp* (danh sách có trạng thái thuê bao, tìm/lọc, onboarding hiện địa chỉ subdomain + mật khẩu tạm một lần, chi tiết, sửa, khóa/mở khóa có lý do, phiên hỗ trợ chỉ đọc), *thuê bao* (gia hạn có ghi nhận thanh toán, mở lại tạm thời, đổi gói/số người dùng/đơn giá riêng, ghi nhận liên hệ, lịch sử kỳ), *Việc cần liên hệ*, *Gói & giá*, và người dùng của doanh nghiệp (cấp mật khẩu tạm, khóa/mở khóa). API doanh nghiệp trả thêm `subscription` tóm tắt.
 - DevSeeder tạo thuê bao còn hạn một năm cho hai doanh nghiệp demo (trước đây thiếu nên trang quản trị hiện "chưa có thuê bao").
 - **Quên mật khẩu và quên tài khoản** (chỉ qua email của tài khoản; chưa có SMS): `POST /auth/forgot-password`, `/auth/forgot-account`, `/auth/reset-password`; hai API đầu luôn trả `202` giống nhau và việc tra cứu/gửi thư chạy trong hàng đợi (không dò được tài khoản); liên kết một lần, hết hạn 30 phút, dựng từ cấu hình (không theo Host), đặt lại xong đăng xuất mọi thiết bị + mở khóa + báo thư; giới hạn tốc độ và tối đa 3 thư/giờ/tài khoản; audit không ghi mã/mật khẩu; email tiếng Việt (`lang/vi.json`); giao diện `/forgot-password`, `/forgot-account`, `/reset-password` và liên kết ở trang đăng nhập.
