@@ -1,9 +1,12 @@
-import { Copy, Eye, ListChecks, Pencil, Plus, Trash2 } from 'lucide-react'
-import { useDeferredValue, useState } from 'react'
+import { Copy, Eye, Package, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Fragment, useDeferredValue, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link, useLocation } from 'react-router'
-import { FilterBar, Refreshable, TableSkeleton } from '../../components/skeleton.tsx'
-import { Alert, Badge, Button, Card, ConfirmDialog, Pagination, SelectField } from '../../components/ui.tsx'
+import { useLocation } from 'react-router'
+import { EmptyState, FilterBar, FilterSelect, PageHeader, SearchField } from '../../components/page.tsx'
+import { Refreshable, TableSkeleton } from '../../components/skeleton.tsx'
+import { DataTable } from '../../components/table.tsx'
+import { Alert, Badge, Button, ButtonLink, Card, ConfirmDialog, IconButton, IconLink, Pagination } from '../../components/ui.tsx'
+import { countActiveFilters } from '../../lib/filters.ts'
 import { describeError } from '../../lib/forms.ts'
 import { formatVnd } from '../../lib/format.ts'
 import { useClampPage } from '../../lib/pagination.ts'
@@ -11,9 +14,23 @@ import { useAuth } from '../auth/auth-context.ts'
 import { useAllBranches } from '../branches/api.ts'
 import { useCatalogList, useDeleteProduct, useProductTypes, useProducts, type Product, type ProductFilters } from './api.ts'
 import { CopyDialog } from './CopyDialog.tsx'
+import { ProductTabs } from './ProductTabs.tsx'
 
-const linkButton = 'inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium'
 const money = (value: string) => formatVnd(Number(value))
+
+/** Loại hàng · nhóm hàng · thương hiệu, bỏ phần trùng tên (nhóm "Phân bón" của loại "Phân bón" không cần nhắc lại). */
+function subtitleOf(product: Product): string[] {
+  const seen = new Set<string>()
+
+  return [product.type_label, product.category?.name, product.brand?.name].filter((part): part is string => {
+    if (!part || seen.has(part.toLowerCase())) return false
+    seen.add(part.toLowerCase())
+
+    return true
+  })
+}
+
+const EMPTY_FILTERS: ProductFilters = { q: '', type: '', status: '', branch: '', category: '', brand: '', page: 1 }
 
 /** Danh mục sản phẩm: tìm, lọc, thêm/sửa/xóa, và sao chép sang chi nhánh khác. Mỗi sản phẩm thuộc một chi nhánh. */
 export default function ProductsPage() {
@@ -22,7 +39,7 @@ export default function ProductsPage() {
   const location = useLocation()
   const saved = (location.state as { saved?: 'created' | 'updated'; name?: string } | null) ?? null
 
-  const [filters, setFilters] = useState<ProductFilters>({ q: '', type: '', status: '', branch: '', category: '', brand: '', page: 1 })
+  const [filters, setFilters] = useState<ProductFilters>(EMPTY_FILTERS)
   const search = useDeferredValue(filters.q)
   const products = useProducts({ ...filters, q: search })
   const types = useProductTypes()
@@ -48,6 +65,8 @@ export default function ProductsPage() {
   const showBranch = (branches.data?.length ?? 0) > 1
   // Ô lọc và bảng chờ dữ liệu tham chiếu (chi nhánh/kho) rồi hiện cùng lúc, để ô lọc/cột "Chi nhánh" thêm vào muộn không làm trang dịch.
   const loading = products.isPending || branches.isLoading
+  const activeFilters = countActiveFilters(filters)
+  const filtered = activeFilters > 0 || filters.q !== ''
 
   async function confirmDelete() {
     if (!deleting) return
@@ -65,25 +84,20 @@ export default function ProductsPage() {
   useClampPage(products.data?.meta, (page) => set('page', page))
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-900">{t('catalog.title')}</h1>
-          <p className="mt-1 text-sm text-slate-600">{t('catalog.intro')}</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Link to="/products/lists" className={`${linkButton} border-slate-300 bg-white text-slate-800 hover:bg-slate-50`}>
-            <ListChecks className="h-4 w-4" aria-hidden="true" />
-            {t('catalog.manageLists')}
-          </Link>
-          {canCreate && (
-            <Link to="/products/new" className={`${linkButton} border-transparent bg-emerald-700 text-white hover:bg-emerald-800`}>
+    <div className="space-y-5">
+      <PageHeader
+        title={t('catalog.title')}
+        description={t('catalog.intro')}
+        tabs={<ProductTabs />}
+        actions={
+          canCreate && (
+            <ButtonLink to="/products/new">
               <Plus className="h-4 w-4" aria-hidden="true" />
               {t('catalog.add')}
-            </Link>
-          )}
-        </div>
-      </div>
+            </ButtonLink>
+          )
+        }
+      />
 
       {saved?.saved && !dismissed && (
         <Alert tone="success">
@@ -95,45 +109,40 @@ export default function ProductsPage() {
       )}
 
       <Card>
-        <FilterBar loading={loading} fields={['lg:col-span-2', '', '', '', '', '']} className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-7">
-          <div className="lg:col-span-2">
-            <label htmlFor="product-search" className="mb-1 block text-sm font-medium text-slate-800">{t('common.search')}</label>
-            <input
-              id="product-search"
-              type="search"
-              value={filters.q}
-              onChange={(event) => set('q', event.target.value)}
-              placeholder={t('catalog.searchPlaceholder')}
-              className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-200"
-            />
-          </div>
-          <SelectField label={t('catalog.filters.type')} value={filters.type} onChange={(event) => set('type', event.target.value)}>
+        <FilterBar
+          loading={loading}
+          selects={5}
+          activeCount={activeFilters}
+          onClear={() => setFilters(EMPTY_FILTERS)}
+          search={<SearchField label={t('common.search')} value={filters.q} onChange={(event) => set('q', event.target.value)} placeholder={t('catalog.searchPlaceholder')} />}
+        >
+          <FilterSelect label={t('catalog.filters.type')} value={filters.type} onChange={(event) => set('type', event.target.value)}>
             <option value="">{t('catalog.filters.all')}</option>
             {(types.data?.data ?? []).map((d) => <option key={d.key} value={d.key}>{d.label}</option>)}
-          </SelectField>
+          </FilterSelect>
           {showBranch && (
-            <SelectField label={t('catalog.filters.branch')} value={filters.branch} onChange={(event) => set('branch', event.target.value)}>
+            <FilterSelect label={t('catalog.filters.branch')} value={filters.branch} onChange={(event) => set('branch', event.target.value)}>
               <option value="">{t('catalog.filters.all')}</option>
               {(branches.data ?? []).map((b) => <option key={b.id} value={b.id}>{b.code} — {b.name}</option>)}
-            </SelectField>
+            </FilterSelect>
           )}
-          <SelectField label={t('catalog.filters.category')} value={filters.category} onChange={(event) => set('category', event.target.value)}>
+          <FilterSelect label={t('catalog.filters.category')} value={filters.category} onChange={(event) => set('category', event.target.value)}>
             <option value="">{t('catalog.filters.all')}</option>
             {(categories.data ?? []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </SelectField>
-          <SelectField label={t('catalog.filters.brand')} value={filters.brand} onChange={(event) => set('brand', event.target.value)}>
+          </FilterSelect>
+          <FilterSelect label={t('catalog.filters.brand')} value={filters.brand} onChange={(event) => set('brand', event.target.value)}>
             <option value="">{t('catalog.filters.all')}</option>
             {(brands.data ?? []).map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-          </SelectField>
-          <SelectField label={t('catalog.filters.status')} value={filters.status} onChange={(event) => set('status', event.target.value)}>
+          </FilterSelect>
+          <FilterSelect label={t('catalog.filters.status')} value={filters.status} onChange={(event) => set('status', event.target.value)}>
             <option value="">{t('catalog.filters.all')}</option>
             <option value="active">{t('catalog.status.active')}</option>
             <option value="inactive">{t('catalog.status.inactive')}</option>
-          </SelectField>
+          </FilterSelect>
         </FilterBar>
 
         {canCreate && selected.length > 0 && (
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-brand-50 px-3 py-2 text-sm text-brand-900">
             <span>{t('catalog.selected', { count: selected.length })}</span>
             <span className="flex gap-2">
               <Button variant="secondary" onClick={() => setCopying(true)}>
@@ -150,83 +159,90 @@ export default function ProductsPage() {
         ) : products.isError ? (
           <Alert tone="danger">{t('common.loadError')}</Alert>
         ) : rows.length === 0 ? (
-          <p className="py-6 text-center text-sm text-slate-500">{t('catalog.empty')}</p>
+          <EmptyState
+            icon={Package}
+            title={t('catalog.empty')}
+            description={filtered ? t('common.tryOtherFilters') : undefined}
+            action={filtered ? <Button variant="secondary" onClick={() => setFilters(EMPTY_FILTERS)}>{t('common.clearFilters')}</Button> : canCreate ? <ButtonLink to="/products/new">{t('catalog.add')}</ButtonLink> : undefined}
+          />
         ) : (
           <Refreshable refreshing={products.isPlaceholderData}>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[56rem] text-left text-sm">
-                <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
-                  <tr>
-                    {canCreate && (
-                      <th scope="col" className="w-8 py-2 pr-2">
-                        <input
-                          type="checkbox"
-                          checked={allOnPage}
-                          aria-label={t('catalog.selectAll')}
-                          onChange={(event) => setSelected((current) => (event.target.checked ? [...current, ...rows.filter((row) => !current.some((item) => item.id === row.id))] : current.filter((item) => !rows.some((row) => row.id === item.id))))}
-                          className="h-4 w-4 rounded border-slate-300 text-emerald-700"
-                        />
-                      </th>
-                    )}
-                    <th scope="col" className="py-2 pr-3">{t('catalog.columns.sku')}</th>
-                    <th scope="col" className="py-2 pr-3">{t('catalog.columns.product')}</th>
-                    {showBranch && <th scope="col" className="py-2 pr-3">{t('catalog.columns.branch')}</th>}
-                    <th scope="col" className="py-2 pr-3">{t('catalog.columns.unit')}</th>
-                    <th scope="col" className="py-2 pr-3 text-right">{t('catalog.columns.priceCash')}</th>
-                    <th scope="col" className="py-2 pr-3 text-right">{t('catalog.columns.priceCredit')}</th>
-                    <th scope="col" className="py-2 pr-3">{t('catalog.columns.status')}</th>
-                    <th scope="col" className="py-2 text-right">{t('backup.list.actions')}</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {rows.map((product) => {
-                    const base = product.units.find((u) => u.is_base)
-                    const others = product.units.length - 1
+            <DataTable minWidth="56rem">
+              <thead className="border-b border-slate-200 text-xs font-medium text-slate-500">
+                <tr>
+                  {canCreate && (
+                    <th scope="col" data-role="select" className="w-8 py-2.5 pr-2">
+                      <input
+                        type="checkbox"
+                        checked={allOnPage}
+                        aria-label={t('catalog.selectAll')}
+                        onChange={(event) => setSelected((current) => (event.target.checked ? [...current, ...rows.filter((row) => !current.some((item) => item.id === row.id))] : current.filter((item) => !rows.some((row) => row.id === item.id))))}
+                        className="h-5 w-5 rounded border-slate-300 accent-brand-700"
+                      />
+                    </th>
+                  )}
+                  <th scope="col" className="py-2.5 pr-4">{t('catalog.columns.sku')}</th>
+                  <th scope="col" data-role="title" className="py-2.5 pr-4">{t('catalog.columns.product')}</th>
+                  {showBranch && <th scope="col" className="py-2.5 pr-4">{t('catalog.columns.branch')}</th>}
+                  <th scope="col" className="py-2.5 pr-4">{t('catalog.columns.unit')}</th>
+                  <th scope="col" className="py-2.5 pr-4 text-right">{t('catalog.columns.priceCash')}</th>
+                  <th scope="col" className="py-2.5 pr-4 text-right">{t('catalog.columns.priceCredit')}</th>
+                  <th scope="col" className="py-2.5 pr-4">{t('catalog.columns.status')}</th>
+                  <th scope="col" data-role="actions" className="py-2.5 text-right"><span className="sr-only">{t('backup.list.actions')}</span></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {rows.map((product) => {
+                  const base = product.units.find((u) => u.is_base)
+                  const others = product.units.length - 1
 
-                    return (
-                      <tr key={product.id}>
-                        {canCreate && (
-                          <td className="py-2 pr-2">
-                            <input type="checkbox" checked={isSelected(product)} onChange={() => toggle(product)} aria-label={t('catalog.select', { name: product.name })} className="h-4 w-4 rounded border-slate-300 text-emerald-700" />
-                          </td>
-                        )}
-                        <td className="py-2 pr-3 font-mono text-xs whitespace-nowrap">{product.sku}</td>
-                        <td className="py-2 pr-3">
-                          <span className="font-medium text-slate-900">{product.name}</span>
-                          <span className="mt-0.5 flex flex-wrap items-center gap-1 text-xs text-slate-500">
-                            <Badge tone="info">{product.type_label}</Badge>
-                            {product.track_batch && <Badge tone="warning">{t('catalog.batch')}</Badge>}
-                            {[product.category?.name, product.brand?.name].filter(Boolean).join(' · ')}
-                          </span>
+                  return (
+                    <tr key={product.id}>
+                      {canCreate && (
+                        <td className="py-3 pr-2">
+                          <input type="checkbox" checked={isSelected(product)} onChange={() => toggle(product)} aria-label={t('catalog.select', { name: product.name })} className="h-5 w-5 rounded border-slate-300 accent-brand-700" />
                         </td>
-                        {showBranch && <td className="py-2 pr-3">{product.branch.code}</td>}
-                        <td className="py-2 pr-3">
-                          {product.base_unit.name}
-                          {others > 0 && <span className="block text-xs text-slate-500">{t('catalog.moreUnits', { count: others })}</span>}
-                        </td>
-                        <td className="py-2 pr-3 text-right whitespace-nowrap">{base ? money(base.price_cash) : '—'}</td>
-                        <td className="py-2 pr-3 text-right whitespace-nowrap">{base ? money(base.price_credit) : '—'}</td>
-                        <td className="py-2 pr-3">
-                          <Badge tone={product.status === 'active' ? 'success' : 'neutral'}>{t(`catalog.status.${product.status}`)}</Badge>
-                        </td>
-                        <td className="py-2 text-right">
-                          <div className="flex justify-end gap-1">
-                            <Link to={`/products/${product.id}`} aria-label={`${canUpdate ? t('common.edit') : t('catalog.view')} ${product.name}`} className="rounded-md px-3 py-2 text-slate-700 hover:bg-slate-100">
-                              {canUpdate ? <Pencil className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
-                            </Link>
-                            {canDelete && (
-                              <Button variant="ghost" onClick={() => { setDeleteError(null); setDeleting(product) }} aria-label={`${t('common.delete')} ${product.name}`}>
-                                <Trash2 className="h-4 w-4 text-red-700" aria-hidden="true" />
-                              </Button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
+                      )}
+                      <td className="py-3 pr-4 font-mono text-xs whitespace-nowrap text-slate-600">{product.sku}</td>
+                      <td className="py-3 pr-4">
+                        <span className="font-medium text-slate-900">{product.name}</span>
+                        <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-slate-500">
+                          {subtitleOf(product).map((part, index) => (
+                            <Fragment key={part}>
+                              {index > 0 && <span aria-hidden="true">·</span>}
+                              <span>{part}</span>
+                            </Fragment>
+                          ))}
+                          {product.track_batch && <Badge tone="warning">{t('catalog.batch')}</Badge>}
+                        </span>
+                      </td>
+                      {showBranch && <td className="py-3 pr-4">{product.branch.code}</td>}
+                      <td className="py-3 pr-4">
+                        {product.base_unit.name}
+                        {others > 0 && <span className="block text-xs text-slate-500">{t('catalog.moreUnits', { count: others })}</span>}
+                      </td>
+                      <td className="py-3 pr-4 text-right whitespace-nowrap tabular-nums">{base ? money(base.price_cash) : '—'}</td>
+                      <td className="py-3 pr-4 text-right whitespace-nowrap tabular-nums">{base ? money(base.price_credit) : '—'}</td>
+                      <td className="py-3 pr-4">
+                        <Badge tone={product.status === 'active' ? 'success' : 'neutral'} dot>{t(`catalog.status.${product.status}`)}</Badge>
+                      </td>
+                      <td className="py-3 text-right">
+                        <div className="flex justify-end gap-1">
+                          <IconLink to={`/products/${product.id}`} label={`${canUpdate ? t('common.edit') : t('catalog.view')} ${product.name}`} text={canUpdate ? t('common.edit') : t('catalog.view')}>
+                            {canUpdate ? <Pencil className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
+                          </IconLink>
+                          {canDelete && (
+                            <IconButton label={`${t('common.delete')} ${product.name}`} text={t('common.delete')} onClick={() => { setDeleteError(null); setDeleting(product) }} tone="danger">
+                              <Trash2 className="h-4 w-4" aria-hidden="true" />
+                            </IconButton>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </DataTable>
             <Pagination page={products.data.meta.current_page} lastPage={products.data.meta.last_page} total={products.data.meta.total} onPage={(page) => set('page', page)} />
           </Refreshable>
         )}

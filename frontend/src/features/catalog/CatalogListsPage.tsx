@@ -1,17 +1,18 @@
-import { ArrowLeft, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Pencil, Plus, Trash2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useTranslation } from 'react-i18next'
-import { Link } from 'react-router'
 import { z } from 'zod'
+import { PageHeader } from '../../components/page.tsx'
 import { ListSkeleton, Refreshable } from '../../components/skeleton.tsx'
-import { Alert, Badge, Button, Card, ConfirmDialog, Modal, Pagination, TextField } from '../../components/ui.tsx'
+import { Alert, Badge, Button, Card, ConfirmDialog, IconButton, Modal, Pagination, TextField } from '../../components/ui.tsx'
 import { ApiError } from '../../lib/api.ts'
 import { applyServerErrors, describeError } from '../../lib/forms.ts'
 import { useClampPage } from '../../lib/pagination.ts'
 import { useAuth } from '../auth/auth-context.ts'
 import { useCatalogListPage, useDeleteListItem, useSaveListItem, type ListItem, type ListKind } from './api.ts'
+import { ProductTabs } from './ProductTabs.tsx'
 
 const KINDS: ListKind[] = ['units', 'categories', 'brands']
 const MAX_NAME: Record<ListKind, number> = { units: 50, categories: 100, brands: 100, 'customer-groups': 100 }
@@ -21,16 +22,11 @@ export default function CatalogListsPage() {
   const { t } = useTranslation()
 
   return (
-    <div className="space-y-4">
-      <Link to="/products" className="inline-flex items-center gap-1 text-sm font-medium text-emerald-700 hover:underline">
-        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        {t('catalog.lists.back')}
-      </Link>
-      <div>
-        <h1 className="text-xl font-semibold text-slate-900">{t('catalog.lists.title')}</h1>
-        <p className="mt-1 text-sm text-slate-600">{t('catalog.lists.intro')}</p>
+    <div className="space-y-5">
+      <PageHeader title={t('catalog.lists.title')} description={t('catalog.lists.intro')} tabs={<ProductTabs />} />
+      <div className="grid items-start gap-5 xl:grid-cols-3">
+        {KINDS.map((kind) => <ListCard key={kind} kind={kind} />)}
       </div>
-      {KINDS.map((kind) => <ListCard key={kind} kind={kind} />)}
     </div>
   )
 }
@@ -93,14 +89,14 @@ export function ListCard({ kind, permission = 'catalog.product' }: { kind: ListK
                 </span>
                 <span className="flex gap-1">
                   {canUpdate && (
-                    <Button variant="ghost" onClick={() => setEditing(item)} aria-label={`${t('common.edit')} ${item.name}`}>
+                    <IconButton label={`${t('common.edit')} ${item.name}`} text={t('common.edit')} onClick={() => setEditing(item)}>
                       <Pencil className="h-4 w-4" aria-hidden="true" />
-                    </Button>
+                    </IconButton>
                   )}
                   {canDelete && (
-                    <Button variant="ghost" onClick={() => { setDeleteError(null); setDeleting(item) }} aria-label={`${t('common.delete')} ${item.name}`}>
-                      <Trash2 className="h-4 w-4 text-red-700" aria-hidden="true" />
-                    </Button>
+                    <IconButton label={`${t('common.delete')} ${item.name}`} text={t('common.delete')} onClick={() => { setDeleteError(null); setDeleting(item) }} tone="danger">
+                      <Trash2 className="h-4 w-4" aria-hidden="true" />
+                    </IconButton>
                   )}
                 </span>
               </li>
@@ -164,7 +160,7 @@ function ListItemDialog({ kind, item, onClose }: { kind: ListKind; item?: ListIt
         {kind === 'categories' && <TextField label={t('catalog.lists.order')} hint={t('catalog.lists.orderHint')} inputMode="numeric" error={errors.sort_order?.message} {...form.register('sort_order')} />}
         {item && (
           <label className="flex items-start gap-2 text-sm text-slate-800">
-            <input type="checkbox" className="mt-1 h-4 w-4 rounded border-slate-300 text-emerald-700" {...form.register('is_active')} />
+            <input type="checkbox" className="mt-1 h-4 w-4 rounded border-slate-300 text-brand-700" {...form.register('is_active')} />
             <span>
               {t('catalog.lists.inUseLabel')}
               <span className="block text-xs text-slate-500">{t(kind === 'customer-groups' ? 'catalog.lists.customer-groups.inUseHint' : 'catalog.lists.inUseHint')}</span>

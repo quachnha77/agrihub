@@ -1,8 +1,12 @@
 import '@testing-library/jest-dom/vitest'
-import { cleanup } from '@testing-library/react'
+import { cleanup, configure } from '@testing-library/react'
 import { afterEach, expect } from 'vitest'
 import '../i18n/index.ts'
 import { takeUnmockedCalls } from './utils.tsx'
+
+// Chờ tối đa 4 giây cho findBy*/waitFor: khi cả bộ test chạy song song (hoặc trên máy CI chỉ 2 lõi) một màn hình đầy đủ dựng chậm hơn 1 giây mặc định.
+// Test cố ý kiểm tra trạng thái "đang tải" thì tự giữ phản hồi bằng `after`, không dựa vào thời gian chờ ngắn.
+configure({ asyncUtilTimeout: 4000 })
 
 afterEach(() => {
   cleanup()

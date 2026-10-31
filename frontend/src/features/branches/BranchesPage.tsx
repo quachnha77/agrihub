@@ -1,8 +1,10 @@
-import { Pencil, Plus, Trash2 } from 'lucide-react'
+import { Building2, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useDeferredValue, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { EmptyState, FilterBar, PageHeader, SearchField } from '../../components/page.tsx'
 import { Refreshable, TableSkeleton } from '../../components/skeleton.tsx'
-import { Alert, Badge, Button, Card, ConfirmDialog, Pagination } from '../../components/ui.tsx'
+import { DataTable } from '../../components/table.tsx'
+import { Alert, Badge, Button, Card, ConfirmDialog, IconButton, Pagination } from '../../components/ui.tsx'
 import { describeError } from '../../lib/forms.ts'
 import { useClampPage } from '../../lib/pagination.ts'
 import { useAuth } from '../auth/auth-context.ts'
@@ -37,31 +39,33 @@ export default function BranchesPage() {
   useClampPage(branches.data?.meta, setPage)
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-900">{t('branches.title')}</h1>
-          <p className="mt-1 text-sm text-slate-600">{t('branches.intro')}</p>
-        </div>
-        {can('tenant.branch.create') && (
-          <Button onClick={() => setEditing('new')}>
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            {t('branches.add')}
-          </Button>
-        )}
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        title={t('branches.title')}
+        description={t('branches.intro')}
+        actions={
+          can('tenant.branch.create') && (
+            <Button onClick={() => setEditing('new')}>
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              {t('branches.add')}
+            </Button>
+          )
+        }
+      />
 
       <Card>
-        <input
-          type="search"
-          value={q}
-          onChange={(event) => {
-            setQ(event.target.value)
-            setPage(1)
-          }}
-          aria-label={t('common.search')}
-          placeholder={t('branches.searchPlaceholder')}
-          className="mb-4 block w-full max-w-sm rounded-md border border-slate-300 px-3 py-2 text-sm"
+        <FilterBar
+          search={
+            <SearchField
+              label={t('common.search')}
+              value={q}
+              onChange={(event) => {
+                setQ(event.target.value)
+                setPage(1)
+              }}
+              placeholder={t('branches.searchPlaceholder')}
+            />
+          }
         />
 
         {branches.isPending ? (
@@ -69,50 +73,48 @@ export default function BranchesPage() {
         ) : branches.isError ? (
           <Alert tone="danger">{t('common.loadError')}</Alert>
         ) : branches.data.data.length === 0 ? (
-          <p className="py-6 text-center text-sm text-slate-500">{t('branches.empty')}</p>
+          <EmptyState icon={Building2} title={t('branches.empty')} description={q !== '' ? t('common.tryOtherFilters') : undefined} />
         ) : (
           <Refreshable refreshing={branches.isPlaceholderData}>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[40rem] text-left text-sm">
-                <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
-                  <tr>
-                    <th scope="col" className="py-2 pr-3">{t('branches.code')}</th>
-                    <th scope="col" className="py-2 pr-3">{t('branches.name')}</th>
-                    <th scope="col" className="py-2 pr-3">{t('branches.phone')}</th>
-                    <th scope="col" className="py-2 pr-3">{t('branches.address')}</th>
-                    <th scope="col" className="py-2 pr-3">{t('branches.status')}</th>
-                    <th scope="col" className="py-2 text-right">{t('backup.list.actions')}</th>
+            <DataTable minWidth="40rem">
+              <thead className="border-b border-slate-200 text-xs font-medium text-slate-500">
+                <tr>
+                  <th scope="col" className="py-2.5 pr-4">{t('branches.code')}</th>
+                  <th scope="col" data-role="title" className="py-2.5 pr-4">{t('branches.name')}</th>
+                  <th scope="col" className="py-2.5 pr-4">{t('branches.phone')}</th>
+                  <th scope="col" className="py-2.5 pr-4">{t('branches.address')}</th>
+                  <th scope="col" className="py-2.5 pr-4">{t('branches.status')}</th>
+                  <th scope="col" data-role="actions" className="py-2.5 text-right"><span className="sr-only">{t('backup.list.actions')}</span></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {branches.data.data.map((branch) => (
+                  <tr key={branch.id}>
+                    <td className="py-3 pr-4 font-mono text-xs">{branch.code}</td>
+                    <td className="py-3 pr-4 font-medium text-slate-900">{branch.name}</td>
+                    <td className="py-3 pr-4">{branch.phone ?? '—'}</td>
+                    <td className="py-3 pr-4">{branch.address ?? '—'}</td>
+                    <td className="py-3 pr-4">
+                      <Badge tone={branch.status === 'active' ? 'success' : 'neutral'}>{branch.status === 'active' ? t('common.active') : t('common.inactive')}</Badge>
+                    </td>
+                    <td className="py-3 text-right">
+                      <div className="flex justify-end gap-1">
+                        {can('tenant.branch.update') && (
+                          <IconButton label={`${t('common.edit')} ${branch.name}`} text={t('common.edit')} onClick={() => setEditing(branch)}>
+                            <Pencil className="h-4 w-4" aria-hidden="true" />
+                          </IconButton>
+                        )}
+                        {can('tenant.branch.delete') && (
+                          <IconButton label={`${t('common.delete')} ${branch.name}`} text={t('common.delete')} onClick={() => { setDeleteError(null); setDeleting(branch) }} tone="danger">
+                            <Trash2 className="h-4 w-4" aria-hidden="true" />
+                          </IconButton>
+                        )}
+                      </div>
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {branches.data.data.map((branch) => (
-                    <tr key={branch.id}>
-                      <td className="py-2 pr-3 font-mono text-xs">{branch.code}</td>
-                      <td className="py-2 pr-3 font-medium text-slate-900">{branch.name}</td>
-                      <td className="py-2 pr-3">{branch.phone ?? '—'}</td>
-                      <td className="py-2 pr-3">{branch.address ?? '—'}</td>
-                      <td className="py-2 pr-3">
-                        <Badge tone={branch.status === 'active' ? 'success' : 'neutral'}>{branch.status === 'active' ? t('common.active') : t('common.inactive')}</Badge>
-                      </td>
-                      <td className="py-2 text-right">
-                        <div className="flex justify-end gap-1">
-                          {can('tenant.branch.update') && (
-                            <Button variant="ghost" onClick={() => setEditing(branch)} aria-label={`${t('common.edit')} ${branch.name}`}>
-                              <Pencil className="h-4 w-4" aria-hidden="true" />
-                            </Button>
-                          )}
-                          {can('tenant.branch.delete') && (
-                            <Button variant="ghost" onClick={() => { setDeleteError(null); setDeleting(branch) }} aria-label={`${t('common.delete')} ${branch.name}`}>
-                              <Trash2 className="h-4 w-4 text-red-700" aria-hidden="true" />
-                            </Button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                ))}
+              </tbody>
+            </DataTable>
             <Pagination page={branches.data.meta.current_page} lastPage={branches.data.meta.last_page} total={branches.data.meta.total} onPage={setPage} />
           </Refreshable>
         )}

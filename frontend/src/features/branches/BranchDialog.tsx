@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { z } from 'zod'
-import { Alert, Button, Modal, TextField } from '../../components/ui.tsx'
+import { Alert, Button, Modal, SelectField, TextField } from '../../components/ui.tsx'
 import { applyServerErrors, describeError } from '../../lib/forms.ts'
 import { useSaveBranch, type Branch } from './api.ts'
 
@@ -55,13 +55,10 @@ export function BranchDialog({ branch, onClose }: { branch?: Branch; onClose: ()
         <TextField label={t('branches.address')} error={errors.address?.message} {...form.register('address')} />
 
         {branch && (
-          <div>
-            <label htmlFor="branch-status" className="mb-1 block text-sm font-medium text-slate-800">{t('branches.status')}</label>
-            <select id="branch-status" className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm" {...form.register('status')}>
-              <option value="active">{t('common.active')}</option>
-              <option value="inactive">{t('common.inactive')}</option>
-            </select>
-          </div>
+          <SelectField label={t('branches.status')} {...form.register('status')}>
+            <option value="active">{t('common.active')}</option>
+            <option value="inactive">{t('common.inactive')}</option>
+          </SelectField>
         )}
 
         <div className="flex justify-end gap-2">

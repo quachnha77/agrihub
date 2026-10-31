@@ -1,6 +1,7 @@
 import { FileUp } from 'lucide-react'
 import { useId, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
+import { buttonStyles } from '../../components/styles.ts'
 import { Alert, Button, Modal } from '../../components/ui.tsx'
 import { ApiError } from '../../lib/api.ts'
 import { describeError } from '../../lib/forms.ts'
@@ -57,7 +58,7 @@ export function ImportDialog({ source, onClose }: { source: TenantBackupSource; 
           <div>
             <p className="mb-1 text-sm font-medium text-slate-800">{t('backup.importDialog.file')}</p>
             {/* Ô chọn file gốc của trình duyệt hiện chữ theo ngôn ngữ trình duyệt: ẩn đi và dùng nút tiếng Việt, vẫn dùng được bằng bàn phím. */}
-            <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50 has-focus-visible:ring-2 has-focus-visible:ring-emerald-200">
+            <label className={`${buttonStyles('secondary')} cursor-pointer has-focus-visible:ring-2 has-focus-visible:ring-brand-200`}>
               <FileUp className="h-4 w-4" aria-hidden="true" />
               {file ? t('backup.importDialog.change') : t('backup.importDialog.choose')}
               <input

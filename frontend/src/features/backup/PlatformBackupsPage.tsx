@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { PageHeader } from '../../components/page.tsx'
 import { TableSkeleton } from '../../components/skeleton.tsx'
 import { Alert, Button, Card } from '../../components/ui.tsx'
 import { ApiError } from '../../lib/api.ts'
@@ -19,11 +20,8 @@ export default function PlatformBackupsPage() {
   const running = backups.data?.some((row) => row.status === 'pending' || row.status === 'running') ?? false
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-semibold text-slate-900">{t('backup.platform.title')}</h1>
-        <p className="mt-1 text-sm text-slate-600">{t('backup.platform.intro')}</p>
-      </div>
+    <div className="space-y-5">
+      <PageHeader title={t('backup.platform.title')} description={t('backup.platform.intro')} />
 
       <PlatformStatusCard />
 

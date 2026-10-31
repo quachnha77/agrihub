@@ -54,7 +54,7 @@ export default function RecoveryRequestPage({ mode }: { mode: Mode }) {
       <AuthShell title={t(`auth.recovery.${mode}.title`)} subtitle={subtitle}>
         <Alert tone="success">{sent}</Alert>
         <p className="mt-3 text-sm text-slate-600">{t('auth.recovery.sentHelp')}</p>
-        <Link to="/login" className="mt-4 block text-center text-sm font-medium text-emerald-700 hover:underline">
+        <Link to="/login" className="mt-4 block text-center text-sm font-medium text-brand-700 hover:underline">
           {t('auth.recovery.backToLogin')}
         </Link>
       </AuthShell>
@@ -88,10 +88,10 @@ export default function RecoveryRequestPage({ mode }: { mode: Mode }) {
       </form>
 
       <div className="mt-4 flex items-center justify-between text-sm">
-        <Link to="/login" className="font-medium text-emerald-700 hover:underline">
+        <Link to="/login" className="font-medium text-brand-700 hover:underline">
           {t('auth.recovery.backToLogin')}
         </Link>
-        <Link to={mode === 'password' ? '/forgot-account' : '/forgot-password'} className="text-slate-600 hover:underline">
+        <Link to={mode === 'password' ? '/forgot-account' : '/forgot-password'} className="font-medium text-brand-700 hover:underline">
           {t(mode === 'password' ? 'auth.login.forgotAccount' : 'auth.login.forgotPassword')}
         </Link>
       </div>

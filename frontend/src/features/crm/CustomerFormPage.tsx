@@ -1,9 +1,10 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { ArrowLeft } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useParams } from 'react-router'
+import { FormActions, PageHeader } from '../../components/page.tsx'
+import { fieldBase, fieldTone } from '../../components/styles.ts'
 import { FormPageSkeleton } from '../../components/skeleton.tsx'
 import { Alert, Badge, Button, Card, SelectField, TextField } from '../../components/ui.tsx'
 import { ApiError } from '../../lib/api.ts'
@@ -36,7 +37,7 @@ export default function CustomerFormPage() {
     return (
       <div className="space-y-3">
         <Alert tone="danger">{notFound ? t('crm.customers.notFound') : t('common.loadError')}</Alert>
-        <Link to="/customers" className="text-sm font-medium text-emerald-700 hover:underline">{t('crm.customers.back')}</Link>
+        <Link to="/customers" className="text-sm font-medium text-brand-700 hover:underline">{t('crm.customers.back')}</Link>
       </div>
     )
   }
@@ -47,8 +48,8 @@ export default function CustomerFormPage() {
 function ReadOnly({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="mb-1 text-sm font-medium text-slate-800">{label}</p>
-      <p className="rounded-md bg-slate-100 px-3 py-2 text-sm text-slate-700">{value}</p>
+      <p className="mb-1.5 text-sm font-medium text-slate-800">{label}</p>
+      <p className="flex min-h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-base text-slate-700 md:text-sm">{value}</p>
     </div>
   )
 }
@@ -94,24 +95,22 @@ function CustomerForm({ customer, groups, branches }: { customer?: Customer; gro
   })
 
   return (
-    <div className="space-y-4">
-      <Link to="/customers" className="inline-flex items-center gap-1 text-sm font-medium text-emerald-700 hover:underline">
-        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        {t('crm.customers.back')}
-      </Link>
-
-      <div>
-        <h1 className="flex flex-wrap items-center gap-2 text-xl font-semibold text-slate-900">
-          {creating ? t('crm.customers.createTitle') : t('crm.customers.editTitle', { name: customer.name })}
-          {customer && <Badge tone="info">{customer.code}</Badge>}
-        </h1>
-        <p className="mt-1 text-sm text-slate-600">{creating ? t('crm.customers.createIntro') : t('crm.customers.editIntro')}</p>
-      </div>
+    <div className="mx-auto max-w-5xl space-y-5">
+      <PageHeader
+        back={{ to: '/customers', label: t('crm.customers.back') }}
+        title={
+          <span className="flex flex-wrap items-center gap-2">
+            {creating ? t('crm.customers.createTitle') : t('crm.customers.editTitle', { name: customer.name })}
+            {customer && <Badge tone="info">{customer.code}</Badge>}
+          </span>
+        }
+        description={creating ? t('crm.customers.createIntro') : t('crm.customers.editIntro')}
+      />
 
       {!editable && <Alert tone="info">{t('crm.customers.readOnly')}</Alert>}
       {formError && <Alert tone="danger">{formError}</Alert>}
 
-      <form onSubmit={submit} noValidate className="space-y-4">
+      <form onSubmit={submit} noValidate className="space-y-5">
         <fieldset disabled={!editable} className="space-y-4">
           <Card title={t('crm.form.general')}>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -146,8 +145,8 @@ function CustomerForm({ customer, groups, branches }: { customer?: Customer; gro
               </SelectField>
 
               <div className="sm:col-span-2">
-                <label htmlFor="customer-notes" className="mb-1 block text-sm font-medium text-slate-800">{t('crm.form.notes')}</label>
-                <textarea id="customer-notes" rows={2} className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-200 disabled:bg-slate-100" {...form.register('notes')} />
+                <label htmlFor="customer-notes" className="mb-1.5 block text-sm font-medium text-slate-800">{t('crm.form.notes')}</label>
+                <textarea id="customer-notes" rows={2} className={`${fieldBase} ${fieldTone(false)}`} {...form.register('notes')} />
                 {errors.notes && <p role="alert" className="mt-1 text-sm text-red-700">{errors.notes.message}</p>}
               </div>
             </div>
@@ -178,10 +177,10 @@ function CustomerForm({ customer, groups, branches }: { customer?: Customer; gro
           </Card>
         </fieldset>
 
-        <div className="flex justify-end gap-2">
+        <FormActions>
           <Button variant="ghost" onClick={() => navigate('/customers')}>{t('common.cancel')}</Button>
           {editable && <Button type="submit" loading={save.isPending}>{save.isPending ? t('common.saving') : t('common.save')}</Button>}
-        </div>
+        </FormActions>
       </form>
     </div>
   )

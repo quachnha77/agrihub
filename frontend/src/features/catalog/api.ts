@@ -166,6 +166,15 @@ export function useCopyProducts() {
   })
 }
 
+/** Tổng số sản phẩm (chỉ xin một bản ghi để lấy số đếm): trang Tổng quan dùng để biết cửa hàng mới chưa có sản phẩm nào. */
+export function useProductCount(enabled = true) {
+  return useQuery({
+    queryKey: [...PRODUCTS, 'count'],
+    queryFn: async () => (await get<Paginated<Product>>('/products?per_page=1')).meta.total,
+    enabled,
+  })
+}
+
 /** Danh sách dùng chung toàn doanh nghiệp (đơn vị tính, nhóm hàng, thương hiệu). */
 export function useCatalogList(kind: ListKind, enabled = true) {
   return useQuery({

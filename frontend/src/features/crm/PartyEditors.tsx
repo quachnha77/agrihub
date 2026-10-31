@@ -10,12 +10,12 @@ const MAX_ROWS = 10
 /** Khung một dòng của danh sách (địa chỉ, người liên hệ): có tiêu đề "Địa chỉ 1" để đọc màn hình và để phân biệt các dòng cùng tên ô. */
 function Row({ title, remove, removeLabel, children }: { title: string; remove: () => void; removeLabel: string; children: ReactNode }) {
   return (
-    <fieldset className="rounded-md border border-slate-200 p-3">
+    <fieldset className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
       <legend className="px-1 text-sm font-medium text-slate-700">{title}</legend>
       <div className="grid gap-3 sm:grid-cols-2">{children}</div>
       <div className="mt-2 flex justify-end">
-        <Button variant="ghost" onClick={remove} aria-label={removeLabel}>
-          <Trash2 className="h-4 w-4 text-red-700" aria-hidden="true" />
+        <Button variant="ghost" size="sm" onClick={remove} aria-label={removeLabel} className="text-red-700 hover:bg-red-50">
+          <Trash2 className="h-4 w-4" aria-hidden="true" />
           {removeLabel}
         </Button>
       </div>

@@ -1,1 +1,199 @@
 @import "tailwindcss";
+
+/*
+ * Hệ thống thiết kế AgriHub. Màu, bóng, bo góc dùng chung khai báo ở đây; các thành phần dùng chung ở components/*.tsx.
+ * Quy ước: không viết màu thương hiệu trực tiếp (emerald-…) trong màn hình, luôn dùng `brand-…` để đổi màu một chỗ là đổi cả ứng dụng.
+ */
+@theme {
+  /* Thương hiệu: xanh lá nông nghiệp (cùng sắc với emerald của Tailwind). */
+  --color-brand-50: oklch(97.9% 0.021 166.113);
+  --color-brand-100: oklch(95% 0.052 163.051);
+  --color-brand-200: oklch(90.5% 0.093 164.15);
+  --color-brand-300: oklch(84.5% 0.143 164.978);
+  --color-brand-400: oklch(76.5% 0.177 163.223);
+  --color-brand-500: oklch(69.6% 0.17 162.48);
+  --color-brand-600: oklch(59.6% 0.145 163.225);
+  --color-brand-700: oklch(50.8% 0.118 165.612);
+  --color-brand-800: oklch(43.2% 0.095 166.913);
+  --color-brand-900: oklch(37.8% 0.077 168.94);
+  --color-brand-950: oklch(26.2% 0.051 172.552);
+
+  /* Nền trang: xám ngả xanh rất nhạt để thẻ trắng nổi lên mà không cần viền đậm. */
+  --color-canvas: #f4f7f5;
+
+  --shadow-card: 0 1px 2px rgb(15 23 42 / 0.04), 0 1px 3px rgb(15 23 42 / 0.05);
+  --shadow-pop: 0 10px 30px -8px rgb(15 23 42 / 0.25), 0 2px 6px rgb(15 23 42 / 0.08);
+
+  --animate-fade-in: fade-in 140ms ease-out;
+  --animate-sheet-in: sheet-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-pop-in: pop-in 120ms ease-out;
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes sheet-in {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes pop-in {
+    from { opacity: 0; transform: scale(0.97); }
+    to { opacity: 1; transform: scale(1); }
+  }
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-slate-900);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* <fieldset> mặc định rộng tối thiểu bằng nội dung: một bảng rộng bên trong làm cả trang tràn ngang trên điện thoại. */
+  fieldset {
+    min-width: 0;
+  }
+
+  ::selection {
+    background-color: var(--color-brand-100);
+  }
+
+  /* Người dùng chọn giảm chuyển động: bỏ mọi hiệu ứng. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  /*
+   * Bảng dữ liệu (xem components/table.tsx). Màn hình rộng: bảng thường. Điện thoại: mỗi dòng thành một thẻ hai cột, nhãn cột lấy từ
+   * tiêu đề cột (thuộc tính data-label do DataTable gắn). Cột đánh dấu data-role: "title" = tiêu đề thẻ (chiếm cả dòng, đứng đầu),
+   * "actions" = hàng nút dưới cùng, "select" = ô tích góc phải, "wide" = chiếm cả dòng.
+   */
+  .data-table {
+    min-width: var(--min-w, 40rem);
+  }
+
+  .data-table tbody tr {
+    transition: background-color 120ms;
+  }
+
+  /* Tiêu đề cột không ngắt dòng (cột hẹp làm "Giá công nợ" xuống hàng rất khó đọc); bảng nhập liệu thì được ngắt. */
+  .data-table thead th {
+    white-space: nowrap;
+  }
+
+  .data-table.data-table-form thead th {
+    white-space: normal;
+  }
+
+  .data-table tbody tr:hover {
+    background-color: color-mix(in oklab, var(--color-slate-50) 80%, transparent);
+  }
+
+  @media (max-width: 767px) {
+    .data-table {
+      display: block;
+      min-width: 0;
+      width: 100%;
+    }
+
+    .data-table > thead {
+      display: none;
+    }
+
+    .data-table > tbody {
+      display: block;
+    }
+
+    .data-table > tbody > tr {
+      position: relative;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.5rem 1rem;
+      margin-bottom: 0.75rem;
+      padding: 0.75rem 0.875rem;
+      border: 1px solid var(--color-slate-200);
+      border-radius: 0.75rem;
+      background-color: #fff;
+    }
+
+    .data-table > tbody > tr:last-child {
+      margin-bottom: 0;
+    }
+
+    .data-table > tbody > tr > td {
+      display: block;
+      min-width: 0;
+      padding: 0 !important;
+      border: 0;
+      text-align: left !important;
+      overflow-wrap: anywhere;
+    }
+
+    .data-table > tbody > tr > td[data-label]:not([data-label=""])::before {
+      content: attr(data-label);
+      display: block;
+      margin-bottom: 0.125rem;
+      font-size: 0.75rem;
+      line-height: 1rem;
+      color: var(--color-slate-500);
+    }
+
+    .data-table > tbody > tr > td[data-role="title"] {
+      grid-column: 1 / -1;
+      order: -2;
+      font-size: 1rem;
+      padding-right: 2rem !important;
+    }
+
+    /* Tiêu đề thẻ không cần nhãn cột ("Sản phẩm") phía trên. */
+    .data-table > tbody > tr > td[data-role="title"]::before {
+      content: none;
+    }
+
+    /* Cột phụ: chỉ hiện trong bảng trên máy tính, thẻ trên điện thoại bỏ bớt cho ngắn. */
+    .data-table > tbody > tr > td[data-role="optional"] {
+      display: none;
+    }
+
+    .data-table > tbody > tr > td[data-role="wide"] {
+      grid-column: 1 / -1;
+    }
+
+    .data-table > tbody > tr > td[data-role="select"] {
+      position: absolute;
+      top: 0.875rem;
+      right: 1rem;
+      order: -3;
+    }
+
+    .data-table > tbody > tr > td[data-role="actions"] {
+      grid-column: 1 / -1;
+      order: 99;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 0.25rem;
+      margin-top: 0.25rem;
+      padding-top: 0.5rem !important;
+      border-top: 1px solid var(--color-slate-100);
+    }
+
+    /* Bảng nhập liệu (biểu mẫu): nhãn nằm trên ô nhập, mỗi ô một dòng. */
+    .data-table.data-table-form > tbody > tr {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+}

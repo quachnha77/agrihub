@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { DataTable } from '../../components/table.tsx'
 import { Badge, type Tone } from '../../components/ui.tsx'
 import { formatDateTime } from '../../lib/format.ts'
 import type { BackupRow, BackupStatusValue, RestoreRunRow } from './api.ts'
@@ -19,32 +20,30 @@ export function RestoreHistory({ runs, backups }: { runs: RestoreRunRow[]; backu
   if (runs.length === 0) return <p className="py-4 text-center text-sm text-slate-500">{t('backup.history.empty')}</p>
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[40rem] text-left text-sm">
-        <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
-          <tr>
-            <th scope="col" className="py-2 pr-3">{t('backup.history.requested')}</th>
-            <th scope="col" className="py-2 pr-3">{t('backup.history.from')}</th>
-            <th scope="col" className="py-2 pr-3">{t('backup.history.undoPoint')}</th>
-            <th scope="col" className="py-2 pr-3">{t('backup.history.status')}</th>
-            <th scope="col" className="py-2">{t('backup.history.finished')}</th>
+    <DataTable minWidth="40rem">
+      <thead className="border-b border-slate-200 text-xs font-medium text-slate-500">
+        <tr>
+          <th scope="col" data-role="title" className="py-2.5 pr-4">{t('backup.history.requested')}</th>
+          <th scope="col" className="py-2.5 pr-4">{t('backup.history.from')}</th>
+          <th scope="col" className="py-2.5 pr-4">{t('backup.history.undoPoint')}</th>
+          <th scope="col" className="py-2.5 pr-4">{t('backup.history.status')}</th>
+          <th scope="col" className="py-2.5">{t('backup.history.finished')}</th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-slate-100">
+        {runs.map((run) => (
+          <tr key={run.id}>
+            <td className="py-3 pr-4 whitespace-nowrap">{formatDateTime(run.created_at)}</td>
+            <td className="py-3 pr-4">{describe(run.backup_id)}</td>
+            <td className="py-3 pr-4">{describe(run.pre_restore_backup_id)}</td>
+            <td className="py-3 pr-4">
+              <Badge tone={statusTone[run.status]}>{t(`backup.statuses.${run.status}`)}</Badge>
+              {run.error && <span className="mt-1 block max-w-xs text-xs text-red-700">{run.error}</span>}
+            </td>
+            <td className="py-3 whitespace-nowrap">{formatDateTime(run.finished_at)}</td>
           </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-100">
-          {runs.map((run) => (
-            <tr key={run.id}>
-              <td className="py-2 pr-3 whitespace-nowrap">{formatDateTime(run.created_at)}</td>
-              <td className="py-2 pr-3">{describe(run.backup_id)}</td>
-              <td className="py-2 pr-3">{describe(run.pre_restore_backup_id)}</td>
-              <td className="py-2 pr-3">
-                <Badge tone={statusTone[run.status]}>{t(`backup.statuses.${run.status}`)}</Badge>
-                {run.error && <span className="mt-1 block max-w-xs text-xs text-red-700">{run.error}</span>}
-              </td>
-              <td className="py-2 whitespace-nowrap">{formatDateTime(run.finished_at)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+        ))}
+      </tbody>
+    </DataTable>
   )
 }

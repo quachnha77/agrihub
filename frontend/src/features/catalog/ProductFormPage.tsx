@@ -1,10 +1,11 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { ArrowLeft } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useParams } from 'react-router'
+import { FormActions, PageHeader } from '../../components/page.tsx'
 import { FormPageSkeleton } from '../../components/skeleton.tsx'
+import { fieldBase, fieldTone } from '../../components/styles.ts'
 import { Alert, Badge, Button, Card, CheckboxField, SelectField, TextField } from '../../components/ui.tsx'
 import { ApiError } from '../../lib/api.ts'
 import { describeError } from '../../lib/forms.ts'
@@ -36,7 +37,7 @@ export default function ProductFormPage() {
     return (
       <div className="space-y-3">
         <Alert tone="danger">{notFound ? t('catalog.form.notFound') : t('common.loadError')}</Alert>
-        <Link to="/products" className="text-sm font-medium text-emerald-700 hover:underline">{t('catalog.form.back')}</Link>
+        <Link to="/products" className="text-sm font-medium text-brand-700 hover:underline">{t('catalog.form.back')}</Link>
       </div>
     )
   }
@@ -111,25 +112,23 @@ function ProductForm({ product, types, maxUnits, lists }: { product?: Product; t
   })
 
   return (
-    <div className="space-y-4">
-      <Link to="/products" className="inline-flex items-center gap-1 text-sm font-medium text-emerald-700 hover:underline">
-        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        {t('catalog.form.back')}
-      </Link>
-
-      <div>
-        <h1 className="flex flex-wrap items-center gap-2 text-xl font-semibold text-slate-900">
-          {creating ? t('catalog.form.createTitle') : t('catalog.form.editTitle', { name: product.name })}
-          {product && <Badge tone="info">{product.type_label}</Badge>}
-        </h1>
-        <p className="mt-1 text-sm text-slate-600">{creating ? t('catalog.form.createIntro') : t('catalog.form.editIntro', { branch: product.branch.name })}</p>
-      </div>
+    <div className="mx-auto max-w-5xl space-y-5">
+      <PageHeader
+        back={{ to: '/products', label: t('catalog.form.back') }}
+        title={
+          <span className="flex flex-wrap items-center gap-2">
+            {creating ? t('catalog.form.createTitle') : t('catalog.form.editTitle', { name: product.name })}
+            {product && <Badge tone="info">{product.type_label}</Badge>}
+          </span>
+        }
+        description={creating ? t('catalog.form.createIntro') : t('catalog.form.editIntro', { branch: product.branch.name })}
+      />
 
       {!editable && <Alert tone="info">{t('catalog.form.readOnly')}</Alert>}
       {formError && <Alert tone="danger">{formError}</Alert>}
 
-      <form onSubmit={submit} noValidate className="space-y-4">
-        <fieldset disabled={!editable} className="space-y-4">
+      <form onSubmit={submit} noValidate className="space-y-5">
+        <fieldset disabled={!editable} className="space-y-5">
           <Card title={t('catalog.form.general')}>
             <div className="grid gap-4 sm:grid-cols-2">
               {creating ? (
@@ -174,8 +173,8 @@ function ProductForm({ product, types, maxUnits, lists }: { product?: Product; t
               </SelectField>
 
               <div className="sm:col-span-2">
-                <label htmlFor="product-description" className="mb-1 block text-sm font-medium text-slate-800">{t('catalog.form.description')}</label>
-                <textarea id="product-description" rows={2} className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-200" {...form.register('description')} />
+                <label htmlFor="product-description" className="mb-1.5 block text-sm font-medium text-slate-800">{t('catalog.form.description')}</label>
+                <textarea id="product-description" rows={2} className={`${fieldBase} ${fieldTone(false)}`} {...form.register('description')} />
                 {errors.description && <p role="alert" className="mt-1 text-sm text-red-700">{errors.description.message}</p>}
               </div>
 
@@ -243,10 +242,10 @@ function ProductForm({ product, types, maxUnits, lists }: { product?: Product; t
           </Card>
         </fieldset>
 
-        <div className="flex justify-end gap-2">
+        <FormActions>
           <Button variant="ghost" onClick={() => navigate('/products')}>{t('common.cancel')}</Button>
           {editable && <Button type="submit" loading={save.isPending}>{save.isPending ? t('common.saving') : t('common.save')}</Button>}
-        </div>
+        </FormActions>
       </form>
     </div>
   )
@@ -255,8 +254,8 @@ function ProductForm({ product, types, maxUnits, lists }: { product?: Product; t
 function ReadOnly({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="mb-1 text-sm font-medium text-slate-800">{label}</p>
-      <p className="rounded-md bg-slate-100 px-3 py-2 text-sm text-slate-700">{value}</p>
+      <p className="mb-1.5 text-sm font-medium text-slate-800">{label}</p>
+      <p className="flex min-h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-base text-slate-700 md:text-sm">{value}</p>
     </div>
   )
 }

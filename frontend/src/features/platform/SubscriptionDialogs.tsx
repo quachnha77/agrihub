@@ -4,6 +4,7 @@ import { useForm, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { z } from 'zod'
 import { FieldsSkeleton } from '../../components/skeleton.tsx'
+import { fieldBase, fieldTone } from '../../components/styles.ts'
 import { Alert, Button, Modal, TextField } from '../../components/ui.tsx'
 import { formatVnd } from '../../lib/format.ts'
 import { applyServerErrors, describeError } from '../../lib/forms.ts'
@@ -13,7 +14,7 @@ const PAYMENT_METHODS = ['bank_transfer', 'momo', 'cash', 'other'] as const
 const MAX_PERIODS = 24
 const MAX_REOPEN_DAYS = 30
 
-const SELECT_CLASS = 'block w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm'
+const SELECT_CLASS = `${fieldBase} ${fieldTone(false)}`
 const optionalInt = (value: string) => (value.trim() === '' ? undefined : Number(value))
 const isMoney = (value: string) => value.trim() === '' || (/^\d+$/.test(value.trim()) && Number(value) <= 100_000_000_000)
 

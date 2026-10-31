@@ -1,9 +1,12 @@
-import { Eye, Pencil, Plus, Trash2, Users } from 'lucide-react'
+import { Contact, Eye, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useDeferredValue, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link, useLocation } from 'react-router'
-import { FilterBar, Refreshable, TableSkeleton } from '../../components/skeleton.tsx'
-import { Alert, Badge, Button, Card, ConfirmDialog, Pagination, SelectField } from '../../components/ui.tsx'
+import { useLocation } from 'react-router'
+import { EmptyState, FilterBar, FilterSelect, PageHeader, SearchField } from '../../components/page.tsx'
+import { Refreshable, TableSkeleton } from '../../components/skeleton.tsx'
+import { DataTable } from '../../components/table.tsx'
+import { Alert, Badge, Button, ButtonLink, Card, ConfirmDialog, IconButton, IconLink, Pagination } from '../../components/ui.tsx'
+import { countActiveFilters } from '../../lib/filters.ts'
 import { formatVnd } from '../../lib/format.ts'
 import { describeError } from '../../lib/forms.ts'
 import { useClampPage } from '../../lib/pagination.ts'
@@ -11,8 +14,7 @@ import { useAuth } from '../auth/auth-context.ts'
 import { useAllBranches } from '../branches/api.ts'
 import { useCatalogList } from '../catalog/api.ts'
 import { CUSTOMER_TYPES, useCustomers, useDeleteCustomer, type Customer, type CustomerFilters } from './api.ts'
-
-const linkButton = 'inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium'
+import { CustomerTabs } from './CustomerTabs.tsx'
 
 /** Hạn mức công nợ ở dạng đọc nhanh: "Không ghi nợ" khi hạn mức 0, ngược lại số tiền kèm số ngày nợ tối đa nếu có. */
 function Credit({ customer }: { customer: Customer }) {
@@ -29,6 +31,8 @@ function Credit({ customer }: { customer: Customer }) {
   )
 }
 
+const EMPTY_FILTERS: CustomerFilters = { q: '', type: '', status: '', branch: '', group: '', page: 1 }
+
 /** Khách hàng dùng chung cả doanh nghiệp; mỗi khách có một chi nhánh phụ trách (người chỉ có quyền chi nhánh chỉ thấy khách của chi nhánh mình). */
 export default function CustomersPage() {
   const { t } = useTranslation()
@@ -36,7 +40,7 @@ export default function CustomersPage() {
   const location = useLocation()
   const saved = (location.state as { saved?: 'created' | 'updated'; name?: string } | null) ?? null
 
-  const [filters, setFilters] = useState<CustomerFilters>({ q: '', type: '', status: '', branch: '', group: '', page: 1 })
+  const [filters, setFilters] = useState<CustomerFilters>(EMPTY_FILTERS)
   const search = useDeferredValue(filters.q)
   const customers = useCustomers({ ...filters, q: search })
   const branches = useAllBranches()
@@ -54,6 +58,8 @@ export default function CustomersPage() {
   const showBranch = (branches.data?.length ?? 0) > 1
   // Ô lọc và bảng chờ dữ liệu tham chiếu (chi nhánh/kho) rồi hiện cùng lúc, để ô lọc/cột "Chi nhánh" thêm vào muộn không làm trang dịch.
   const loading = customers.isPending || branches.isLoading
+  const activeFilters = countActiveFilters(filters)
+  const filtered = activeFilters > 0 || filters.q !== ''
   const set = <K extends keyof CustomerFilters>(key: K, value: CustomerFilters[K]) => setFilters((current) => ({ ...current, [key]: value, page: key === 'page' ? (value as number) : 1 }))
 
   async function confirmDelete() {
@@ -71,25 +77,20 @@ export default function CustomersPage() {
   useClampPage(customers.data?.meta, (page) => set('page', page))
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-900">{t('crm.customers.title')}</h1>
-          <p className="mt-1 text-sm text-slate-600">{t('crm.customers.intro')}</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Link to="/customers/groups" className={`${linkButton} border-slate-300 bg-white text-slate-800 hover:bg-slate-50`}>
-            <Users className="h-4 w-4" aria-hidden="true" />
-            {t('crm.customers.manageGroups')}
-          </Link>
-          {canCreate && (
-            <Link to="/customers/new" className={`${linkButton} border-transparent bg-emerald-700 text-white hover:bg-emerald-800`}>
+    <div className="space-y-5">
+      <PageHeader
+        title={t('crm.customers.title')}
+        description={t('crm.customers.intro')}
+        tabs={<CustomerTabs />}
+        actions={
+          canCreate && (
+            <ButtonLink to="/customers/new">
               <Plus className="h-4 w-4" aria-hidden="true" />
               {t('crm.customers.add')}
-            </Link>
-          )}
-        </div>
-      </div>
+            </ButtonLink>
+          )
+        }
+      />
 
       {saved?.saved && !dismissed && (
         <Alert tone="success">
@@ -101,37 +102,32 @@ export default function CustomersPage() {
       )}
 
       <Card>
-        <FilterBar loading={loading} fields={['lg:col-span-2', '', '', '', '']} className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
-          <div className="lg:col-span-2">
-            <label htmlFor="customer-search" className="mb-1 block text-sm font-medium text-slate-800">{t('common.search')}</label>
-            <input
-              id="customer-search"
-              type="search"
-              value={filters.q}
-              onChange={(event) => set('q', event.target.value)}
-              placeholder={t('crm.customers.searchPlaceholder')}
-              className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-200"
-            />
-          </div>
-          <SelectField label={t('crm.filters.type')} value={filters.type} onChange={(event) => set('type', event.target.value)}>
+        <FilterBar
+          loading={loading}
+          selects={4}
+          activeCount={activeFilters}
+          onClear={() => setFilters(EMPTY_FILTERS)}
+          search={<SearchField label={t('common.search')} value={filters.q} onChange={(event) => set('q', event.target.value)} placeholder={t('crm.customers.searchPlaceholder')} />}
+        >
+          <FilterSelect label={t('crm.filters.type')} value={filters.type} onChange={(event) => set('type', event.target.value)}>
             <option value="">{t('crm.filters.all')}</option>
             {CUSTOMER_TYPES.map((type) => <option key={type} value={type}>{t(`crm.types.${type}`)}</option>)}
-          </SelectField>
-          <SelectField label={t('crm.filters.group')} value={filters.group} onChange={(event) => set('group', event.target.value)}>
+          </FilterSelect>
+          <FilterSelect label={t('crm.filters.group')} value={filters.group} onChange={(event) => set('group', event.target.value)}>
             <option value="">{t('crm.filters.all')}</option>
             {(groups.data ?? []).map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
-          </SelectField>
+          </FilterSelect>
           {showBranch && (
-            <SelectField label={t('crm.filters.branch')} value={filters.branch} onChange={(event) => set('branch', event.target.value)}>
+            <FilterSelect label={t('crm.filters.branch')} value={filters.branch} onChange={(event) => set('branch', event.target.value)}>
               <option value="">{t('crm.filters.all')}</option>
               {(branches.data ?? []).map((b) => <option key={b.id} value={b.id}>{b.code} — {b.name}</option>)}
-            </SelectField>
+            </FilterSelect>
           )}
-          <SelectField label={t('crm.filters.status')} value={filters.status} onChange={(event) => set('status', event.target.value)}>
+          <FilterSelect label={t('crm.filters.status')} value={filters.status} onChange={(event) => set('status', event.target.value)}>
             <option value="">{t('crm.filters.all')}</option>
             <option value="active">{t('crm.status.active')}</option>
             <option value="inactive">{t('crm.status.inactive')}</option>
-          </SelectField>
+          </FilterSelect>
         </FilterBar>
 
         {loading ? (
@@ -139,56 +135,64 @@ export default function CustomersPage() {
         ) : customers.isError ? (
           <Alert tone="danger">{t('common.loadError')}</Alert>
         ) : rows.length === 0 ? (
-          <p className="py-6 text-center text-sm text-slate-500">{t('crm.customers.empty')}</p>
+          <EmptyState
+            icon={Contact}
+            title={t('crm.customers.empty')}
+            description={filtered ? t('common.tryOtherFilters') : undefined}
+            action={filtered ? <Button variant="secondary" onClick={() => setFilters(EMPTY_FILTERS)}>{t('common.clearFilters')}</Button> : canCreate ? <ButtonLink to="/customers/new">{t('crm.customers.add')}</ButtonLink> : undefined}
+          />
         ) : (
           <Refreshable refreshing={customers.isPlaceholderData}>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[52rem] text-left text-sm">
-                <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
-                  <tr>
-                    <th scope="col" className="py-2 pr-3">{t('crm.columns.code')}</th>
-                    <th scope="col" className="py-2 pr-3">{t('crm.columns.customer')}</th>
-                    <th scope="col" className="py-2 pr-3">{t('crm.columns.phone')}</th>
-                    {showBranch && <th scope="col" className="py-2 pr-3">{t('crm.columns.branch')}</th>}
-                    <th scope="col" className="py-2 pr-3 text-right">{t('crm.columns.credit')}</th>
-                    <th scope="col" className="py-2 pr-3">{t('crm.columns.status')}</th>
-                    <th scope="col" className="py-2 text-right">{t('backup.list.actions')}</th>
+            <DataTable minWidth="52rem">
+              <thead className="border-b border-slate-200 text-xs font-medium text-slate-500">
+                <tr>
+                  <th scope="col" className="py-2.5 pr-4">{t('crm.columns.code')}</th>
+                  <th scope="col" data-role="title" className="py-2.5 pr-4">{t('crm.columns.customer')}</th>
+                  <th scope="col" className="py-2.5 pr-4">{t('crm.columns.phone')}</th>
+                  {showBranch && <th scope="col" className="py-2.5 pr-4">{t('crm.columns.branch')}</th>}
+                  <th scope="col" className="py-2.5 pr-4 text-right">{t('crm.columns.credit')}</th>
+                  <th scope="col" className="py-2.5 pr-4">{t('crm.columns.status')}</th>
+                  <th scope="col" data-role="actions" className="py-2.5 text-right"><span className="sr-only">{t('backup.list.actions')}</span></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {rows.map((customer) => (
+                  <tr key={customer.id}>
+                    <td className="py-3 pr-4 font-mono text-xs whitespace-nowrap text-slate-600">{customer.code}</td>
+                    <td className="py-3 pr-4">
+                      <span className="font-medium text-slate-900">{customer.name}</span>
+                      <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-slate-500">
+                        <span>{t(`crm.types.${customer.type}`)}</span>
+                        {customer.group?.name && (
+                          <>
+                            <span aria-hidden="true">·</span>
+                            <span>{customer.group.name}</span>
+                          </>
+                        )}
+                      </span>
+                    </td>
+                    <td className="py-3 pr-4 whitespace-nowrap">{customer.phone ?? '—'}</td>
+                    {showBranch && <td className="py-3 pr-4">{customer.branch.code}</td>}
+                    <td className="py-3 pr-4 text-right whitespace-nowrap tabular-nums"><Credit customer={customer} /></td>
+                    <td className="py-3 pr-4">
+                      <Badge tone={customer.status === 'active' ? 'success' : 'neutral'} dot>{t(`crm.status.${customer.status}`)}</Badge>
+                    </td>
+                    <td className="py-3 text-right">
+                      <div className="flex justify-end gap-1">
+                        <IconLink to={`/customers/${customer.id}`} label={`${canUpdate ? t('common.edit') : t('crm.view')} ${customer.name}`} text={canUpdate ? t('common.edit') : t('crm.view')}>
+                          {canUpdate ? <Pencil className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
+                        </IconLink>
+                        {canDelete && (
+                          <IconButton label={`${t('common.delete')} ${customer.name}`} text={t('common.delete')} onClick={() => { setDeleteError(null); setDeleting(customer) }} tone="danger">
+                            <Trash2 className="h-4 w-4" aria-hidden="true" />
+                          </IconButton>
+                        )}
+                      </div>
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {rows.map((customer) => (
-                    <tr key={customer.id}>
-                      <td className="py-2 pr-3 font-mono text-xs whitespace-nowrap">{customer.code}</td>
-                      <td className="py-2 pr-3">
-                        <span className="font-medium text-slate-900">{customer.name}</span>
-                        <span className="mt-0.5 flex flex-wrap items-center gap-1 text-xs text-slate-500">
-                          <Badge tone="info">{t(`crm.types.${customer.type}`)}</Badge>
-                          {customer.group?.name}
-                        </span>
-                      </td>
-                      <td className="py-2 pr-3 whitespace-nowrap">{customer.phone ?? '—'}</td>
-                      {showBranch && <td className="py-2 pr-3">{customer.branch.code}</td>}
-                      <td className="py-2 pr-3 text-right whitespace-nowrap"><Credit customer={customer} /></td>
-                      <td className="py-2 pr-3">
-                        <Badge tone={customer.status === 'active' ? 'success' : 'neutral'}>{t(`crm.status.${customer.status}`)}</Badge>
-                      </td>
-                      <td className="py-2 text-right">
-                        <div className="flex justify-end gap-1">
-                          <Link to={`/customers/${customer.id}`} aria-label={`${canUpdate ? t('common.edit') : t('crm.view')} ${customer.name}`} className="rounded-md px-3 py-2 text-slate-700 hover:bg-slate-100">
-                            {canUpdate ? <Pencil className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
-                          </Link>
-                          {canDelete && (
-                            <Button variant="ghost" onClick={() => { setDeleteError(null); setDeleting(customer) }} aria-label={`${t('common.delete')} ${customer.name}`}>
-                              <Trash2 className="h-4 w-4 text-red-700" aria-hidden="true" />
-                            </Button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                ))}
+              </tbody>
+            </DataTable>
             <Pagination page={customers.data.meta.current_page} lastPage={customers.data.meta.last_page} total={customers.data.meta.total} onPage={(page) => set('page', page)} />
           </Refreshable>
         )}

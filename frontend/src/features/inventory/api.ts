@@ -204,10 +204,20 @@ export function useStockProducts(filters: StockFilters) {
   })
 }
 
-export function useStockSummary(warehouse: string) {
+export function useStockSummary(warehouse: string, enabled = true) {
   return useQuery({
     queryKey: [...STOCK, 'summary', warehouse],
     queryFn: async () => (await get<{ data: StockSummary }>(`/stock/summary?${params({ warehouse }, 1).toString()}`)).data,
+    enabled,
+  })
+}
+
+/** Vài phiếu kho mới nhất cho trang Tổng quan. */
+export function useRecentStockDocuments(enabled = true) {
+  return useQuery({
+    queryKey: [...STOCK, 'documents', 'recent'],
+    queryFn: async () => (await get<Paginated<StockDocument>>('/stock/documents?per_page=5')).data,
+    enabled,
   })
 }
 

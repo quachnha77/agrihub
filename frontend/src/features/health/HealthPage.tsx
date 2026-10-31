@@ -1,5 +1,6 @@
 import { RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { PageHeader } from '../../components/page.tsx'
 import { CardGridSkeleton } from '../../components/skeleton.tsx'
 import { Alert, Badge, Button, Card, type Tone } from '../../components/ui.tsx'
 import { formatDateTime } from '../../lib/format.ts'
@@ -19,17 +20,17 @@ export default function HealthPage() {
   const query = useSystemHealth()
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-900">{t('health.title')}</h1>
-          <p className="mt-1 text-sm text-slate-600">{t('health.intro')}</p>
-        </div>
-        <Button variant="secondary" onClick={() => query.refetch()} loading={query.isFetching && !query.isPending}>
-          <RefreshCw className="h-4 w-4" aria-hidden="true" />
-          {t('health.refresh')}
-        </Button>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        title={t('health.title')}
+        description={t('health.intro')}
+        actions={
+          <Button variant="secondary" onClick={() => query.refetch()} loading={query.isFetching && !query.isPending}>
+            <RefreshCw className="h-4 w-4" aria-hidden="true" />
+            {t('health.refresh')}
+          </Button>
+        }
+      />
 
       {query.isPending ? (
         <CardGridSkeleton cards={4} lines={3} />

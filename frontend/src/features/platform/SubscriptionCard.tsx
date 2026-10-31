@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { LinesSkeleton } from '../../components/skeleton.tsx'
+import { DataTable } from '../../components/table.tsx'
 import { Alert, Button, Card } from '../../components/ui.tsx'
 import { formatDate, formatDateTime, formatVnd } from '../../lib/format.ts'
 import { ApiError } from '../../lib/api.ts'
@@ -15,7 +16,7 @@ type Dialog = 'renew' | 'reopen' | 'configure' | 'contact' | null
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <dt className="text-xs uppercase tracking-wide text-slate-500">{label}</dt>
+      <dt className="text-xs font-medium text-slate-500">{label}</dt>
       <dd className="mt-0.5 text-sm text-slate-900">{children}</dd>
     </div>
   )
@@ -89,34 +90,32 @@ export function SubscriptionCard({ tenantId }: { tenantId: string }) {
         {s.periods && s.periods.length > 0 && (
           <div>
             <h3 className="mb-2 text-sm font-semibold text-slate-900">{t('platform.subscription.history')}</h3>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[40rem] text-left text-sm">
-                <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
-                  <tr>
-                    <th scope="col" className="py-2 pr-3">{t('platform.subscription.kindLabel')}</th>
-                    <th scope="col" className="py-2 pr-3">{t('platform.subscription.period')}</th>
-                    <th scope="col" className="py-2 pr-3">{t('platform.subscription.plan')}</th>
-                    <th scope="col" className="py-2 pr-3 text-right">{t('platform.subscription.amount')}</th>
-                    <th scope="col" className="py-2">{t('platform.subscription.paymentMethod')}</th>
+            <DataTable minWidth="40rem">
+              <thead className="border-b border-slate-200 text-xs font-medium text-slate-500">
+                <tr>
+                  <th scope="col" data-role="title" className="py-2.5 pr-4">{t('platform.subscription.kindLabel')}</th>
+                  <th scope="col" className="py-2.5 pr-4">{t('platform.subscription.period')}</th>
+                  <th scope="col" className="py-2.5 pr-4">{t('platform.subscription.plan')}</th>
+                  <th scope="col" className="py-2.5 pr-4 text-right">{t('platform.subscription.amount')}</th>
+                  <th scope="col" className="py-2.5">{t('platform.subscription.paymentMethod')}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {s.periods.map((period) => (
+                  <tr key={period.id}>
+                    <td className="py-3 pr-4">{t(`platform.subscription.kind.${period.kind}`)}</td>
+                    <td className="py-3 pr-4 whitespace-nowrap">{formatDate(period.period_start)} → {formatDate(period.period_end)}</td>
+                    <td className="py-3 pr-4">{period.plan} · {t(`platform.subscription.cycles.${period.billing_cycle}`)}</td>
+                    <td className="py-3 pr-4 text-right whitespace-nowrap">{period.kind === 'change' ? '—' : formatVnd(period.amount)}</td>
+                    <td className="py-3">
+                      {period.payment_method ? t(`platform.subscription.methods.${period.payment_method}`, { defaultValue: period.payment_method }) : '—'}
+                      {period.payment_ref && <span className="block text-xs text-slate-500">{period.payment_ref}</span>}
+                      {period.note && <span className="block text-xs text-slate-500">{period.note}</span>}
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {s.periods.map((period) => (
-                    <tr key={period.id}>
-                      <td className="py-2 pr-3">{t(`platform.subscription.kind.${period.kind}`)}</td>
-                      <td className="py-2 pr-3 whitespace-nowrap">{formatDate(period.period_start)} → {formatDate(period.period_end)}</td>
-                      <td className="py-2 pr-3">{period.plan} · {t(`platform.subscription.cycles.${period.billing_cycle}`)}</td>
-                      <td className="py-2 pr-3 text-right whitespace-nowrap">{period.kind === 'change' ? '—' : formatVnd(period.amount)}</td>
-                      <td className="py-2">
-                        {period.payment_method ? t(`platform.subscription.methods.${period.payment_method}`, { defaultValue: period.payment_method }) : '—'}
-                        {period.payment_ref && <span className="block text-xs text-slate-500">{period.payment_ref}</span>}
-                        {period.note && <span className="block text-xs text-slate-500">{period.note}</span>}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                ))}
+              </tbody>
+            </DataTable>
           </div>
         )}
       </div>

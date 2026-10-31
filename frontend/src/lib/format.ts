@@ -54,3 +54,10 @@ export function formatIsoDate(date: string | null | undefined): string {
 
   return match ? `${match[3]}/${match[2]}/${match[1]}` : '—'
 }
+
+/** Ngày hôm nay theo giờ Việt Nam, dạng "Thứ Bảy, 31/10/2026" (dùng ở lời chào trang Tổng quan). */
+export function formatToday(now: Date = new Date()): string {
+  const text = new Intl.DateTimeFormat('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Asia/Ho_Chi_Minh' }).format(now)
+
+  return text.charAt(0).toUpperCase() + text.slice(1)
+}

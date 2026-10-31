@@ -1,5 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation } from '@tanstack/react-query'
+import { Eye, EyeOff } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -10,6 +11,7 @@ import { ApiError, post } from '../../lib/api.ts'
 import { isValidLogin } from '../../lib/phone.ts'
 import { useAuth } from './auth-context.ts'
 import { useHostContext } from './host-context.ts'
+import AuthShell from './AuthShell.tsx'
 import type { Envelope, Me } from './types.ts'
 
 type TFn = (key: string, options?: Record<string, unknown>) => string
@@ -48,6 +50,7 @@ export default function LoginPage() {
   const from = (location.state as { from?: { pathname: string; search?: string } } | null)?.from
   const target = from ? `${from.pathname}${from.search ?? ''}` : '/'
   const [failure, setFailure] = useState<LoginFailure | null>(null)
+  const [showPassword, setShowPassword] = useState(false)
   const host = useHostContext()
 
   const schema = useMemo(
@@ -76,12 +79,9 @@ export default function LoginPage() {
   // Subdomain không thuộc doanh nghiệp nào: không có gì để đăng nhập vào.
   if (host.error instanceof ApiError && host.error.code === 'tenant_not_found') {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
-        <div role="alert" className="w-full max-w-sm rounded-lg border border-slate-200 bg-white p-6 text-center shadow-sm">
-          <h1 className="text-lg font-semibold text-slate-900">{t('errors.tenantNotFoundTitle')}</h1>
-          <p className="mt-2 text-sm text-slate-600">{t('errors.tenantNotFoundText')}</p>
-        </div>
-      </main>
+      <AuthShell title={t('errors.tenantNotFoundTitle')}>
+        <p role="alert" className="text-sm text-slate-600">{t('errors.tenantNotFoundText')}</p>
+      </AuthShell>
     )
   }
 
@@ -93,66 +93,65 @@ export default function LoginPage() {
         : t('auth.login.subtitle')
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
-      <div className="w-full max-w-sm">
-        <div className="mb-6 text-center">
-          <h1 className="text-3xl font-bold text-emerald-800">{t('app.name')}</h1>
-          <p className="mt-1 text-sm text-slate-600">{t('app.tagline')}</p>
-        </div>
-
-        <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-900">{t('auth.login.title')}</h2>
-          <p className="mb-4 text-sm text-slate-600">{subtitle}</p>
-
-          {notice && <Alert tone="warning" className="mb-4">{t(`auth.sessionNotice.${notice}`)}</Alert>}
-          {failure && (
-            <Alert tone="danger" className="mb-4">
-              {failure.message}
-              {failure.loginUrl && (
-                <a href={failure.loginUrl} className="mt-1 block font-medium underline">
-                  {t('auth.errors.openOwnAddress')}
-                </a>
-              )}
-            </Alert>
+    <AuthShell title={t('auth.login.title')} subtitle={subtitle}>
+      {notice && <Alert tone="warning" className="mb-4">{t(`auth.sessionNotice.${notice}`)}</Alert>}
+      {failure && (
+        <Alert tone="danger" className="mb-4">
+          {failure.message}
+          {failure.loginUrl && (
+            <a href={failure.loginUrl} className="mt-1 block font-medium underline">
+              {t('auth.errors.openOwnAddress')}
+            </a>
           )}
+        </Alert>
+      )}
 
-          <form
-            noValidate
-            className="space-y-4"
-            onSubmit={form.handleSubmit((values) => {
-              setFailure(null)
-              login.mutate(values)
-            })}
-          >
-            <TextField
-              label={t('auth.login.login')}
-              type="text"
-              autoComplete="username"
-              error={form.formState.errors.login?.message}
-              {...form.register('login')}
-            />
-            <TextField
-              label={t('auth.login.password')}
-              type="password"
-              autoComplete="current-password"
-              error={form.formState.errors.password?.message}
-              {...form.register('password')}
-            />
-            <Button type="submit" className="w-full" loading={login.isPending}>
-              {login.isPending ? t('auth.login.submitting') : t('auth.login.submit')}
-            </Button>
-          </form>
+      <form
+        noValidate
+        className="space-y-4"
+        onSubmit={form.handleSubmit((values) => {
+          setFailure(null)
+          login.mutate(values)
+        })}
+      >
+        <TextField
+          label={t('auth.login.login')}
+          type="text"
+          autoComplete="username"
+          error={form.formState.errors.login?.message}
+          {...form.register('login')}
+        />
+        <TextField
+          label={t('auth.login.password')}
+          type={showPassword ? 'text' : 'password'}
+          autoComplete="current-password"
+          error={form.formState.errors.password?.message}
+          trailing={
+            <button
+              type="button"
+              onClick={() => setShowPassword((value) => !value)}
+              aria-label={showPassword ? t('auth.login.hidePassword') : t('auth.login.showPassword')}
+              aria-pressed={showPassword}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+            >
+              {showPassword ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
+            </button>
+          }
+          {...form.register('password')}
+        />
+        <Button type="submit" className="w-full" loading={login.isPending}>
+          {login.isPending ? t('auth.login.submitting') : t('auth.login.submit')}
+        </Button>
+      </form>
 
-          <div className="mt-4 flex items-center justify-between text-sm">
-            <Link to="/forgot-password" className="font-medium text-emerald-700 hover:underline">
-              {t('auth.login.forgotPassword')}
-            </Link>
-            <Link to="/forgot-account" className="text-slate-600 hover:underline">
-              {t('auth.login.forgotAccount')}
-            </Link>
-          </div>
-        </div>
+      <div className="mt-5 flex items-center justify-between text-sm">
+        <Link to="/forgot-password" className="font-medium text-brand-700 hover:underline">
+          {t('auth.login.forgotPassword')}
+        </Link>
+        <Link to="/forgot-account" className="font-medium text-brand-700 hover:underline">
+          {t('auth.login.forgotAccount')}
+        </Link>
       </div>
-    </main>
+    </AuthShell>
   )
 }

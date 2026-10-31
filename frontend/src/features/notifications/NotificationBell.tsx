@@ -15,7 +15,7 @@ export function NoticeRow({ notice, onOpen }: { notice: NoticeItem; onOpen?: (no
       <button
         type="button"
         onClick={() => onOpen?.(notice)}
-        className={`block w-full px-4 py-3 text-left hover:bg-slate-50 ${unread ? 'bg-emerald-50/50' : ''}`}
+        className={`block w-full px-4 py-3 text-left hover:bg-slate-50 ${unread ? 'bg-brand-50/50' : ''}`}
       >
         <span className="flex items-center gap-2">
           <Badge tone={levelTone[notice.level]}>{t(`notifications.levels.${notice.level}`)}</Badge>
@@ -65,7 +65,7 @@ export function NotificationBell() {
         aria-label={unread > 0 ? `${t('notifications.open')} (${t('notifications.unread', { count: unread })})` : t('notifications.open')}
         aria-expanded={open}
         aria-haspopup="true"
-        className="relative rounded-full p-2 text-slate-700 hover:bg-slate-100"
+        className="relative inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-900"
       >
         <Bell className="h-5 w-5" aria-hidden="true" />
         {unread > 0 && (
@@ -76,11 +76,11 @@ export function NotificationBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 z-40 mt-2 w-80 max-w-[90vw] rounded-lg border border-slate-200 bg-white shadow-lg">
-          <div className="flex items-center justify-between border-b border-slate-100 px-4 py-2">
+        <div className="absolute right-0 z-40 mt-2 w-96 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-pop motion-safe:animate-pop-in">
+          <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
             <strong className="text-sm">{t('notifications.title')}</strong>
             {unread > 0 && (
-              <button type="button" onClick={() => markAll.mutate()} className="text-xs font-medium text-emerald-700 hover:underline">
+              <button type="button" onClick={() => markAll.mutate()} className="text-xs font-medium text-brand-700 hover:underline">
                 {t('notifications.markAllRead')}
               </button>
             )}
@@ -96,7 +96,7 @@ export function NotificationBell() {
             </ul>
           )}
 
-          <Link to="/notifications" onClick={() => setOpen(false)} className="block border-t border-slate-100 px-4 py-2 text-center text-sm font-medium text-emerald-700 hover:bg-slate-50">
+          <Link to="/notifications" onClick={() => setOpen(false)} className="block border-t border-slate-100 px-4 py-2 text-center text-sm font-medium text-brand-700 hover:bg-slate-50">
             {t('notifications.viewAll')}
           </Link>
         </div>

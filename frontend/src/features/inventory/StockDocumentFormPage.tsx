@@ -1,10 +1,12 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { ArrowLeft, Plus, Search, Trash2 } from 'lucide-react'
+import { Plus, Search, Trash2 } from 'lucide-react'
 import { useDeferredValue, useState } from 'react'
 import { useFieldArray, useForm, useWatch, type Resolver, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useSearchParams } from 'react-router'
+import { FormActions, PageHeader } from '../../components/page.tsx'
 import { FormPageSkeleton, ListSkeleton } from '../../components/skeleton.tsx'
+import { fieldBase, fieldTone } from '../../components/styles.ts'
 import { Alert, Badge, Button, Card, SelectField, TextField } from '../../components/ui.tsx'
 import { formatIsoDate, formatQuantity, formatVnd } from '../../lib/format.ts'
 import { describeError } from '../../lib/forms.ts'
@@ -14,10 +16,7 @@ import { useProducts, type Product } from '../catalog/api.ts'
 import { ADJUSTMENT_REASONS, DOCUMENT_TYPES, ISSUE_REASONS, useAllWarehouses, usePostStockDocument, useStockBalances, type DocumentType, type Warehouse } from './api.ts'
 import { NEW_BATCH, applyStockErrors, defaultUnit, emptyLine, factorOf, isIncoming, stockPayload, stockSchema, type StockFormValues } from './forms.ts'
 
-const inputClass = (error: boolean) =>
-  `block w-full rounded-md border px-3 py-2 text-sm shadow-sm outline-none transition-colors focus:ring-2 disabled:bg-slate-100 ${
-    error ? 'border-red-500 focus:ring-red-200' : 'border-slate-300 focus:border-emerald-600 focus:ring-emerald-200'
-  }`
+const inputClass = (error: boolean) => `${fieldBase} ${fieldTone(error)}`
 
 /** Ghi một phiếu kho: nhập kho, xuất kho, điều chỉnh hoặc tồn đầu kỳ (`/stock/new?type=receipt`). Kho tải xong mới dựng form. */
 export default function StockDocumentFormPage() {
@@ -32,7 +31,7 @@ export default function StockDocumentFormPage() {
     return (
       <div className="space-y-3">
         <Alert tone="danger">{t('common.loadError')}</Alert>
-        <Link to="/stock" className="text-sm font-medium text-emerald-700 hover:underline">{t('inventory.form.back')}</Link>
+        <Link to="/stock" className="text-sm font-medium text-brand-700 hover:underline">{t('inventory.form.back')}</Link>
       </div>
     )
   }
@@ -124,30 +123,34 @@ function StockForm({ initialType, allowed, warehouses }: { initialType: Document
   })
 
   return (
-    <div className="space-y-4">
-      <Link to="/stock" className="inline-flex items-center gap-1 text-sm font-medium text-emerald-700 hover:underline">
-        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        {t('inventory.form.back')}
-      </Link>
-
-      <div>
-        <h1 className="text-xl font-semibold text-slate-900">{t(`inventory.form.title.${type}`)}</h1>
-        <p className="mt-1 text-sm text-slate-600">{t(`inventory.form.intro.${type}`)}</p>
-      </div>
+    <div className="mx-auto max-w-5xl space-y-5">
+      <PageHeader
+        back={{ to: '/stock', label: t('inventory.form.back') }}
+        title={t(`inventory.form.title.${type}`)}
+        description={t(`inventory.form.intro.${type}`)}
+      />
 
       {formError && <Alert tone="danger">{formError}</Alert>}
 
-      <form onSubmit={submit} noValidate className="space-y-4">
+      <form onSubmit={submit} noValidate className="space-y-5">
+        {allowed.length > 1 && (
+          <fieldset>
+            <legend className="sr-only">{t('inventory.form.type')}</legend>
+            <div className="inline-flex max-w-full flex-wrap gap-1 rounded-xl bg-slate-200/70 p-1">
+              {allowed.map((value) => (
+                <label key={value} className="cursor-pointer">
+                  <input type="radio" value={value} className="peer sr-only" {...form.register('type', { onChange: changeType })} />
+                  <span className="block rounded-lg px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900 peer-checked:bg-white peer-checked:text-brand-800 peer-checked:shadow-sm peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-brand-600">
+                    {t(`inventory.types.${value}`)}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        )}
+
         <Card title={t('inventory.form.general')}>
           <div className="grid gap-4 sm:grid-cols-2">
-            <SelectField
-              label={t('inventory.form.type')}
-              error={errors.type?.message}
-              {...form.register('type', { onChange: changeType })}
-            >
-              {allowed.map((value) => <option key={value} value={value}>{t(`inventory.types.${value}`)}</option>)}
-            </SelectField>
-
             <SelectField
               label={t('inventory.form.warehouse')}
               error={errors.warehouse_id?.message}
@@ -165,7 +168,7 @@ function StockForm({ initialType, allowed, warehouses }: { initialType: Document
             )}
 
             <div className={reasons.length > 0 ? '' : 'sm:col-span-2'}>
-              <label htmlFor="stock-note" className="mb-1 block text-sm font-medium text-slate-800">{t('inventory.form.note')}</label>
+              <label htmlFor="stock-note" className="mb-1.5 block text-sm font-medium text-slate-800">{t('inventory.form.note')}</label>
               <textarea id="stock-note" rows={2} className={inputClass(!!errors.note)} {...form.register('note')} />
               {errors.note && <p role="alert" className="mt-1 text-sm text-red-700">{errors.note.message}</p>}
             </div>
@@ -215,10 +218,10 @@ function StockForm({ initialType, allowed, warehouses }: { initialType: Document
           )}
         </Card>
 
-        <div className="flex justify-end gap-2">
+        <FormActions>
           <Button variant="ghost" onClick={() => navigate('/stock')}>{t('common.cancel')}</Button>
           <Button type="submit" loading={post.isPending}>{post.isPending ? t('common.saving') : t('inventory.form.submit')}</Button>
-        </div>
+        </FormActions>
       </form>
     </div>
   )
@@ -261,7 +264,7 @@ function LineEditor({ index, form, type, warehouse, product, onPick, onRemove, c
   }
 
   return (
-    <fieldset className="rounded-md border border-slate-200 p-3">
+    <fieldset className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
       <legend className="px-1 text-sm font-medium text-slate-700">{t('inventory.form.line', { n: index + 1 })}</legend>
 
       {!product ? (
@@ -277,7 +280,7 @@ function LineEditor({ index, form, type, warehouse, product, onPick, onRemove, c
               {product.track_batch && <Badge tone="neutral">{t('inventory.stock.batch')}</Badge>}
               {onHand !== null && <span className="ml-2 text-slate-500">{t('inventory.form.onHand', { qty: formatQuantity(onHand), unit: baseName })}</span>}
             </p>
-            <Button variant="ghost" onClick={() => { onPick(undefined); form.setValue(`lines.${index}.product_id`, ''); form.setValue(`lines.${index}.batch_id`, '') }}>
+            <Button variant="secondary" size="sm" onClick={() => { onPick(undefined); form.setValue(`lines.${index}.product_id`, ''); form.setValue(`lines.${index}.batch_id`, '') }}>
               {t('inventory.form.changeProduct')}
             </Button>
           </div>
@@ -339,8 +342,8 @@ function LineEditor({ index, form, type, warehouse, product, onPick, onRemove, c
 
       {canRemove && (
         <div className="mt-2 flex justify-end">
-          <Button variant="ghost" onClick={onRemove} aria-label={t('inventory.form.removeLine', { n: index + 1 })}>
-            <Trash2 className="h-4 w-4 text-red-700" aria-hidden="true" />
+          <Button variant="ghost" size="sm" onClick={onRemove} aria-label={t('inventory.form.removeLine', { n: index + 1 })} className="text-red-700 hover:bg-red-50">
+            <Trash2 className="h-4 w-4" aria-hidden="true" />
             {t('inventory.form.removeLine', { n: index + 1 })}
           </Button>
         </div>
@@ -359,22 +362,22 @@ function ProductPicker({ branchId, onPick }: { branchId: string; onPick: (produc
 
   return (
     <div>
-      <label className="mb-1 block text-sm font-medium text-slate-800">
+      <label className="mb-1.5 block text-sm font-medium text-slate-800">
         {t('inventory.form.product')}
-        <div className="relative mt-1">
-          <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" aria-hidden="true" />
+        <div className="relative mt-1.5">
+          <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" aria-hidden="true" />
           <input type="search" value={q} onChange={(event) => setQ(event.target.value)} placeholder={t('inventory.form.productPlaceholder')} autoComplete="off" className={`${inputClass(false)} pl-9 font-normal`} />
         </div>
       </label>
       {products.isPending ? (
-        <div className="mt-2 rounded-md border border-slate-200 px-3"><ListSkeleton rows={3} subtitle /></div>
+        <div className="mt-2 rounded-lg border border-slate-200 bg-white px-3"><ListSkeleton rows={3} subtitle /></div>
       ) : rows.length === 0 ? (
         <p className="mt-2 text-sm text-slate-500">{t('inventory.form.noProducts')}</p>
       ) : (
-        <ul className="mt-2 max-h-56 divide-y divide-slate-100 overflow-y-auto rounded-md border border-slate-200">
+        <ul className="mt-2 max-h-64 divide-y divide-slate-100 overflow-y-auto rounded-lg border border-slate-200 bg-white">
           {rows.map((product) => (
             <li key={product.id}>
-              <button type="button" onClick={() => onPick(product)} className="flex w-full flex-wrap items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-emerald-50">
+              <button type="button" onClick={() => onPick(product)} className="flex w-full flex-wrap items-center justify-between gap-2 px-3 py-2.5 text-left text-sm hover:bg-brand-50">
                 <span><span className="font-mono text-xs">{product.sku}</span> <span className="font-medium text-slate-900">{product.name}</span></span>
                 <span className="text-xs text-slate-500">{product.type_label} · {product.base_unit.name}{product.track_batch ? ` · ${t('inventory.stock.batch')}` : ''}</span>
               </button>

@@ -1,9 +1,10 @@
-import { ArrowLeft, DatabaseBackup, Eye, Pencil } from 'lucide-react'
+import { DatabaseBackup, Eye, Pencil } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useParams } from 'react-router'
+import { PageHeader } from '../../components/page.tsx'
 import { DetailPageSkeleton } from '../../components/skeleton.tsx'
-import { Alert, Badge, Button, Card, ConfirmDialog } from '../../components/ui.tsx'
+import { Alert, Badge, Button, ButtonLink, Card, ConfirmDialog } from '../../components/ui.tsx'
 import { ApiError } from '../../lib/api.ts'
 import { formatDate, formatDateTime } from '../../lib/format.ts'
 import { describeError } from '../../lib/forms.ts'
@@ -17,7 +18,7 @@ import { TenantUsersCard } from './TenantUsersCard.tsx'
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <dt className="text-xs uppercase tracking-wide text-slate-500">{label}</dt>
+      <dt className="text-xs font-medium text-slate-500">{label}</dt>
       <dd className="mt-0.5 break-words text-sm text-slate-900">{children}</dd>
     </div>
   )
@@ -42,7 +43,7 @@ export default function TenantDetailPage() {
     return (
       <div className="space-y-3">
         <Alert tone="danger">{notFound ? t('platform.tenants.notFound') : t('common.loadError')}</Alert>
-        <Link to="/platform/tenants" className="text-sm font-medium text-emerald-700 hover:underline">{t('platform.tenants.back')}</Link>
+        <Link to="/platform/tenants" className="text-sm font-medium text-brand-700 hover:underline">{t('platform.tenants.back')}</Link>
       </div>
     )
   }
@@ -64,42 +65,37 @@ export default function TenantDetailPage() {
 
   return (
     <div className="space-y-4">
-      <Link to="/platform/tenants" className="inline-flex items-center gap-1 text-sm font-medium text-emerald-700 hover:underline">
-        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        {t('platform.tenants.back')}
-      </Link>
-
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <h1 className="flex flex-wrap items-center gap-2 text-xl font-semibold text-slate-900">
+      <PageHeader
+        back={{ to: '/platform/tenants', label: t('platform.tenants.back') }}
+        title={
+          <span className="flex flex-wrap items-center gap-2">
             {data.name}
-            <Badge tone={suspended ? 'danger' : 'success'}>{t(`platform.tenants.status.${data.status}`)}</Badge>
-          </h1>
-          <p className="mt-1 text-sm text-slate-600">{t('platform.tenants.createdOn', { date: formatDate(data.created_at) })}</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" onClick={() => setDialog('support')}>
-            <Eye className="h-4 w-4" aria-hidden="true" />
-            {t('platform.support.open')}
-          </Button>
-          <Link
-            to={`/platform/tenants/${data.id}/backups`}
-            className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50"
-          >
-            <DatabaseBackup className="h-4 w-4" aria-hidden="true" />
-            {t('platform.tenants.backups')}
-          </Link>
-          <Button variant="secondary" onClick={() => setDialog('edit')}>
-            <Pencil className="h-4 w-4" aria-hidden="true" />
-            {t('common.edit')}
-          </Button>
-          {suspended ? (
-            <Button onClick={() => { setError(null); setDialog('activate') }}>{t('platform.tenants.activate')}</Button>
-          ) : (
-            <Button variant="danger" onClick={() => setDialog('suspend')}>{t('platform.tenants.suspend')}</Button>
-          )}
-        </div>
-      </div>
+            <Badge tone={suspended ? 'danger' : 'success'} dot>{t(`platform.tenants.status.${data.status}`)}</Badge>
+          </span>
+        }
+        description={t('platform.tenants.createdOn', { date: formatDate(data.created_at) })}
+        actions={
+          <>
+            <Button variant="secondary" onClick={() => setDialog('support')}>
+              <Eye className="h-4 w-4" aria-hidden="true" />
+              {t('platform.support.open')}
+            </Button>
+            <ButtonLink variant="secondary" to={`/platform/tenants/${data.id}/backups`}>
+              <DatabaseBackup className="h-4 w-4" aria-hidden="true" />
+              {t('platform.tenants.backups')}
+            </ButtonLink>
+            <Button variant="secondary" onClick={() => setDialog('edit')}>
+              <Pencil className="h-4 w-4" aria-hidden="true" />
+              {t('common.edit')}
+            </Button>
+            {suspended ? (
+              <Button onClick={() => { setError(null); setDialog('activate') }}>{t('platform.tenants.activate')}</Button>
+            ) : (
+              <Button variant="danger" onClick={() => setDialog('suspend')}>{t('platform.tenants.suspend')}</Button>
+            )}
+          </>
+        }
+      />
 
       {suspended && (
         <Alert tone="danger" title={t('platform.tenants.suspendedTitle')}>
@@ -110,7 +106,7 @@ export default function TenantDetailPage() {
       <Card title={t('platform.tenants.info')}>
         <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Field label={t('platform.tenants.loginAddress')}>
-            {data.url ? <a href={data.url} target="_blank" rel="noreferrer" className="font-medium text-emerald-800 hover:underline">{data.url}</a> : <span className="text-slate-500">{t('platform.tenants.noSubdomain')}</span>}
+            {data.url ? <a href={data.url} target="_blank" rel="noreferrer" className="font-medium text-brand-800 hover:underline">{data.url}</a> : <span className="text-slate-500">{t('platform.tenants.noSubdomain')}</span>}
           </Field>
           <Field label={t('platform.tenants.slug')}>{data.slug}</Field>
           <Field label={t('platform.tenants.taxCode')}>{data.tax_code ?? '—'}</Field>

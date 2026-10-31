@@ -67,7 +67,7 @@ export default function ResetPasswordPage() {
     return (
       <AuthShell title={t('auth.reset.invalidTitle')}>
         <Alert tone="warning">{t('auth.reset.invalidText')}</Alert>
-        <Link to="/forgot-password" className="mt-4 block text-center text-sm font-medium text-emerald-700 hover:underline">
+        <Link to="/forgot-password" className="mt-4 block text-center text-sm font-medium text-brand-700 hover:underline">
           {t('auth.reset.requestNew')}
         </Link>
       </AuthShell>

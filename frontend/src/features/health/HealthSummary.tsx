@@ -11,7 +11,7 @@ export function HealthSummary() {
   const query = useSystemHealth()
 
   return (
-    <Card title={t('dashboard.healthStatus')} actions={<Link to="/platform/health" className="text-sm font-medium text-emerald-700 hover:underline">{t('dashboard.viewDetails')}</Link>}>
+    <Card title={t('dashboard.healthStatus')} actions={<Link to="/platform/health" className="text-sm font-medium text-brand-700 hover:underline">{t('dashboard.viewDetails')}</Link>}>
       {query.isPending ? (
         <LinesSkeleton lines={2} />
       ) : query.isError ? (

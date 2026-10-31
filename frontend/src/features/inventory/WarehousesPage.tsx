@@ -1,26 +1,30 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { ArrowLeft, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Pencil, Plus, Trash2, Warehouse as WarehouseIcon } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import { Link } from 'react-router'
 import { z } from 'zod'
-import { FilterBar, Refreshable, TableSkeleton } from '../../components/skeleton.tsx'
-import { Alert, Badge, Button, Card, ConfirmDialog, Modal, Pagination, SelectField, TextField } from '../../components/ui.tsx'
+import { EmptyState, FilterBar, FilterSelect, PageHeader, SearchField } from '../../components/page.tsx'
+import { Refreshable, TableSkeleton } from '../../components/skeleton.tsx'
+import { DataTable } from '../../components/table.tsx'
+import { Alert, Badge, Button, Card, ConfirmDialog, IconButton, Modal, Pagination, SelectField, TextField } from '../../components/ui.tsx'
 import { ApiError } from '../../lib/api.ts'
+import { countActiveFilters } from '../../lib/filters.ts'
 import { applyServerErrors, describeError } from '../../lib/forms.ts'
 import { useClampPage } from '../../lib/pagination.ts'
 import { useAuth } from '../auth/auth-context.ts'
 import { useAllBranches } from '../branches/api.ts'
 import { useDeleteWarehouse, useSaveWarehouse, useWarehouses, type Warehouse, type WarehouseFilters } from './api.ts'
+import { StockTabs } from './StockTabs.tsx'
 
 const CODE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
+const EMPTY_FILTERS: WarehouseFilters = { q: '', branch: '', status: '', page: 1 }
 
 /** Kho của từng chi nhánh (một chi nhánh có nhiều kho). Kho đã có phiếu thì không xóa được, chỉ chuyển sang "ngừng hoạt động". */
 export default function WarehousesPage() {
   const { t } = useTranslation()
   const { can } = useAuth()
-  const [filters, setFilters] = useState<WarehouseFilters>({ q: '', branch: '', status: '', page: 1 })
+  const [filters, setFilters] = useState<WarehouseFilters>(EMPTY_FILTERS)
   const warehouses = useWarehouses(filters)
   const branches = useAllBranches()
   const remove = useDeleteWarehouse()
@@ -35,6 +39,8 @@ export default function WarehousesPage() {
   const showBranch = (branches.data?.length ?? 0) > 1
   // Ô lọc và bảng chờ dữ liệu tham chiếu (chi nhánh/kho) rồi hiện cùng lúc, để ô lọc/cột "Chi nhánh" thêm vào muộn không làm trang dịch.
   const loading = warehouses.isPending || branches.isLoading
+  const activeFilters = countActiveFilters(filters)
+  const filtered = activeFilters > 0 || filters.q !== ''
   // Đổi bộ lọc thì về trang 1; đổi trang thì giữ bộ lọc.
   const set = <K extends keyof WarehouseFilters>(key: K, value: WarehouseFilters[K]) => setFilters((current) => ({ ...current, [key]: value, page: key === 'page' ? (value as number) : 1 }))
 
@@ -53,49 +59,40 @@ export default function WarehousesPage() {
   useClampPage(warehouses.data?.meta, (page) => set('page', page))
 
   return (
-    <div className="space-y-4">
-      <Link to="/stock" className="inline-flex items-center gap-1 text-sm font-medium text-emerald-700 hover:underline">
-        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        {t('inventory.warehouses.back')}
-      </Link>
-
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-900">{t('inventory.warehouses.title')}</h1>
-          <p className="mt-1 text-sm text-slate-600">{t('inventory.warehouses.intro')}</p>
-        </div>
-        {canCreate && (
-          <Button onClick={() => setEditing('new')}>
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            {t('inventory.warehouses.add')}
-          </Button>
-        )}
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        title={t('inventory.warehouses.title')}
+        description={t('inventory.warehouses.intro')}
+        tabs={<StockTabs />}
+        actions={
+          canCreate && (
+            <Button onClick={() => setEditing('new')}>
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              {t('inventory.warehouses.add')}
+            </Button>
+          )
+        }
+      />
 
       <Card>
-        <FilterBar loading={loading} fields={['', '', '']} className="mb-4 grid gap-3 sm:grid-cols-3">
-          <div>
-            <label htmlFor="warehouse-search" className="mb-1 block text-sm font-medium text-slate-800">{t('common.search')}</label>
-            <input
-              id="warehouse-search"
-              type="search"
-              value={filters.q}
-              onChange={(event) => set('q', event.target.value)}
-              placeholder={t('inventory.warehouses.searchPlaceholder')}
-              className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-200"
-            />
-          </div>
+        <FilterBar
+          loading={loading}
+          selects={2}
+          activeCount={activeFilters}
+          onClear={() => setFilters(EMPTY_FILTERS)}
+          search={<SearchField label={t('common.search')} value={filters.q} onChange={(event) => set('q', event.target.value)} placeholder={t('inventory.warehouses.searchPlaceholder')} />}
+        >
           {showBranch && (
-            <SelectField label={t('inventory.filters.branch')} value={filters.branch} onChange={(event) => set('branch', event.target.value)}>
+            <FilterSelect label={t('inventory.filters.branch')} value={filters.branch} onChange={(event) => set('branch', event.target.value)}>
               <option value="">{t('inventory.filters.all')}</option>
               {(branches.data ?? []).map((b) => <option key={b.id} value={b.id}>{b.code} — {b.name}</option>)}
-            </SelectField>
+            </FilterSelect>
           )}
-          <SelectField label={t('inventory.filters.status')} value={filters.status} onChange={(event) => set('status', event.target.value)}>
+          <FilterSelect label={t('inventory.filters.status')} value={filters.status} onChange={(event) => set('status', event.target.value)}>
             <option value="">{t('inventory.filters.all')}</option>
             <option value="active">{t('inventory.warehouses.status.active')}</option>
             <option value="inactive">{t('inventory.warehouses.status.inactive')}</option>
-          </SelectField>
+          </FilterSelect>
         </FilterBar>
 
         {loading ? (
@@ -103,48 +100,51 @@ export default function WarehousesPage() {
         ) : warehouses.isError ? (
           <Alert tone="danger">{t('common.loadError')}</Alert>
         ) : rows.length === 0 ? (
-          <p className="py-6 text-center text-sm text-slate-500">{t('inventory.warehouses.empty')}</p>
+          <EmptyState
+            icon={WarehouseIcon}
+            title={t('inventory.warehouses.empty')}
+            description={filtered ? t('common.tryOtherFilters') : undefined}
+            action={filtered ? <Button variant="secondary" onClick={() => setFilters(EMPTY_FILTERS)}>{t('common.clearFilters')}</Button> : canCreate ? <Button onClick={() => setEditing('new')}>{t('inventory.warehouses.add')}</Button> : undefined}
+          />
         ) : (
           <Refreshable refreshing={warehouses.isPlaceholderData}>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[40rem] text-left text-sm">
-                <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
-                  <tr>
-                    <th scope="col" className="py-2 pr-3">{t('inventory.columns.code')}</th>
-                    <th scope="col" className="py-2 pr-3">{t('inventory.columns.warehouseName')}</th>
-                    {showBranch && <th scope="col" className="py-2 pr-3">{t('inventory.columns.branch')}</th>}
-                    <th scope="col" className="py-2 pr-3">{t('inventory.columns.address')}</th>
-                    <th scope="col" className="py-2 pr-3">{t('inventory.columns.status')}</th>
-                    <th scope="col" className="py-2 text-right">{t('backup.list.actions')}</th>
+            <DataTable minWidth="40rem">
+              <thead className="border-b border-slate-200 text-xs font-medium text-slate-500">
+                <tr>
+                  <th scope="col" className="py-2.5 pr-4">{t('inventory.columns.code')}</th>
+                  <th scope="col" data-role="title" className="py-2.5 pr-4">{t('inventory.columns.warehouseName')}</th>
+                  {showBranch && <th scope="col" className="py-2.5 pr-4">{t('inventory.columns.branch')}</th>}
+                  <th scope="col" className="py-2.5 pr-4">{t('inventory.columns.address')}</th>
+                  <th scope="col" className="py-2.5 pr-4">{t('inventory.columns.status')}</th>
+                  <th scope="col" data-role="actions" className="py-2.5 text-right"><span className="sr-only">{t('backup.list.actions')}</span></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {rows.map((warehouse) => (
+                  <tr key={warehouse.id}>
+                    <td className="py-3 pr-4 font-mono text-xs whitespace-nowrap">{warehouse.code}</td>
+                    <td className="py-3 pr-4 font-medium text-slate-900">{warehouse.name}</td>
+                    {showBranch && <td className="py-3 pr-4">{warehouse.branch.code}</td>}
+                    <td className="py-3 pr-4 text-slate-600">{warehouse.address ?? '—'}</td>
+                    <td className="py-3 pr-4"><Badge tone={warehouse.status === 'active' ? 'success' : 'neutral'} dot>{t(`inventory.warehouses.status.${warehouse.status}`)}</Badge></td>
+                    <td className="py-3 text-right">
+                      <div className="flex justify-end gap-1">
+                        {canUpdate && (
+                          <IconButton label={`${t('common.edit')} ${warehouse.name}`} text={t('common.edit')} onClick={() => setEditing(warehouse)}>
+                            <Pencil className="h-4 w-4" aria-hidden="true" />
+                          </IconButton>
+                        )}
+                        {canDelete && (
+                          <IconButton label={`${t('common.delete')} ${warehouse.name}`} text={t('common.delete')} onClick={() => { setDeleteError(null); setDeleting(warehouse) }} tone="danger">
+                            <Trash2 className="h-4 w-4" aria-hidden="true" />
+                          </IconButton>
+                        )}
+                      </div>
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {rows.map((warehouse) => (
-                    <tr key={warehouse.id}>
-                      <td className="py-2 pr-3 font-mono text-xs whitespace-nowrap">{warehouse.code}</td>
-                      <td className="py-2 pr-3 font-medium text-slate-900">{warehouse.name}</td>
-                      {showBranch && <td className="py-2 pr-3">{warehouse.branch.code}</td>}
-                      <td className="py-2 pr-3 text-slate-600">{warehouse.address ?? '—'}</td>
-                      <td className="py-2 pr-3"><Badge tone={warehouse.status === 'active' ? 'success' : 'neutral'}>{t(`inventory.warehouses.status.${warehouse.status}`)}</Badge></td>
-                      <td className="py-2 text-right">
-                        <div className="flex justify-end gap-1">
-                          {canUpdate && (
-                            <Button variant="ghost" onClick={() => setEditing(warehouse)} aria-label={`${t('common.edit')} ${warehouse.name}`}>
-                              <Pencil className="h-4 w-4" aria-hidden="true" />
-                            </Button>
-                          )}
-                          {canDelete && (
-                            <Button variant="ghost" onClick={() => { setDeleteError(null); setDeleting(warehouse) }} aria-label={`${t('common.delete')} ${warehouse.name}`}>
-                              <Trash2 className="h-4 w-4 text-red-700" aria-hidden="true" />
-                            </Button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                ))}
+              </tbody>
+            </DataTable>
             <Pagination page={warehouses.data.meta.current_page} lastPage={warehouses.data.meta.last_page} total={warehouses.data.meta.total} onPage={(page) => set('page', page)} />
           </Refreshable>
         )}

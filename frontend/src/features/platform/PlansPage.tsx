@@ -4,8 +4,10 @@ import { useMemo, useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { z } from 'zod'
+import { PageHeader } from '../../components/page.tsx'
 import { TableSkeleton } from '../../components/skeleton.tsx'
-import { Alert, Badge, Button, Card, CheckboxField, Modal, TextField } from '../../components/ui.tsx'
+import { DataTable } from '../../components/table.tsx'
+import { Alert, Badge, Button, Card, CheckboxField, IconButton, Modal, TextField } from '../../components/ui.tsx'
 import { formatVnd } from '../../lib/format.ts'
 import { applyServerErrors, describeError } from '../../lib/forms.ts'
 import { usePlans, useSavePlan, type Plan } from './api.ts'
@@ -107,17 +109,17 @@ export default function PlansPage() {
   const [editing, setEditing] = useState<Plan | 'new' | null>(null)
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-900">{t('platform.plans.title')}</h1>
-          <p className="mt-1 text-sm text-slate-600">{t('platform.plans.intro')}</p>
-        </div>
-        <Button onClick={() => setEditing('new')}>
-          <Plus className="h-4 w-4" aria-hidden="true" />
-          {t('platform.plans.add')}
-        </Button>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        title={t('platform.plans.title')}
+        description={t('platform.plans.intro')}
+        actions={
+          <Button onClick={() => setEditing('new')}>
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            {t('platform.plans.add')}
+          </Button>
+        }
+      />
 
       <Card>
         {plans.isPending ? (
@@ -127,45 +129,43 @@ export default function PlansPage() {
         ) : plans.data.length === 0 ? (
           <p className="py-6 text-center text-sm text-slate-500">{t('platform.plans.empty')}</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[48rem] text-left text-sm">
-              <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
-                <tr>
-                  <th scope="col" className="py-2 pr-3">{t('platform.plans.name')}</th>
-                  <th scope="col" className="py-2 pr-3 text-right">{t('platform.plans.priceMonthly')}</th>
-                  <th scope="col" className="py-2 pr-3 text-right">{t('platform.plans.priceYearly')}</th>
-                  <th scope="col" className="py-2 pr-3">{t('platform.plans.limits')}</th>
-                  <th scope="col" className="py-2 pr-3">{t('users.status')}</th>
-                  <th scope="col" className="py-2 text-right">{t('backup.list.actions')}</th>
+          <DataTable minWidth="48rem">
+            <thead className="border-b border-slate-200 text-xs font-medium text-slate-500">
+              <tr>
+                <th scope="col" data-role="title" className="py-2.5 pr-4">{t('platform.plans.name')}</th>
+                <th scope="col" className="py-2.5 pr-4 text-right">{t('platform.plans.priceMonthly')}</th>
+                <th scope="col" className="py-2.5 pr-4 text-right">{t('platform.plans.priceYearly')}</th>
+                <th scope="col" className="py-2.5 pr-4">{t('platform.plans.limits')}</th>
+                <th scope="col" className="py-2.5 pr-4">{t('users.status')}</th>
+                <th scope="col" data-role="actions" className="py-2.5 text-right"><span className="sr-only">{t('backup.list.actions')}</span></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {plans.data.map((plan) => (
+                <tr key={plan.id}>
+                  <td className="py-3 pr-4">
+                    <span className="block font-medium text-slate-900">{plan.name}</span>
+                    <span className="block text-xs text-slate-500">{plan.key}</span>
+                  </td>
+                  <td className="py-3 pr-4 text-right whitespace-nowrap tabular-nums">{formatVnd(plan.price_monthly)}</td>
+                  <td className="py-3 pr-4 text-right whitespace-nowrap tabular-nums">{formatVnd(plan.price_yearly)}</td>
+                  <td className="py-3 pr-4 text-xs text-slate-600">
+                    {t('platform.plans.branchesLimit', { value: plan.max_branches ?? t('platform.plans.unlimited') })}
+                    <br />
+                    {t('platform.plans.storageLimit', { value: plan.storage_mb === null ? t('platform.plans.unlimited') : `${plan.storage_mb} MB` })}
+                  </td>
+                  <td className="py-3 pr-4">
+                    <Badge tone={plan.is_active ? 'success' : 'neutral'}>{plan.is_active ? t('platform.plans.onSaleShort') : t('platform.plans.stopped')}</Badge>
+                  </td>
+                  <td className="py-3 text-right">
+                    <IconButton label={`${t('common.edit')} ${plan.name}`} text={t('common.edit')} onClick={() => setEditing(plan)}>
+                      <Pencil className="h-4 w-4" aria-hidden="true" />
+                    </IconButton>
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {plans.data.map((plan) => (
-                  <tr key={plan.id}>
-                    <td className="py-2 pr-3">
-                      <span className="block font-medium text-slate-900">{plan.name}</span>
-                      <span className="block text-xs text-slate-500">{plan.key}</span>
-                    </td>
-                    <td className="py-2 pr-3 text-right whitespace-nowrap">{formatVnd(plan.price_monthly)}</td>
-                    <td className="py-2 pr-3 text-right whitespace-nowrap">{formatVnd(plan.price_yearly)}</td>
-                    <td className="py-2 pr-3 text-xs text-slate-600">
-                      {t('platform.plans.branchesLimit', { value: plan.max_branches ?? t('platform.plans.unlimited') })}
-                      <br />
-                      {t('platform.plans.storageLimit', { value: plan.storage_mb === null ? t('platform.plans.unlimited') : `${plan.storage_mb} MB` })}
-                    </td>
-                    <td className="py-2 pr-3">
-                      <Badge tone={plan.is_active ? 'success' : 'neutral'}>{plan.is_active ? t('platform.plans.onSaleShort') : t('platform.plans.stopped')}</Badge>
-                    </td>
-                    <td className="py-2 text-right">
-                      <Button variant="ghost" onClick={() => setEditing(plan)} aria-label={`${t('common.edit')} ${plan.name}`}>
-                        <Pencil className="h-4 w-4" aria-hidden="true" />
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </DataTable>
         )}
       </Card>
 

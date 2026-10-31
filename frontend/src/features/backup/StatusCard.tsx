@@ -47,7 +47,7 @@ export function PlatformStatusCard() {
       {s.enabled && (
         <div className="mb-3">
           {s.issues.length === 0 ? (
-            <p className="text-sm text-emerald-800">{t('backup.status.noIssues')}</p>
+            <p className="text-sm text-brand-800">{t('backup.status.noIssues')}</p>
           ) : (
             <div className="space-y-2" aria-label={t('backup.status.issues')}>
               {s.issues.map((issue) => (
@@ -90,7 +90,7 @@ export function PlatformStatusSummary() {
   const query = usePlatformBackupStatus()
 
   return (
-    <Card title={t('dashboard.backupStatus')} actions={<Link to="/platform/backups" className="text-sm font-medium text-emerald-700 hover:underline">{t('dashboard.viewDetails')}</Link>}>
+    <Card title={t('dashboard.backupStatus')} actions={<Link to="/platform/backups" className="text-sm font-medium text-brand-700 hover:underline">{t('dashboard.viewDetails')}</Link>}>
       {query.isPending ? (
         <LinesSkeleton lines={2} />
       ) : query.isError ? (

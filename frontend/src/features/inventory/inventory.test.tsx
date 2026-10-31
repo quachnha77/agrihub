@@ -132,14 +132,27 @@ describe('trang Tồn kho', () => {
     expect(within(cards).getByText('1.277.500 ₫')).toBeInTheDocument()
   })
 
-  it('có mục "Tồn kho", "Phiếu kho", "Kho" trong menu theo quyền', async () => {
+  it('menu có một mục "Kho hàng"; Tồn kho, Phiếu kho, Danh sách kho là ba tab trong phân hệ', async () => {
     mockApi(base())
     renderApp('/stock')
 
     const nav = await screen.findByRole('navigation', { name: 'Menu chính' })
-    expect(within(nav).getByRole('link', { name: 'Tồn kho' })).toBeInTheDocument()
-    expect(within(nav).getByRole('link', { name: 'Phiếu kho' })).toBeInTheDocument()
-    expect(within(nav).getByRole('link', { name: 'Kho' })).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: 'Kho hàng' })).toHaveAttribute('aria-current', 'page')
+    expect(within(nav).queryByRole('link', { name: 'Phiếu kho' })).not.toBeInTheDocument()
+
+    const tabs = await screen.findByRole('navigation', { name: 'Kho hàng' })
+    expect(within(tabs).getByRole('link', { name: 'Tồn kho' })).toHaveAttribute('aria-current', 'page')
+    expect(within(tabs).getByRole('link', { name: 'Phiếu kho' })).toHaveAttribute('href', '/stock/documents')
+    expect(within(tabs).getByRole('link', { name: 'Danh sách kho' })).toHaveAttribute('href', '/warehouses')
+  })
+
+  it('tab chỉ hiện các màn hình có quyền xem; không có quyền xem tồn thì mục "Kho hàng" dẫn tới danh sách kho', async () => {
+    mockApi(base({}, { 'inventory.warehouse.view': 'branch', 'tenant.branch.view': 'branch' }))
+    renderApp('/warehouses')
+
+    const nav = await screen.findByRole('navigation', { name: 'Menu chính' })
+    expect(within(nav).getByRole('link', { name: 'Kho hàng' })).toHaveAttribute('href', '/warehouses')
+    expect(screen.queryByRole('navigation', { name: 'Kho hàng' })).not.toBeInTheDocument() // chỉ một tab thì không cần thanh tab
   })
 
   it('không có quyền xem kho thì không có trong menu và gõ thẳng đường dẫn bị chặn, không gọi API', async () => {
@@ -255,8 +268,21 @@ describe('trang Tồn kho', () => {
 
     expect(await screen.findByRole('link', { name: 'Nhập kho' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Xuất kho' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Tồn đầu kỳ' })).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: 'Điều chỉnh' })).not.toBeInTheDocument()
+
+    // Hai phiếu ít dùng nằm trong menu "Phiếu khác" cho đỡ rối.
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Phiếu khác' }))
+    const menu = await screen.findByRole('menu', { name: 'Phiếu khác' })
+    expect(within(menu).getByRole('menuitem', { name: 'Tồn đầu kỳ' })).toHaveAttribute('href', '/stock/new?type=opening')
+    expect(within(menu).queryByRole('menuitem', { name: 'Điều chỉnh' })).not.toBeInTheDocument()
+  })
+
+  it('người có quyền điều chỉnh thấy mục "Điều chỉnh" trong menu "Phiếu khác"', async () => {
+    mockApi(base())
+    renderApp('/stock')
+
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Phiếu khác' }))
+    const menu = await screen.findByRole('menu', { name: 'Phiếu khác' })
+    expect(within(menu).getByRole('menuitem', { name: 'Điều chỉnh' })).toHaveAttribute('href', '/stock/new?type=adjustment')
   })
 })
 
@@ -610,8 +636,10 @@ describe('lập phiếu kho', () => {
     renderApp('/stock/new?type=adjustment')
 
     expect(await screen.findByRole('heading', { name: 'Nhập kho' })).toBeInTheDocument()
-    expect(within(screen.getByLabelText('Loại phiếu')).queryByRole('option', { name: 'Điều chỉnh' })).not.toBeInTheDocument()
-    expect(within(screen.getByLabelText('Loại phiếu')).getByRole('option', { name: 'Tồn đầu kỳ' })).toBeInTheDocument()
+    const types = within(screen.getByRole('group', { name: 'Loại phiếu' }))
+    expect(types.queryByRole('radio', { name: 'Điều chỉnh' })).not.toBeInTheDocument()
+    expect(types.getByRole('radio', { name: 'Tồn đầu kỳ' })).toBeInTheDocument()
+    expect(types.getByRole('radio', { name: 'Nhập kho' })).toBeChecked() // đường dẫn ?type=adjustment rơi về loại đầu tiên được phép
   })
 
   it('người không có quyền lập phiếu không vào được trang lập phiếu', async () => {
@@ -626,7 +654,102 @@ describe('lập phiếu kho', () => {
     renderApp('/stock/new?type=adjustment')
 
     expect(await screen.findByRole('heading', { name: 'Điều chỉnh tồn kho' })).toBeInTheDocument()
-    const types = within(screen.getByLabelText('Loại phiếu'))
-    for (const name of ['Nhập kho', 'Xuất kho', 'Điều chỉnh', 'Tồn đầu kỳ']) expect(types.getByRole('option', { name })).toBeInTheDocument()
+    const types = within(screen.getByRole('group', { name: 'Loại phiếu' }))
+    for (const name of ['Nhập kho', 'Xuất kho', 'Điều chỉnh', 'Tồn đầu kỳ']) expect(types.getByRole('radio', { name })).toBeInTheDocument()
+    expect(types.getByRole('radio', { name: 'Điều chỉnh' })).toBeChecked()
+  })
+})
+
+describe('trang Tổng quan', () => {
+  const OWNER_LIKE: Permissions = { ...FULL, 'catalog.product.create': 'tenant', 'crm.customer.create': 'tenant', 'purchase.supplier.create': 'tenant' }
+
+  it('hiện việc cần chú ý của kho (bấm sang danh sách đã lọc sẵn), lối tắt theo quyền và phiếu kho gần đây', async () => {
+    const server = mockApi(base({}, OWNER_LIKE))
+    const { router } = renderApp('/')
+    const user = userEvent.setup()
+
+    expect(await screen.findByText('Xin chào, Nguyễn Văn A')).toBeInTheDocument()
+
+    const attention = await screen.findByRole('region', { name: 'Cần chú ý' })
+    expect(await within(attention).findByRole('link', { name: /Sắp hết hàng/ })).toHaveAttribute('href', '/stock?stock=low')
+    expect(within(attention).getByRole('link', { name: /Lô sắp hết hạn/ })).toHaveAttribute('href', '/stock?expiry=soon')
+    expect(within(attention).getByRole('link', { name: /Lô đã hết hạn/ })).toHaveAttribute('href', '/stock?expiry=expired')
+
+    const quick = screen.getByRole('region', { name: 'Làm nhanh' })
+    expect(within(quick).getByRole('link', { name: 'Nhập kho' })).toHaveAttribute('href', '/stock/new?type=receipt')
+    expect(within(quick).getByRole('link', { name: 'Xuất kho' })).toHaveAttribute('href', '/stock/new?type=issue')
+    expect(within(quick).getByRole('link', { name: 'Thêm sản phẩm' })).toHaveAttribute('href', '/products/new')
+    expect(within(quick).getByRole('link', { name: 'Thêm khách hàng' })).toHaveAttribute('href', '/customers/new')
+    expect(within(quick).getByRole('link', { name: 'Thêm nhà cung cấp' })).toHaveAttribute('href', '/suppliers/new')
+
+    expect(await screen.findByRole('link', { name: /PN0001/ })).toHaveAttribute('href', '/stock/documents/d-1')
+    expect(screen.queryByText('Bắt đầu với AgriHub')).not.toBeInTheDocument() // đã có sản phẩm
+
+    // Bấm thẻ cảnh báo: sang Tồn kho và danh sách đã lọc sẵn theo đúng loại cảnh báo.
+    await user.click(within(attention).getByRole('link', { name: /Lô đã hết hạn/ }))
+    await waitFor(() => expect(router.state.location.search).toBe('?expiry=expired'))
+    expect(await screen.findByLabelText('Hạn dùng')).toHaveValue('expired')
+    await waitFor(() => expect(server.calls.some((c) => c.path.startsWith('/api/v1/stock/products?') && c.path.includes('expiry=expired'))).toBe(true))
+  })
+
+  it('cửa hàng mới chưa có sản phẩm: hiện ba việc đầu tiên theo đúng thứ tự', async () => {
+    mockApi(base({ 'GET /api/v1/products': { json: page([]) } }, OWNER_LIKE))
+    renderApp('/')
+
+    const start = await screen.findByRole('region', { name: 'Bắt đầu với AgriHub' })
+    const steps = within(start).getAllByRole('link')
+    expect(steps.map((step) => step.getAttribute('href'))).toEqual(['/products/new', '/stock/new?type=opening', '/customers/new'])
+    expect(within(start).getByText('Thêm sản phẩm đầu tiên')).toBeInTheDocument()
+  })
+
+  it('người không có quyền xem kho không thấy cảnh báo hay phiếu kho và không gọi API kho', async () => {
+    const server = mockApi(base({}, { 'catalog.product.view': 'tenant', 'catalog.product.create': 'tenant' }))
+    renderApp('/')
+
+    expect(await screen.findByRole('link', { name: 'Thêm sản phẩm' })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Cần chú ý' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Phiếu kho gần đây')).not.toBeInTheDocument()
+    expect(server.calls.filter((call) => call.path.startsWith('/api/v1/stock'))).toHaveLength(0)
+  })
+
+  it('tài khoản chưa được cấp quyền nào thì được dặn liên hệ chủ cửa hàng, không có khối rỗng', async () => {
+    mockApi(base({}, {}))
+    renderApp('/')
+
+    expect(await screen.findByText(/chưa được cấp quyền nào/)).toBeInTheDocument()
+    expect(screen.queryByRole('region')).not.toBeInTheDocument()
+  })
+})
+
+describe('đổi loại phiếu và bộ lọc từ liên kết', () => {
+  it('đổi loại phiếu bằng thanh chọn: tiêu đề đổi theo và ô "Lý do" xuất hiện cho phiếu xuất', async () => {
+    mockApi(base())
+    renderApp('/stock/new?type=receipt')
+    const user = userEvent.setup()
+
+    expect(await screen.findByRole('heading', { name: 'Nhập kho' })).toBeInTheDocument()
+    expect(screen.queryByLabelText('Lý do')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('radio', { name: 'Xuất kho' }))
+    expect(await screen.findByRole('heading', { name: 'Xuất kho' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Lý do')).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Xuất kho' })).toBeChecked()
+  })
+
+  it('mở Tồn kho với ?stock=low thì danh sách lọc sẵn "Sắp hết hàng" và gửi đúng tham số', async () => {
+    const server = mockApi(base())
+    renderApp('/stock?stock=low')
+
+    expect(await screen.findByLabelText('Tồn kho')).toHaveValue('low')
+    await waitFor(() => expect(server.calls.some((c) => c.path.startsWith('/api/v1/stock/products?') && c.path.includes('stock=low'))).toBe(true))
+    expect(screen.getAllByRole('button', { name: 'Xóa bộ lọc' }).length).toBeGreaterThan(0)
+  })
+
+  it('giá trị lạ trong đường dẫn (?stock=abc) bị bỏ qua, không gửi lên máy chủ', async () => {
+    const server = mockApi(base())
+    renderApp('/stock?stock=abc&expiry=<script>')
+
+    await screen.findByRole('table')
+    expect(server.calls.filter((c) => c.path.startsWith('/api/v1/stock/products?')).every((c) => !c.path.includes('abc') && !c.path.includes('script'))).toBe(true)
   })
 })

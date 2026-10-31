@@ -166,35 +166,17 @@ export function FieldsSkeleton({ fields = 6, columns = 2 }: { fields?: number; c
   )
 }
 
-/**
- * Hàng ô lọc. Ô lọc theo chi nhánh/kho chỉ có khi doanh nghiệp có từ 2 chi nhánh/kho trở lên nên chỉ biết sau khi tải danh sách đó.
- * Trong lúc chưa biết, hiện khung giữ chỗ đúng lưới (tối đa các ô) và đổi sang ô thật cùng lúc với bảng bên dưới, để một ô thêm vào
- * muộn không đẩy các ô còn lại sang ngang hay xuống hàng. `fields`: lớp CSS riêng của từng ô (vd. `lg:col-span-2` cho ô tìm kiếm).
- */
-export function FilterBar({ loading, fields, className, children }: { loading: boolean; fields: string[]; className: string; children: ReactNode }) {
-  if (!loading) return <div className={className}>{children}</div>
-
-  // Chỉ là hình trang trí đi cùng bảng: vùng "Đang tải…" của bảng đã đọc cho cả trang, không cần thêm một vùng nữa.
-  return (
-    <div aria-hidden="true" className={className}>
-      {fields.map((extra, field) => (
-        <div key={field} className={extra}>
-          <TextBar className="mb-1" width="w-20" />
-          <Skeleton className="h-[38px] w-full" />
-        </div>
-      ))}
-    </div>
-  )
-}
-
-/** Hàng thẻ số liệu (nhãn `text-sm` + số `text-xl`): giữ chỗ để bảng bên dưới không bị đẩy xuống khi số liệu về. */
+/** Hàng thẻ số liệu (biểu tượng tròn + số `text-2xl` + nhãn `text-xs`, cao 76px): giữ chỗ để bảng bên dưới không bị đẩy xuống khi số liệu về. */
 export function StatCardsSkeleton({ count = 3 }: { count?: number }) {
   return (
-    <SkeletonRegion className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <SkeletonRegion className="grid grid-cols-2 gap-3 lg:grid-cols-4">
       {Array.from({ length: count }, (_, card) => (
-        <div key={card} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-          <TextBar width="w-32" />
-          <Skeleton className="mt-1 h-7 w-12" />
+        <div key={card} className="flex min-h-[4.75rem] items-center gap-3 rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-card">
+          <Skeleton className="h-10 w-10 shrink-0 rounded-full" />
+          <div className="min-w-0 flex-1">
+            <div className="flex h-[30px] items-center"><Skeleton className="h-5 w-10" /></div>
+            <div className="flex h-4 items-center"><Skeleton className="h-3 w-28 max-w-full" /></div>
+          </div>
         </div>
       ))}
     </SkeletonRegion>
@@ -275,7 +257,7 @@ export function AppShellSkeleton() {
   return (
     <SkeletonRegion className="min-h-screen bg-slate-50">
       <header className="flex h-14 items-center gap-3 border-b border-slate-200 bg-white px-4">
-        <span className="text-lg font-bold text-emerald-800">{t('app.name')}</span>
+        <span className="text-lg font-bold text-brand-800">{t('app.name')}</span>
         <Skeleton className="ml-auto h-5 w-32" />
       </header>
       <div className="flex">

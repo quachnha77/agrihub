@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { PageHeader } from '../../components/page.tsx'
 import { ListSkeleton } from '../../components/skeleton.tsx'
 import { Alert, Button, Card } from '../../components/ui.tsx'
 import { useAllNotices, useMarkAllNoticesRead, useMarkNoticeRead } from './api.ts'
@@ -14,15 +15,17 @@ export default function NotificationsPage() {
   const unread = query.data?.pages[0]?.unread_count ?? 0
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-xl font-semibold text-slate-900">{t('notifications.title')}</h1>
-        {unread > 0 && (
-          <Button variant="secondary" onClick={() => markAll.mutate()} loading={markAll.isPending}>
-            {t('notifications.markAllRead')} ({unread})
-          </Button>
-        )}
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        title={t('notifications.title')}
+        actions={
+          unread > 0 && (
+            <Button variant="secondary" onClick={() => markAll.mutate()} loading={markAll.isPending}>
+              {t('notifications.markAllRead')} ({unread})
+            </Button>
+          )
+        }
+      />
 
       <Card className="overflow-hidden [&>div]:p-0">
         {query.isPending ? (

@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { meOk, mockApi, notSignedIn, platformAdmin, problem, renderApp, tenantUser } from '../../test/utils.tsx'
@@ -11,6 +11,22 @@ async function fillLogin(login: string, password: string) {
 }
 
 describe('đăng nhập', () => {
+  it('nút mắt hiện/ẩn mật khẩu và báo trạng thái cho trình đọc màn hình', async () => {
+    mockApi({ 'GET /api/v1/auth/me': notSignedIn() })
+    renderApp('/login')
+    const user = userEvent.setup()
+
+    const password = await screen.findByLabelText('Mật khẩu')
+    expect(password).toHaveAttribute('type', 'password')
+
+    await user.click(screen.getByRole('button', { name: 'Hiện mật khẩu' }))
+    expect(password).toHaveAttribute('type', 'text')
+    expect(screen.getByRole('button', { name: 'Ẩn mật khẩu' })).toHaveAttribute('aria-pressed', 'true')
+
+    await user.click(screen.getByRole('button', { name: 'Ẩn mật khẩu' }))
+    expect(password).toHaveAttribute('type', 'password')
+  })
+
   it('chuyển người chưa đăng nhập về trang đăng nhập', async () => {
     mockApi({ 'GET /api/v1/auth/me': notSignedIn() })
     const { router } = renderApp('/branches')
@@ -118,10 +134,34 @@ describe('đăng nhập', () => {
     const { router } = renderApp('/')
     const user = userEvent.setup()
 
-    await user.click(await screen.findByRole('button', { name: /Đăng xuất/ }))
+    await user.click(await screen.findByRole('button', { name: 'Tài khoản' }))
+    const menu = await screen.findByRole('menu', { name: 'Tài khoản' })
+    expect(within(menu).getByText('a@nongphat.vn')).toBeInTheDocument() // hiện đúng người đang đăng nhập
+    expect(within(menu).getByRole('menuitem', { name: 'Đổi mật khẩu' })).toHaveAttribute('href', '/change-password')
+    await user.click(within(menu).getByRole('menuitem', { name: 'Đăng xuất' }))
 
     await waitFor(() => expect(router.state.location.pathname).toBe('/login'))
     expect(server.to('POST', '/api/v1/auth/logout')).toHaveLength(1)
+  })
+
+  it('menu tài khoản đóng bằng Esc và trả focus về nút; mũi tên di chuyển giữa các mục', async () => {
+    mockApi({ 'GET /api/v1/auth/me': meOk(tenantUser()) })
+    renderApp('/')
+    const user = userEvent.setup()
+
+    const button = await screen.findByRole('button', { name: 'Tài khoản' })
+    await user.click(button)
+    const menu = await screen.findByRole('menu', { name: 'Tài khoản' })
+    const [first, second] = within(menu).getAllByRole('menuitem')
+    await waitFor(() => expect(first).toHaveFocus()) // mở menu thì focus vào mục đầu
+    await user.keyboard('{ArrowDown}')
+    expect(second).toHaveFocus()
+    await user.keyboard('{ArrowDown}')
+    expect(first).toHaveFocus() // quay vòng
+
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    expect(button).toHaveFocus()
   })
 })
 

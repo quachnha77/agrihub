@@ -1,24 +1,37 @@
-import { AlertTriangle, ClipboardList, Warehouse as WarehouseIcon } from 'lucide-react'
+import { ChevronDown, Clock, PackageMinus, PackagePlus, PackageSearch, TriangleAlert, Wallet, type LucideIcon } from 'lucide-react'
 import { useDeferredValue, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link } from 'react-router'
-import { FilterBar, Refreshable, StatCardsSkeleton, TableSkeleton } from '../../components/skeleton.tsx'
-import { Alert, Badge, Button, Card, Modal, Pagination, SelectField } from '../../components/ui.tsx'
+import { Link, useSearchParams } from 'react-router'
+import { Menu, MenuItem } from '../../components/menu.tsx'
+import { EmptyState, FilterBar, FilterSelect, PageHeader, SearchField } from '../../components/page.tsx'
+import { Refreshable, StatCardsSkeleton, TableSkeleton } from '../../components/skeleton.tsx'
+import { buttonStyles } from '../../components/styles.ts'
+import { DataTable } from '../../components/table.tsx'
+import { Alert, Badge, Button, ButtonLink, Card, Modal, Pagination } from '../../components/ui.tsx'
+import { countActiveFilters } from '../../lib/filters.ts'
 import { formatDateTime, formatQuantity, formatVnd } from '../../lib/format.ts'
 import { useClampPage } from '../../lib/pagination.ts'
 import { useAuth } from '../auth/auth-context.ts'
 import { useProductTypes } from '../catalog/api.ts'
 import { useAllWarehouses, useStockBalancePage, useStockMovementPage, useStockProducts, useStockSummary, type StockFilters, type StockProduct } from './api.ts'
 import { ExpiryBadge, TypeBadge } from './parts.tsx'
+import { StockTabs } from './StockTabs.tsx'
 
-const linkButton = 'inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium'
 const money = (value: string | null | undefined) => (value === null || value === undefined ? '—' : formatVnd(Number(value)))
+
+const EMPTY_FILTERS: StockFilters = { q: '', type: '', warehouse: '', stock: '', expiry: '', page: 1 }
 
 /** Tồn kho theo sản phẩm: số lượng (đơn vị cơ sở), mức tối thiểu, hạn dùng gần nhất, cảnh báo sắp hết hàng / sắp hết hạn / đã hết hạn. */
 export default function StockPage() {
   const { t } = useTranslation()
   const { can } = useAuth()
-  const [filters, setFilters] = useState<StockFilters>({ q: '', type: '', warehouse: '', stock: '', expiry: '', page: 1 })
+  // Trang Tổng quan dẫn thẳng tới danh sách đã lọc (?stock=low, ?expiry=soon|expired).
+  const [params] = useSearchParams()
+  const [filters, setFilters] = useState<StockFilters>(() => ({
+    ...EMPTY_FILTERS,
+    stock: ['in', 'out', 'low'].includes(params.get('stock') ?? '') ? (params.get('stock') as string) : '',
+    expiry: ['soon', 'expired'].includes(params.get('expiry') ?? '') ? (params.get('expiry') as string) : '',
+  }))
   const search = useDeferredValue(filters.q)
   const products = useStockProducts({ ...filters, q: search })
   const summary = useStockSummary(filters.warehouse)
@@ -37,89 +50,103 @@ export default function StockPage() {
   const set = <K extends keyof StockFilters>(key: K, value: StockFilters[K]) => setFilters((current) => ({ ...current, [key]: value, page: key === 'page' ? (value as number) : 1 }))
   const toggle = (key: 'stock' | 'expiry', value: string) => set(key, filters[key] === value ? '' : value)
   const warnDays = summary.data?.expiry_warning_days ?? 60
+  const activeFilters = countActiveFilters(filters)
+  const filtered = activeFilters > 0 || filters.q !== ''
 
   useClampPage(products.data?.meta, (page) => set('page', page))
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-900">{t('inventory.stock.title')}</h1>
-          <p className="mt-1 text-sm text-slate-600">{t('inventory.stock.intro')}</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Link to="/stock/documents" className={`${linkButton} border-slate-300 bg-white text-slate-800 hover:bg-slate-50`}>
-            <ClipboardList className="h-4 w-4" aria-hidden="true" />
-            {t('inventory.stock.documents')}
-          </Link>
-          {can('inventory.warehouse.view') && (
-            <Link to="/warehouses" className={`${linkButton} border-slate-300 bg-white text-slate-800 hover:bg-slate-50`}>
-              <WarehouseIcon className="h-4 w-4" aria-hidden="true" />
-              {t('inventory.stock.warehouses')}
-            </Link>
-          )}
-        </div>
-      </div>
-
-      {(canMove || canAdjust) && (
-        <div className="flex flex-wrap gap-2">
-          {canMove && <Link to="/stock/new?type=receipt" className={`${linkButton} border-transparent bg-emerald-700 text-white hover:bg-emerald-800`}>{t('inventory.types.receipt')}</Link>}
-          {canMove && <Link to="/stock/new?type=issue" className={`${linkButton} border-slate-300 bg-white text-slate-800 hover:bg-slate-50`}>{t('inventory.types.issue')}</Link>}
-          {canAdjust && <Link to="/stock/new?type=adjustment" className={`${linkButton} border-slate-300 bg-white text-slate-800 hover:bg-slate-50`}>{t('inventory.types.adjustment')}</Link>}
-          {canMove && <Link to="/stock/new?type=opening" className={`${linkButton} border-slate-300 bg-white text-slate-800 hover:bg-slate-50`}>{t('inventory.types.opening')}</Link>}
-        </div>
-      )}
+    <div className="space-y-5">
+      <PageHeader
+        title={t('inventory.stock.title')}
+        description={t('inventory.stock.intro')}
+        tabs={<StockTabs />}
+        actions={
+          (canMove || canAdjust) && (
+            <>
+              {canMove && (
+                <ButtonLink to="/stock/new?type=receipt">
+                  <PackagePlus className="h-4 w-4" aria-hidden="true" />
+                  {t('inventory.types.receipt')}
+                </ButtonLink>
+              )}
+              {canMove && (
+                <ButtonLink variant="secondary" to="/stock/new?type=issue">
+                  {t('inventory.types.issue')}
+                </ButtonLink>
+              )}
+              <Menu
+                label={t('inventory.stock.moreDocuments')}
+                triggerClassName={`${buttonStyles('secondary')} cursor-pointer`}
+                trigger={
+                  <>
+                    {t('inventory.stock.moreDocuments')}
+                    <ChevronDown className="h-4 w-4" aria-hidden="true" />
+                  </>
+                }
+              >
+                {(close) => (
+                  <>
+                    {canAdjust && <MenuItem to="/stock/new?type=adjustment" onSelect={close}>{t('inventory.types.adjustment')}</MenuItem>}
+                    {canMove && <MenuItem to="/stock/new?type=opening" onSelect={close}>{t('inventory.types.opening')}</MenuItem>}
+                  </>
+                )}
+              </Menu>
+            </>
+          )
+        }
+      />
 
       {summary.isPending && <StatCardsSkeleton count={canSeeCosts ? 4 : 3} />}
 
       {summary.data && (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label={t('inventory.summary.title')} role="group">
-          <SummaryCard label={t('inventory.summary.low')} value={summary.data.low_products} tone="warning" active={filters.stock === 'low'} onClick={() => toggle('stock', 'low')} />
-          <SummaryCard label={t('inventory.summary.expiring', { days: warnDays })} value={summary.data.expiring_batches} tone="warning" active={filters.expiry === 'soon'} onClick={() => toggle('expiry', 'soon')} />
-          <SummaryCard label={t('inventory.summary.expired')} value={summary.data.expired_batches} tone="danger" active={filters.expiry === 'expired'} onClick={() => toggle('expiry', 'expired')} />
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label={t('inventory.summary.title')} role="group">
+          <SummaryCard icon={PackageMinus} label={t('inventory.summary.low')} value={summary.data.low_products} tone="warning" active={filters.stock === 'low'} onClick={() => toggle('stock', 'low')} />
+          <SummaryCard icon={Clock} label={t('inventory.summary.expiring', { days: warnDays })} value={summary.data.expiring_batches} tone="warning" active={filters.expiry === 'soon'} onClick={() => toggle('expiry', 'soon')} />
+          <SummaryCard icon={TriangleAlert} label={t('inventory.summary.expired')} value={summary.data.expired_batches} tone="danger" active={filters.expiry === 'expired'} onClick={() => toggle('expiry', 'expired')} />
           {summary.data.stock_value !== undefined && (
-            <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-              <p className="text-sm text-slate-600">{t('inventory.summary.value')}</p>
-              <p className="mt-1 text-xl font-semibold text-slate-900">{money(summary.data.stock_value)}</p>
+            <div className="flex min-h-[4.75rem] items-center gap-3 rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-card">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand-50 text-brand-700">
+                <Wallet className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <span className="min-w-0">
+                <span className="block break-words text-base font-semibold leading-tight tabular-nums text-slate-900 sm:text-lg">{money(summary.data.stock_value)}</span>
+                <span className="block text-xs text-slate-600">{t('inventory.summary.value')}</span>
+              </span>
             </div>
           )}
         </div>
       )}
 
       <Card>
-        <FilterBar loading={loading} fields={['lg:col-span-2', '', '', '', '']} className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
-          <div className="lg:col-span-2">
-            <label htmlFor="stock-search" className="mb-1 block text-sm font-medium text-slate-800">{t('common.search')}</label>
-            <input
-              id="stock-search"
-              type="search"
-              value={filters.q}
-              onChange={(event) => set('q', event.target.value)}
-              placeholder={t('inventory.stock.searchPlaceholder')}
-              className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-200"
-            />
-          </div>
-          <SelectField label={t('inventory.filters.type')} value={filters.type} onChange={(event) => set('type', event.target.value)}>
+        <FilterBar
+          loading={loading}
+          selects={4}
+          activeCount={activeFilters}
+          onClear={() => setFilters(EMPTY_FILTERS)}
+          search={<SearchField label={t('common.search')} value={filters.q} onChange={(event) => set('q', event.target.value)} placeholder={t('inventory.stock.searchPlaceholder')} />}
+        >
+          <FilterSelect label={t('inventory.filters.type')} value={filters.type} onChange={(event) => set('type', event.target.value)}>
             <option value="">{t('inventory.filters.all')}</option>
             {(types.data?.data ?? []).map((d) => <option key={d.key} value={d.key}>{d.label}</option>)}
-          </SelectField>
+          </FilterSelect>
           {(warehouses.data?.length ?? 0) > 1 && (
-            <SelectField label={t('inventory.filters.warehouse')} value={filters.warehouse} onChange={(event) => set('warehouse', event.target.value)}>
+            <FilterSelect label={t('inventory.filters.warehouse')} value={filters.warehouse} onChange={(event) => set('warehouse', event.target.value)}>
               <option value="">{t('inventory.filters.allWarehouses')}</option>
               {(warehouses.data ?? []).map((w) => <option key={w.id} value={w.id}>{w.branch.code} — {w.name}</option>)}
-            </SelectField>
+            </FilterSelect>
           )}
-          <SelectField label={t('inventory.filters.stock')} value={filters.stock} onChange={(event) => set('stock', event.target.value)}>
+          <FilterSelect label={t('inventory.filters.stock')} value={filters.stock} onChange={(event) => set('stock', event.target.value)}>
             <option value="">{t('inventory.filters.all')}</option>
             <option value="in">{t('inventory.filters.in')}</option>
             <option value="out">{t('inventory.filters.out')}</option>
             <option value="low">{t('inventory.filters.low')}</option>
-          </SelectField>
-          <SelectField label={t('inventory.filters.expiry')} value={filters.expiry} onChange={(event) => set('expiry', event.target.value)}>
+          </FilterSelect>
+          <FilterSelect label={t('inventory.filters.expiry')} value={filters.expiry} onChange={(event) => set('expiry', event.target.value)}>
             <option value="">{t('inventory.filters.all')}</option>
             <option value="soon">{t('inventory.filters.soon', { days: warnDays })}</option>
             <option value="expired">{t('inventory.filters.expired')}</option>
-          </SelectField>
+          </FilterSelect>
         </FilterBar>
 
         {loading ? (
@@ -127,51 +154,59 @@ export default function StockPage() {
         ) : products.isError ? (
           <Alert tone="danger">{t('common.loadError')}</Alert>
         ) : rows.length === 0 ? (
-          <p className="py-6 text-center text-sm text-slate-500">{t('inventory.stock.empty')}</p>
+          <EmptyState
+            icon={PackageSearch}
+            title={t('inventory.stock.empty')}
+            description={filtered ? t('common.tryOtherFilters') : undefined}
+            action={filtered ? <Button variant="secondary" onClick={() => setFilters(EMPTY_FILTERS)}>{t('common.clearFilters')}</Button> : undefined}
+          />
         ) : (
           <Refreshable refreshing={products.isPlaceholderData}>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[56rem] text-left text-sm">
-                <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
-                  <tr>
-                    <th scope="col" className="py-2 pr-3">{t('inventory.columns.sku')}</th>
-                    <th scope="col" className="py-2 pr-3">{t('inventory.columns.product')}</th>
-                    <th scope="col" className="py-2 pr-3 text-right">{t('inventory.columns.stock')}</th>
-                    <th scope="col" className="py-2 pr-3 text-right">{t('inventory.columns.min')}</th>
-                    <th scope="col" className="py-2 pr-3">{t('inventory.columns.nextExpiry')}</th>
-                    {costs && <th scope="col" className="py-2 pr-3 text-right">{t('inventory.columns.avgCost')}</th>}
-                    {costs && <th scope="col" className="py-2 pr-3 text-right">{t('inventory.columns.value')}</th>}
-                    <th scope="col" className="py-2 text-right"><span className="sr-only">{t('backup.list.actions')}</span></th>
+            <DataTable minWidth="56rem">
+              <thead className="border-b border-slate-200 text-xs font-medium text-slate-500">
+                <tr>
+                  <th scope="col" className="py-2.5 pr-4">{t('inventory.columns.sku')}</th>
+                  <th scope="col" data-role="title" className="py-2.5 pr-4">{t('inventory.columns.product')}</th>
+                  <th scope="col" className="py-2.5 pr-4 text-right">{t('inventory.columns.stock')}</th>
+                  <th scope="col" data-role="optional" className="py-2.5 pr-4 text-right">{t('inventory.columns.min')}</th>
+                  <th scope="col" className="py-2.5 pr-4">{t('inventory.columns.nextExpiry')}</th>
+                  {costs && <th scope="col" data-role="optional" className="py-2.5 pr-4 text-right">{t('inventory.columns.avgCost')}</th>}
+                  {costs && <th scope="col" className="py-2.5 pr-4 text-right">{t('inventory.columns.value')}</th>}
+                  <th scope="col" data-role="actions" className="py-2.5 text-right"><span className="sr-only">{t('backup.list.actions')}</span></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {rows.map((product) => (
+                  <tr key={product.id}>
+                    <td className="py-3 pr-4 font-mono text-xs whitespace-nowrap text-slate-600">{product.sku}</td>
+                    <td className="py-3 pr-4">
+                      <span className="font-medium text-slate-900">{product.name}</span>
+                      <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-slate-500">
+                        <span>{product.type_label}</span>
+                        {product.track_batch && (
+                          <>
+                            <span aria-hidden="true">·</span>
+                            <span>{t('inventory.stock.batch')}</span>
+                          </>
+                        )}
+                        {product.is_low && <Badge tone="warning">{t('inventory.stock.low')}</Badge>}
+                        {Number(product.expired_qty) > 0 && <Badge tone="danger">{t('inventory.stock.hasExpired', { qty: formatQuantity(product.expired_qty), unit: product.base_unit.name })}</Badge>}
+                      </span>
+                    </td>
+                    <td className="py-3 pr-4 text-right whitespace-nowrap tabular-nums">
+                      <span className="font-semibold text-slate-900">{formatQuantity(product.total_qty)}</span> <span className="text-slate-500">{product.base_unit.name}</span>
+                    </td>
+                    <td className="py-3 pr-4 text-right whitespace-nowrap tabular-nums text-slate-600">{product.min_stock === null ? '—' : formatQuantity(product.min_stock)}</td>
+                    <td className="py-3 pr-4"><ExpiryBadge date={product.next_expiry} warnDays={warnDays} /></td>
+                    {costs && <td className="py-3 pr-4 text-right whitespace-nowrap tabular-nums">{money(product.avg_cost)}</td>}
+                    {costs && <td className="py-3 pr-4 text-right whitespace-nowrap tabular-nums">{money(product.value)}</td>}
+                    <td className="py-3 text-right whitespace-nowrap">
+                      <Button variant="soft" size="sm" onClick={() => setDetail(product)} aria-label={`${t('inventory.stock.detail')} ${product.name}`}>{t('inventory.stock.detail')}</Button>
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {rows.map((product) => (
-                    <tr key={product.id}>
-                      <td className="py-2 pr-3 font-mono text-xs whitespace-nowrap">{product.sku}</td>
-                      <td className="py-2 pr-3">
-                        <span className="font-medium text-slate-900">{product.name}</span>
-                        <span className="mt-0.5 flex flex-wrap items-center gap-1 text-xs text-slate-500">
-                          <Badge tone="info">{product.type_label}</Badge>
-                          {product.track_batch && <Badge tone="neutral">{t('inventory.stock.batch')}</Badge>}
-                          {product.is_low && <Badge tone="warning">{t('inventory.stock.low')}</Badge>}
-                          {Number(product.expired_qty) > 0 && <Badge tone="danger">{t('inventory.stock.hasExpired', { qty: formatQuantity(product.expired_qty), unit: product.base_unit.name })}</Badge>}
-                        </span>
-                      </td>
-                      <td className="py-2 pr-3 text-right whitespace-nowrap">
-                        <span className="font-medium">{formatQuantity(product.total_qty)}</span> <span className="text-slate-500">{product.base_unit.name}</span>
-                      </td>
-                      <td className="py-2 pr-3 text-right whitespace-nowrap text-slate-600">{product.min_stock === null ? '—' : formatQuantity(product.min_stock)}</td>
-                      <td className="py-2 pr-3"><ExpiryBadge date={product.next_expiry} warnDays={warnDays} /></td>
-                      {costs && <td className="py-2 pr-3 text-right whitespace-nowrap">{money(product.avg_cost)}</td>}
-                      {costs && <td className="py-2 pr-3 text-right whitespace-nowrap">{money(product.value)}</td>}
-                      <td className="py-2 text-right whitespace-nowrap">
-                        <Button variant="ghost" onClick={() => setDetail(product)} aria-label={`${t('inventory.stock.detail')} ${product.name}`}>{t('inventory.stock.detail')}</Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                ))}
+              </tbody>
+            </DataTable>
             <Pagination page={products.data.meta.current_page} lastPage={products.data.meta.last_page} total={products.data.meta.total} onPage={(page) => set('page', page)} />
           </Refreshable>
         )}
@@ -182,8 +217,9 @@ export default function StockPage() {
   )
 }
 
-function SummaryCard({ label, value, tone, active, onClick }: { label: string; value: number; tone: 'warning' | 'danger'; active: boolean; onClick: () => void }) {
+function SummaryCard({ icon: Icon, label, value, tone, active, onClick }: { icon: LucideIcon; label: string; value: number; tone: 'warning' | 'danger'; active: boolean; onClick: () => void }) {
   const { t } = useTranslation()
+  const circle = value === 0 ? 'bg-slate-100 text-slate-400' : tone === 'danger' ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'
   const color = value === 0 ? 'text-slate-900' : tone === 'danger' ? 'text-red-700' : 'text-amber-700'
 
   return (
@@ -192,13 +228,15 @@ function SummaryCard({ label, value, tone, active, onClick }: { label: string; v
       onClick={onClick}
       aria-pressed={active}
       title={t('inventory.summary.filterHint')}
-      className={`rounded-lg border p-4 text-left shadow-sm transition-colors ${active ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`}
+      className={`flex min-h-[4.75rem] items-center gap-3 rounded-xl border p-3.5 text-left shadow-card transition-colors ${active ? 'border-brand-600 bg-brand-50' : 'border-slate-200/80 bg-white hover:border-slate-300'}`}
     >
-      <span className="flex items-center gap-1 text-sm text-slate-600">
-        {value > 0 && <AlertTriangle className={`h-4 w-4 ${tone === 'danger' ? 'text-red-600' : 'text-amber-600'}`} aria-hidden="true" />}
-        {label}
+      <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-full ${circle}`}>
+        <Icon className="h-5 w-5" aria-hidden="true" />
       </span>
-      <span className={`mt-1 block text-xl font-semibold ${color}`}>{value}</span>
+      <span className="min-w-0">
+        <span className={`block text-2xl font-semibold leading-tight tabular-nums ${color}`}>{value}</span>
+        <span className="block text-xs text-slate-600">{label}</span>
+      </span>
     </button>
   )
 }
@@ -233,28 +271,26 @@ function ProductStockDialog({ product, warehouse, warnDays, onClose }: { product
             <p className="text-sm text-slate-500">{t('inventory.detail.noBalances')}</p>
           ) : (
             <Refreshable refreshing={balances.isPlaceholderData}>
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[32rem] text-left text-sm">
-                  <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
-                    <tr>
-                      <th scope="col" className="py-2 pr-3">{t('inventory.columns.warehouse')}</th>
-                      <th scope="col" className="py-2 pr-3">{t('inventory.columns.batch')}</th>
-                      <th scope="col" className="py-2 pr-3">{t('inventory.columns.expiry')}</th>
-                      <th scope="col" className="py-2 text-right">{t('inventory.columns.quantity')}</th>
+              <DataTable minWidth="32rem">
+                <thead className="border-b border-slate-200 text-xs font-medium text-slate-500">
+                  <tr>
+                    <th scope="col" data-role="title" className="py-2.5 pr-4">{t('inventory.columns.warehouse')}</th>
+                    <th scope="col" className="py-2.5 pr-4">{t('inventory.columns.batch')}</th>
+                    <th scope="col" className="py-2.5 pr-4">{t('inventory.columns.expiry')}</th>
+                    <th scope="col" className="py-2.5 text-right">{t('inventory.columns.quantity')}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {balances.data.data.map((row) => (
+                    <tr key={row.id}>
+                      <td className="py-3 pr-4">{row.warehouse.name}</td>
+                      <td className="py-3 pr-4">{row.batch?.batch_no ?? '—'}</td>
+                      <td className="py-3 pr-4"><ExpiryBadge date={row.batch?.expires_at ?? null} warnDays={warnDays} /></td>
+                      <td className="py-3 text-right whitespace-nowrap">{formatQuantity(row.quantity)} {product.base_unit.name}</td>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {balances.data.data.map((row) => (
-                      <tr key={row.id}>
-                        <td className="py-2 pr-3">{row.warehouse.name}</td>
-                        <td className="py-2 pr-3">{row.batch?.batch_no ?? '—'}</td>
-                        <td className="py-2 pr-3"><ExpiryBadge date={row.batch?.expires_at ?? null} warnDays={warnDays} /></td>
-                        <td className="py-2 text-right whitespace-nowrap">{formatQuantity(row.quantity)} {product.base_unit.name}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                  ))}
+                </tbody>
+              </DataTable>
               <Pagination page={balances.data.meta.current_page} lastPage={balances.data.meta.last_page} total={balances.data.meta.total} onPage={setBalancePage} />
             </Refreshable>
           )}
@@ -270,36 +306,34 @@ function ProductStockDialog({ product, warehouse, warnDays, onClose }: { product
             <p className="text-sm text-slate-500">{t('inventory.detail.noMovements')}</p>
           ) : (
             <Refreshable refreshing={movements.isPlaceholderData}>
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[40rem] text-left text-sm">
-                  <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
-                    <tr>
-                      <th scope="col" className="py-2 pr-3">{t('inventory.columns.time')}</th>
-                      <th scope="col" className="py-2 pr-3">{t('inventory.columns.document')}</th>
-                      <th scope="col" className="py-2 pr-3">{t('inventory.columns.batch')}</th>
-                      <th scope="col" className="py-2 pr-3 text-right">{t('inventory.columns.change')}</th>
-                      <th scope="col" className="py-2 text-right">{t('inventory.columns.balanceAfter')}</th>
+              <DataTable minWidth="40rem">
+                <thead className="border-b border-slate-200 text-xs font-medium text-slate-500">
+                  <tr>
+                    <th scope="col" data-role="title" className="py-2.5 pr-4">{t('inventory.columns.time')}</th>
+                    <th scope="col" className="py-2.5 pr-4">{t('inventory.columns.document')}</th>
+                    <th scope="col" className="py-2.5 pr-4">{t('inventory.columns.batch')}</th>
+                    <th scope="col" className="py-2.5 pr-4 text-right">{t('inventory.columns.change')}</th>
+                    <th scope="col" className="py-2.5 text-right">{t('inventory.columns.balanceAfter')}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {movements.data.data.map((m) => (
+                    <tr key={m.id}>
+                      <td className="py-3 pr-4 whitespace-nowrap">{formatDateTime(m.performed_at)}</td>
+                      <td className="py-3 pr-4">
+                        <Link to={`/stock/documents/${m.document.id}`} onClick={onClose} className="font-mono text-xs text-brand-700 hover:underline">{m.document.code}</Link>
+                        <span className="ml-1"><TypeBadge type={m.type} /></span>
+                      </td>
+                      <td className="py-3 pr-4">{m.batch?.batch_no ?? '—'}</td>
+                      <td className={`py-3 pr-4 text-right whitespace-nowrap font-medium ${Number(m.quantity_delta) < 0 ? 'text-red-700' : 'text-brand-700'}`}>
+                        {Number(m.quantity_delta) > 0 ? '+' : ''}{formatQuantity(m.quantity_delta)}
+                        <span className="block text-xs font-normal text-slate-500">{t('inventory.detail.entered', { quantity: formatQuantity(m.entered.quantity), unit: m.entered.unit })}</span>
+                      </td>
+                      <td className="py-3 text-right whitespace-nowrap">{formatQuantity(m.balance_after)}</td>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {movements.data.data.map((m) => (
-                      <tr key={m.id}>
-                        <td className="py-2 pr-3 whitespace-nowrap">{formatDateTime(m.performed_at)}</td>
-                        <td className="py-2 pr-3">
-                          <Link to={`/stock/documents/${m.document.id}`} onClick={onClose} className="font-mono text-xs text-emerald-700 hover:underline">{m.document.code}</Link>
-                          <span className="ml-1"><TypeBadge type={m.type} /></span>
-                        </td>
-                        <td className="py-2 pr-3">{m.batch?.batch_no ?? '—'}</td>
-                        <td className={`py-2 pr-3 text-right whitespace-nowrap font-medium ${Number(m.quantity_delta) < 0 ? 'text-red-700' : 'text-emerald-700'}`}>
-                          {Number(m.quantity_delta) > 0 ? '+' : ''}{formatQuantity(m.quantity_delta)}
-                          <span className="block text-xs font-normal text-slate-500">{t('inventory.detail.entered', { quantity: formatQuantity(m.entered.quantity), unit: m.entered.unit })}</span>
-                        </td>
-                        <td className="py-2 text-right whitespace-nowrap">{formatQuantity(m.balance_after)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                  ))}
+                </tbody>
+              </DataTable>
               <Pagination page={movements.data.meta.current_page} lastPage={movements.data.meta.last_page} total={movements.data.meta.total} onPage={setMovementPage} />
             </Refreshable>
           )}

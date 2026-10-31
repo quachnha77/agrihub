@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { PageHeader } from '../../components/page.tsx'
 import { CardGridSkeleton } from '../../components/skeleton.tsx'
 import { Alert, Badge, Card } from '../../components/ui.tsx'
 import { usePermissionCatalog, useRoles, type PermissionResource, type Role } from './api.ts'
@@ -26,11 +27,8 @@ export default function RolesPage() {
   const catalog = usePermissionCatalog()
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-semibold text-slate-900">{t('roles.title')}</h1>
-        <p className="mt-1 text-sm text-slate-600">{t('roles.intro')}</p>
-      </div>
+    <div className="space-y-5">
+      <PageHeader title={t('roles.title')} description={t('roles.intro')} />
 
       {roles.isPending || catalog.isPending ? (
         <CardGridSkeleton cards={4} lines={3} />
@@ -52,7 +50,7 @@ export default function RolesPage() {
                 {role.description && <p className="text-sm text-slate-600">{role.description}</p>}
                 <p className="mt-1 text-xs text-slate-500">{t('roles.usersCount', { count: role.users_count ?? 0 })}</p>
                 <details className="mt-3">
-                  <summary className="cursor-pointer text-sm font-medium text-emerald-700">{t('roles.viewPermissions', { count: role.permissions.length })}</summary>
+                  <summary className="cursor-pointer text-sm font-medium text-brand-700">{t('roles.viewPermissions', { count: role.permissions.length })}</summary>
                   <dl className="mt-2 divide-y divide-slate-100 text-sm">
                     {summarize(role, catalog.data, t).map((group) => (
                       <div key={group.resource} className="flex flex-col gap-0.5 py-1.5 sm:flex-row sm:gap-4">
