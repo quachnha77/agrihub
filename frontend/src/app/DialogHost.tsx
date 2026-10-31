@@ -22,6 +22,9 @@ const loaders = {
   stocktake: () => import('../features/inventory/StocktakeDialog.tsx'),
   transferNew: () => import('../features/inventory/TransferDialog.tsx'),
   transfer: () => import('../features/inventory/TransferViewDialog.tsx'),
+  purchaseNew: () => import('../features/purchase/PurchaseDialog.tsx'),
+  purchase: () => import('../features/purchase/PurchaseViewDialog.tsx'),
+  purchasePay: () => import('../features/purchase/PurchasePayDialog.tsx'),
 }
 
 /**
@@ -41,6 +44,10 @@ const DIALOGS: Record<string, Definition> = {
   // Chuyển kho dùng quyền nhập/xuất kho (máy chủ còn đòi quyền ở CẢ HAI chi nhánh của hai kho).
   'transfer-new': { Component: lazy(loaders.transferNew), allowed: (can) => can('inventory.movement.create') },
   transfer: { Component: lazy(loaders.transfer), allowed: (can) => can('inventory.movement.view') },
+  // Mua hàng dùng quyền `purchase.order`: lập phiếu = tạo, xem = xem, trả tiền = cập nhật (API còn kiểm tra theo chi nhánh của kho).
+  'purchase-new': { Component: lazy(loaders.purchaseNew), allowed: (can) => can('purchase.order.create') },
+  purchase: { Component: lazy(loaders.purchase), allowed: (can) => can('purchase.order.view') },
+  'purchase-pay': { Component: lazy(loaders.purchasePay), allowed: (can) => can('purchase.order.update') },
 }
 
 /** Tải sẵn mã của các popup khi trình duyệt rảnh, để lần bấm đầu tiên không phải chờ mạng (nhất là trên điện thoại). Bỏ qua khi chạy test. */

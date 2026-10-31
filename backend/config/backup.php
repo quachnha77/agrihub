@@ -158,6 +158,10 @@ return [
         // Kiểm kê (cha → con): đợt tham chiếu kho và phiếu điều chỉnh; dòng đếm tham chiếu đợt, sản phẩm và lô.
         'stocktakes',
         'stocktake_lines',
+        // Mua hàng (cha → con): phiếu nhập hàng tham chiếu nhà cung cấp, kho và phiếu nhập kho; dòng và lần trả tiền tham chiếu phiếu.
+        'purchase_receipts',
+        'purchase_receipt_lines',
+        'purchase_payments',
     ],
 
     /**

@@ -11,6 +11,7 @@ import { countActiveFilters } from '../../lib/filters.ts'
 import { describeError } from '../../lib/forms.ts'
 import { useClampPage } from '../../lib/pagination.ts'
 import { useAuth } from '../auth/auth-context.ts'
+import { PurchaseTabs } from '../purchase/parts.tsx'
 import { useDeleteSupplier, useSuppliers, type Supplier, type SupplierFilters } from './api.ts'
 
 const EMPTY_FILTERS: SupplierFilters = { q: '', status: '', page: 1 }
@@ -56,6 +57,7 @@ export default function SuppliersPage() {
       <PageHeader
         title={t('crm.suppliers.title')}
         description={t('crm.suppliers.intro')}
+        tabs={<PurchaseTabs />}
         actions={
           canCreate && (
             <ButtonLink {...link('supplier')}>

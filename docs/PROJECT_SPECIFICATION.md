@@ -15,7 +15,7 @@ Thực thể tổ chức: **Platform Admin → Tenant → Branch → User**; **C
 | 5.4 | Khách hàng | 2 | Hồ sơ, phân loại, liên hệ, địa chỉ, hạn mức tín dụng, lịch sử mua/thanh toán, công nợ, mùa vụ |
 | 5.5 | Sản phẩm | 2 | Danh mục, thương hiệu, NCC, đơn vị & quy đổi, giá, mã vạch, lô, NSX/HSD |
 | 5.6 | Kho | 2 | Nhập/xuất/kiểm kê/điều chỉnh/điều chuyển, theo dõi lô & HSD, cảnh báo; **tồn kho chỉ thay đổi qua giao dịch kho**. Đã có: nhập/xuất/điều chỉnh/tồn đầu kỳ, **kiểm kê** (khóa kho, hoàn tất bằng một phiếu điều chỉnh, không cần duyệt), **chuyển kho** (một bước, cùng hoặc khác chi nhánh, ghép sản phẩm theo mã, giữ lô) |
-| 5.7 | NCC & Mua hàng | 2 | Đơn mua, phiếu nhập, chi phí, công nợ NCC, thanh toán, đối chiếu |
+| 5.7 | NCC & Mua hàng | 2 | Đơn mua, phiếu nhập, chi phí, công nợ NCC, thanh toán, đối chiếu. Đã có: nhà cung cấp, **phiếu nhập hàng** (hàng vào kho ngay, chi phí kèm theo vào giá vốn, ghi nợ + trả tiền nhiều lần, hủy lần trả nhầm). Chưa có: đơn mua, trả hàng nhà cung cấp, đối chiếu |
 | 5.8 | Bán hàng | 2 | Đơn bán, chiết khấu, đa phương thức, trả một phần, ghi nợ, hóa đơn, hủy/trả hàng/hoàn tiền |
 | 5.9 | Công nợ KH | 2 | Theo hóa đơn, phân bổ thanh toán, tuổi nợ, đối chiếu, lãi (tùy cấu hình & thỏa thuận) |
 | 5.10 | Mùa vụ | 3 | Cây trồng, diện tích, thời gian, sản phẩm dùng, chi phí, công nợ |

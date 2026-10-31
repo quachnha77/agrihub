@@ -41,6 +41,8 @@ export default function AppLayout() {
 
   const canStock = can('inventory.movement.view')
   const canWarehouses = can('inventory.warehouse.view')
+  const canSuppliers = can('purchase.supplier.view')
+  const canPurchases = can('purchase.order.view')
 
   // Mục chính ≤ 8 (Kho hàng gom Tồn kho, Phiếu kho, Danh sách kho thành tab trong trang); mục quản trị tách thành nhóm riêng.
   const groups: NavGroup[] = [
@@ -50,7 +52,7 @@ export default function AppLayout() {
         { to: '/products', label: t('nav.products'), icon: Package, visible: can('catalog.product.view') },
         { to: canStock ? '/stock' : '/warehouses', label: t('nav.stockModule'), icon: Warehouse, visible: canStock || canWarehouses, match: ['/stock', '/warehouses'] },
         { to: '/customers', label: t('nav.customers'), icon: Contact, visible: can('crm.customer.view') },
-        { to: '/suppliers', label: t('nav.suppliers'), icon: Truck, visible: can('purchase.supplier.view') },
+        { to: canSuppliers ? '/suppliers' : '/purchases', label: t('nav.suppliers'), icon: Truck, visible: canSuppliers || canPurchases, match: ['/suppliers', '/purchases'] },
         { to: '/platform/tenants', label: t('nav.tenants'), icon: Store, visible: platform },
         { to: '/platform/renewals', label: t('nav.renewals'), icon: PhoneCall, visible: platform },
         { to: '/platform/plans', label: t('nav.plans'), icon: Tags, visible: platform },

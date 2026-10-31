@@ -102,12 +102,14 @@ class StockController extends Controller
         }
 
         $timezone = config('inventory.timezone');
+        // Mốc thời gian kèm múi giờ (+07:00): nếu không, máy chủ cơ sở dữ liệu hiểu giờ Việt Nam như giờ UTC và lọc theo ngày lệch 7 tiếng (sáng sớm không thấy phiếu của hôm nay).
+        $instant = 'Y-m-d H:i:s.uP';
 
         $query->when($f['product'] ?? null, fn ($q, $v) => $q->whereIn('product_id', Product::where('uuid', $v)->select('id')))
             ->when($f['warehouse'] ?? null, fn ($q, $v) => $q->whereIn('warehouse_id', Warehouse::where('uuid', $v)->select('id')))
             ->when($f['type'] ?? null, fn ($q, $v) => $q->where('movement_type', $v))
-            ->when($f['from'] ?? null, fn ($q, $v) => $q->where('performed_at', '>=', Carbon::parse($v, $timezone)->startOfDay()))
-            ->when($f['to'] ?? null, fn ($q, $v) => $q->where('performed_at', '<=', Carbon::parse($v, $timezone)->endOfDay()));
+            ->when($f['from'] ?? null, fn ($q, $v) => $q->where('performed_at', '>=', Carbon::parse($v, $timezone)->startOfDay()->format($instant)))
+            ->when($f['to'] ?? null, fn ($q, $v) => $q->where('performed_at', '<=', Carbon::parse($v, $timezone)->endOfDay()->format($instant)));
 
         return StockMovementResource::collection($query->paginate($f['per_page'] ?? 30)->withQueryString());
     }

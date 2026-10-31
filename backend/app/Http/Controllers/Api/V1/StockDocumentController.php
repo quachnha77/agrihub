@@ -18,7 +18,7 @@ use Illuminate\Validation\Rule;
 /** Phiếu kho: danh sách, chi tiết, và ghi phiếu mới (nhập, xuất, điều chỉnh, tồn đầu kỳ). Phiếu đã ghi không sửa/xóa được; sai sót sửa bằng phiếu điều chỉnh. */
 class StockDocumentController extends Controller
 {
-    private const WITH = ['warehouse', 'branch', 'performer', 'transfer'];
+    private const WITH = ['warehouse', 'branch', 'performer', 'transfer', 'purchaseReceipt'];
 
     public function __construct(private StockService $stock) {}
 
@@ -42,12 +42,14 @@ class StockDocumentController extends Controller
         }
 
         $timezone = config('inventory.timezone');
+        // Mốc thời gian kèm múi giờ (+07:00): nếu không, máy chủ cơ sở dữ liệu hiểu giờ Việt Nam như giờ UTC và lọc theo ngày lệch 7 tiếng (sáng sớm không thấy phiếu của hôm nay).
+        $instant = 'Y-m-d H:i:s.uP';
 
         $query->when($f['q'] ?? null, fn ($q, $v) => $q->where('code', 'ilike', '%'.str_replace(['%', '_'], ['\%', '\_'], $v).'%'))
             ->when($f['type'] ?? null, fn ($q, $v) => $q->where('type', $v))
             ->when($f['warehouse'] ?? null, fn ($q, $v) => $q->whereIn('warehouse_id', Warehouse::where('uuid', $v)->select('id')))
-            ->when($f['from'] ?? null, fn ($q, $v) => $q->where('performed_at', '>=', Carbon::parse($v, $timezone)->startOfDay()))
-            ->when($f['to'] ?? null, fn ($q, $v) => $q->where('performed_at', '<=', Carbon::parse($v, $timezone)->endOfDay()));
+            ->when($f['from'] ?? null, fn ($q, $v) => $q->where('performed_at', '>=', Carbon::parse($v, $timezone)->startOfDay()->format($instant)))
+            ->when($f['to'] ?? null, fn ($q, $v) => $q->where('performed_at', '<=', Carbon::parse($v, $timezone)->endOfDay()->format($instant)));
 
         return StockDocumentResource::collection($query->paginate($f['per_page'] ?? 20)->withQueryString());
     }

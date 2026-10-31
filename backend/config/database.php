@@ -97,6 +97,8 @@ return [
             'prefix_indexes' => true,
             'search_path' => 'public',
             'sslmode' => env('DB_SSLMODE', 'prefer'),
+            // Ứng dụng ghi/đọc thời điểm theo UTC: ép phiên PostgreSQL về UTC để không phụ thuộc múi giờ của máy chủ cơ sở dữ liệu (máy dev mặc định là giờ địa phương, lệch 7 tiếng).
+            'timezone' => 'UTC',
         ],
 
         'sqlsrv' => [

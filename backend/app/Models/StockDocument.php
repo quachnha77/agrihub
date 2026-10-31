@@ -7,6 +7,7 @@ use App\Support\Tenancy\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
  * Phiếu kho: nhập kho, xuất kho, điều chỉnh, tồn đầu kỳ. Bất biến (trigger chặn sửa/xóa); sai sót được sửa bằng phiếu điều chỉnh mới.
@@ -67,6 +68,12 @@ class StockDocument extends Model
     public function transfer(): BelongsTo
     {
         return $this->belongsTo(StockTransfer::class, 'transfer_id');
+    }
+
+    /** Phiếu nhập hàng (Mua hàng) sinh ra phiếu kho này, nếu có. */
+    public function purchaseReceipt(): HasOne
+    {
+        return $this->hasOne(PurchaseReceipt::class);
     }
 
     public function movements(): HasMany

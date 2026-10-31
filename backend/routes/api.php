@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\V1\Platform\TenantBackupController;
 use App\Http\Controllers\Api\V1\Platform\TenantController;
 use App\Http\Controllers\Api\V1\Platform\UserController as PlatformUserController;
 use App\Http\Controllers\Api\V1\ProductController;
+use App\Http\Controllers\Api\V1\PurchaseController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\SessionController;
 use App\Http\Controllers\Api\V1\StockController;
@@ -148,6 +149,12 @@ Route::middleware(['auth:sanctum', 'tenant.context'])->group(function () {
             Route::get('/stock/transfers', [StockTransferController::class, 'index']);
             Route::post('/stock/transfers', [StockTransferController::class, 'store']);
             Route::get('/stock/transfers/{transfer}', [StockTransferController::class, 'show']);
+            // Mua hàng: phiếu nhập hàng (hàng vào kho qua StockService) và trả tiền nhà cung cấp.
+            Route::get('/purchases', [PurchaseController::class, 'index']);
+            Route::post('/purchases', [PurchaseController::class, 'store']);
+            Route::get('/purchases/{purchase}', [PurchaseController::class, 'show']);
+            Route::post('/purchases/{purchase}/payments', [PurchaseController::class, 'pay']);
+            Route::post('/purchases/{purchase}/payments/{payment}/void', [PurchaseController::class, 'voidPayment']);
             // Kiểm kê: một đợt khóa kho đang đếm; chênh lệch được ghi bằng MỘT phiếu điều chỉnh (kiểm kê không sửa tồn trực tiếp).
             Route::get('/stocktakes', [StocktakeController::class, 'index']);
             Route::post('/stocktakes', [StocktakeController::class, 'store']);

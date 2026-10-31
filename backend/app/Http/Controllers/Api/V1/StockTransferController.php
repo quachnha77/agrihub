@@ -44,14 +44,16 @@ class StockTransferController extends Controller
         }
 
         $timezone = config('inventory.timezone');
+        // Mốc thời gian kèm múi giờ (+07:00): nếu không, máy chủ cơ sở dữ liệu hiểu giờ Việt Nam như giờ UTC và lọc theo ngày lệch 7 tiếng (sáng sớm không thấy phiếu của hôm nay).
+        $instant = 'Y-m-d H:i:s.uP';
 
         $query->when($f['q'] ?? null, fn ($q, $v) => $q->where('code', 'ilike', '%'.str_replace(['%', '_'], ['\%', '\_'], $v).'%'))
             ->when($f['warehouse'] ?? null, function ($q, $v) {
                 $id = Warehouse::where('uuid', $v)->select('id');
                 $q->where(fn ($w) => $w->whereIn('from_warehouse_id', $id)->orWhereIn('to_warehouse_id', $id));
             })
-            ->when($f['from'] ?? null, fn ($q, $v) => $q->where('performed_at', '>=', Carbon::parse($v, $timezone)->startOfDay()))
-            ->when($f['to'] ?? null, fn ($q, $v) => $q->where('performed_at', '<=', Carbon::parse($v, $timezone)->endOfDay()));
+            ->when($f['from'] ?? null, fn ($q, $v) => $q->where('performed_at', '>=', Carbon::parse($v, $timezone)->startOfDay()->format($instant)))
+            ->when($f['to'] ?? null, fn ($q, $v) => $q->where('performed_at', '<=', Carbon::parse($v, $timezone)->endOfDay()->format($instant)));
 
         return StockTransferResource::collection($query->paginate($f['per_page'] ?? 20)->withQueryString());
     }
