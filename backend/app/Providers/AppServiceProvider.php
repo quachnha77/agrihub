@@ -2,13 +2,19 @@
 
 namespace App\Providers;
 
+use App\Models\Branch;
 use App\Models\Brand;
 use App\Models\Category;
 use App\Models\CustomerGroup;
+use App\Models\StockDocument;
 use App\Models\Unit;
 use App\Models\User;
+use App\Models\Warehouse;
+use App\Observers\BranchObserver;
 use App\Policies\CatalogListPolicy;
 use App\Policies\CustomerGroupPolicy;
+use App\Policies\StockDocumentPolicy;
+use App\Policies\WarehousePolicy;
 use App\Services\Audit\AuditLogger;
 use App\Support\Auth\LoginIdentifier;
 use App\Support\Auth\LoginScope;
@@ -49,13 +55,18 @@ class AppServiceProvider extends ServiceProvider
         }
 
         Gate::policy(CustomerGroup::class, CustomerGroupPolicy::class);
+        Gate::policy(Warehouse::class, WarehousePolicy::class);
+        Gate::policy(StockDocument::class, StockDocumentPolicy::class);
+
+        // Chi nhánh nào cũng có sẵn "Kho chính".
+        Branch::observe(BranchObserver::class);
 
         Auth::provider('tenant-eloquent', function ($app, array $config) {
             return new TenantAwareUserProvider($app['hash'], $config['model']);
         });
 
         // Tham số route là uuid công khai; giá trị khác định dạng => 404 (không để PostgreSQL báo lỗi cú pháp uuid thành 500).
-        foreach (['tenant', 'user', 'branch', 'role', 'plan', 'backup', 'product', 'unit', 'category', 'brand', 'customer', 'customer_group', 'supplier'] as $parameter) {
+        foreach (['tenant', 'user', 'branch', 'role', 'plan', 'backup', 'product', 'unit', 'category', 'brand', 'customer', 'customer_group', 'supplier', 'warehouse', 'document'] as $parameter) {
             Route::pattern($parameter, '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}');
         }
 

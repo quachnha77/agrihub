@@ -58,7 +58,8 @@ class CatalogBackupTest extends TestCase
         $theirs = $api($otherOwner)->postJson('/api/v1/products', $this->productPayload($otherBranch, $other, ['sku' => 'THEIRS']))->assertCreated()->json('data.id');
 
         $backup = $this->asBackupAdmin()->postJson($this->backupPath($tenant))->assertStatus(202)->assertJsonPath('data.status', 'completed')->json('data');
-        $this->assertEqualsCanonicalizing(['units', 'categories', 'products', 'product_units'], array_keys(array_filter($backup['row_counts'], fn ($n) => $n > 0)));
+        // Chỉ xét bảng danh mục (kho chính của chi nhánh cũng được sao lưu nhưng không thuộc phạm vi test này).
+        $this->assertEqualsCanonicalizing(['units', 'categories', 'products', 'product_units'], array_values(array_intersect(array_keys(array_filter($backup['row_counts'], fn ($n) => $n > 0)), ['units', 'categories', 'brands', 'products', 'product_units'])));
 
         // Sau khi sao lưu: sửa giá, xóa một sản phẩm, thêm một sản phẩm mới.
         $api($owner)->patchJson("/api/v1/products/{$keep['id']}", ['name' => 'Tên đã đổi', 'units' => [['unit_id' => $kg->uuid, 'factor' => 1, 'price_cash' => 1, 'price_credit' => 1]]])->assertOk();

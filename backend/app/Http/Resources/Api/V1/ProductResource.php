@@ -29,6 +29,7 @@ class ProductResource extends JsonResource
             'description' => $this->description,
             'status' => $this->status,
             'track_batch' => $this->track_batch,
+            'min_stock' => $this->min_stock === null ? null : (string) $this->min_stock,
             'specs' => (object) ($this->specs ?? []),
             'base_unit' => $this->whenLoaded('baseUnit', fn () => ['id' => $baseUnit->uuid, 'name' => $baseUnit->name]),
             'units' => $this->whenLoaded('units', fn () => $this->units->map(fn ($u) => [

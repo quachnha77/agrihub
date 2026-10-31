@@ -22,11 +22,14 @@ use App\Http\Controllers\Api\V1\Platform\UserController as PlatformUserControlle
 use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\SessionController;
+use App\Http\Controllers\Api\V1\StockController;
+use App\Http\Controllers\Api\V1\StockDocumentController;
 use App\Http\Controllers\Api\V1\SubscriptionController;
 use App\Http\Controllers\Api\V1\SupplierController;
 use App\Http\Controllers\Api\V1\TenantContextController;
 use App\Http\Controllers\Api\V1\UnitController;
 use App\Http\Controllers\Api\V1\UserController;
+use App\Http\Controllers\Api\V1\WarehouseController;
 use Illuminate\Support\Facades\Route;
 
 // Prefix /api/v1 được cấu hình trong bootstrap/app.php
@@ -130,6 +133,16 @@ Route::middleware(['auth:sanctum', 'tenant.context'])->group(function () {
             Route::apiResource('customer-groups', CustomerGroupController::class)->except('show');
             Route::apiResource('customers', CustomerController::class);
             Route::apiResource('suppliers', SupplierController::class);
+
+            // Kho: nhiều kho mỗi chi nhánh; tồn chỉ thay đổi bằng phiếu kho (sổ kho bất biến), các API /stock/* tra cứu là chỉ đọc.
+            Route::apiResource('warehouses', WarehouseController::class);
+            Route::get('/stock/products', [StockController::class, 'products']);
+            Route::get('/stock/balances', [StockController::class, 'balances']);
+            Route::get('/stock/movements', [StockController::class, 'movements']);
+            Route::get('/stock/summary', [StockController::class, 'summary']);
+            Route::get('/stock/documents', [StockDocumentController::class, 'index']);
+            Route::post('/stock/documents', [StockDocumentController::class, 'store']);
+            Route::get('/stock/documents/{document}', [StockDocumentController::class, 'show']);
 
             Route::get('/permissions', [PermissionController::class, 'index']);
             Route::apiResource('roles', RoleController::class);

@@ -9,16 +9,19 @@ use App\Models\Customer;
 use App\Models\CustomerGroup;
 use App\Models\Product;
 use App\Models\Role;
+use App\Models\StockDocument;
 use App\Models\Subscription;
 use App\Models\Supplier;
 use App\Models\Tenant;
 use App\Models\Unit;
 use App\Models\User;
+use App\Models\Warehouse;
 use App\Services\Billing\SubscriptionService;
 use App\Services\Catalog\CatalogDefaults;
 use App\Services\Catalog\ProductService;
 use App\Services\Crm\CustomerService;
 use App\Services\Crm\SupplierService;
+use App\Services\Inventory\StockService;
 use App\Services\Rbac\RoleProvisioner;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Seeder;
@@ -90,6 +93,49 @@ class DevSeeder extends Seeder
         });
     }
 
+    /**
+     * Tồn đầu kỳ mẫu cho "Kho chính" của chi nhánh chính (chạy lại không nhập trùng) và mức tồn tối thiểu. Cố ý có đủ tình huống để thử cảnh báo:
+     * thuốc có lô sắp hết hạn, một lô ĐÃ hết hạn, và vài mặt hàng dưới mức tối thiểu. Hạn dùng tính từ hôm nay nên luôn còn đúng tình huống.
+     */
+    private function seedStock(TenantContext $context, Tenant $tenant, Branch $branch): void
+    {
+        $context->runForTenant($tenant->id, function () use ($branch) {
+            $warehouse = Warehouse::where('branch_id', $branch->id)->orderBy('id')->first();
+
+            if (! $warehouse || StockDocument::where('warehouse_id', $warehouse->id)->exists()) {
+                return;
+            }
+
+            $minimums = ['NPK-16' => 500, 'URE-01' => 200, 'TS-01' => 30, 'TC-01' => 5, 'LUA-ST25' => 100, 'DAY-01' => 20];
+            foreach ($minimums as $sku => $min) {
+                Product::where('branch_id', $branch->id)->where('sku', $sku)->whereNull('min_stock')->update(['min_stock' => $min]);
+            }
+
+            $line = function (string $sku, string $unit, float $quantity, int $cost, array $batch = []) use ($branch) {
+                $product = Product::where('branch_id', $branch->id)->where('sku', $sku)->first();
+                $unitId = Unit::where('name', $unit)->value('uuid');
+
+                return $product && $unitId ? ['product_id' => $product->uuid, 'unit_id' => $unitId, 'quantity' => $quantity, 'unit_cost' => $cost] + $batch : null;
+            };
+            $day = fn (int $plus) => now()->addDays($plus)->toDateString();
+
+            $lines = array_values(array_filter([
+                $line('NPK-16', 'Bao', 40, 750000),
+                $line('URE-01', 'Kg', 300, 12000),
+                $line('TS-01', 'Hộp', 5, 470000, ['batch_no' => 'TS01-2501', 'expires_at' => $day(180), 'manufactured_at' => $day(-120)]),
+                $line('TS-01', 'Gói', 20, 23000, ['batch_no' => 'TS01-2401', 'expires_at' => $day(25), 'manufactured_at' => $day(-700)]),
+                $line('TC-01', 'Chai', 6, 90000, ['batch_no' => 'TC01-2301', 'expires_at' => $day(-10), 'manufactured_at' => $day(-800)]),
+                $line('TC-01', 'Thùng', 1, 1100000, ['batch_no' => 'TC01-2502', 'expires_at' => $day(365), 'manufactured_at' => $day(-60)]),
+                $line('LUA-ST25', 'Kg', 150, 25000, ['batch_no' => 'LUA-2501', 'expires_at' => $day(90), 'manufactured_at' => $day(-90)]),
+                $line('DAY-01', 'Cái', 3, 10000),
+            ]));
+
+            if ($lines !== []) {
+                app(StockService::class)->post($warehouse, StockDocument::OPENING, ['note' => 'Tồn đầu kỳ (dữ liệu mẫu)', 'lines' => $lines], null);
+            }
+        });
+    }
+
     /** Nhóm khách, khách hàng và nhà cung cấp mẫu (chạy lại không tạo trùng). Số điện thoại và mã số thuế là DỮ LIỆU GIẢ. */
     private function seedCrm(TenantContext $context, Tenant $tenant, Branch $branch): void
     {
@@ -152,6 +198,7 @@ class DevSeeder extends Seeder
                 );
 
                 $this->seedCatalog($context, $tenant, $branch);
+                $this->seedStock($context, $tenant, $branch);
                 $this->seedCrm($context, $tenant, $branch);
 
                 foreach (array_keys(self::USERS) as $userIndex => $local) {

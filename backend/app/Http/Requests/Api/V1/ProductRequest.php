@@ -76,6 +76,7 @@ class ProductRequest extends FormRequest
             'sku' => [$presence, 'string', 'max:50', 'regex:/^[A-Za-z0-9][A-Za-z0-9._\/-]*$/', $this->uniqueSku()],
             'name' => [$presence, 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:2000'],
+            'min_stock' => ['nullable', 'numeric', 'decimal:0,3', 'min:0', 'max:99999999'],
             'status' => ['sometimes', Rule::in([Product::STATUS_ACTIVE, Product::STATUS_INACTIVE])],
             'category_id' => ['nullable', 'uuid', $inTenant('categories')],
             'brand_id' => ['nullable', 'uuid', $inTenant('brands')],
@@ -202,7 +203,7 @@ class ProductRequest extends FormRequest
     public function attributes(): array
     {
         $names = [
-            'sku' => 'mã sản phẩm', 'name' => 'tên sản phẩm', 'description' => 'mô tả', 'status' => 'trạng thái', 'type' => 'loại hàng',
+            'sku' => 'mã sản phẩm', 'name' => 'tên sản phẩm', 'description' => 'mô tả', 'min_stock' => 'tồn tối thiểu', 'status' => 'trạng thái', 'type' => 'loại hàng',
             'category_id' => 'nhóm hàng', 'brand_id' => 'thương hiệu', 'base_unit_id' => 'đơn vị cơ sở', 'branch_id' => 'chi nhánh',
             'track_batch' => 'theo dõi lô và hạn dùng', 'units' => 'danh sách đơn vị',
             'units.*.unit_id' => 'đơn vị tính', 'units.*.factor' => 'hệ số quy đổi', 'units.*.price_cash' => 'giá tiền mặt',

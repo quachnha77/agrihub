@@ -79,9 +79,15 @@ class TenantRestorer
         $meta = $this->inspect($gzPath, $tenant); // kiểm tra toàn bộ trước khi đụng vào dữ liệu
 
         DB::transaction(function () use ($gzPath, $tenant, $meta) {
+            // Sổ kho là bảng chỉ ghi thêm (trigger chặn sửa/xóa): riêng trong transaction này, và chỉ cho XÓA, để thay bằng nội dung bản sao lưu.
+            DB::statement("select set_config('app.ledger_restore', 'on', true)");
+
             foreach (array_reverse($meta['tables']) as $table) {
                 DB::table($table)->where('tenant_id', $tenant->id)->delete();
             }
+
+            // Cửa sổ cho phép xóa sổ kho chỉ kéo dài đúng bước xóa; nạp lại dữ liệu thì sổ kho đã bị khóa trở lại.
+            DB::statement("select set_config('app.ledger_restore', 'off', true)");
 
             $columns = [];
             $table = null;

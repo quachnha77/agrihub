@@ -29,7 +29,7 @@ class ProductService
         return DB::transaction(function () use ($branch, $data) {
             $type = $data['type'];
 
-            $product = new Product(Arr::only($data, ['sku', 'name', 'description', 'status']));
+            $product = new Product(Arr::only($data, ['sku', 'name', 'description', 'status', 'min_stock']));
             $product->type = $type;
             $product->branch_id = $branch->id;
             $product->base_unit_id = Unit::where('uuid', $data['base_unit_id'])->value('id');
@@ -49,7 +49,7 @@ class ProductService
     public function update(Product $product, array $data): Product
     {
         return DB::transaction(function () use ($product, $data) {
-            $product->fill(Arr::only($data, ['sku', 'name', 'description', 'status']));
+            $product->fill(Arr::only($data, ['sku', 'name', 'description', 'status', 'min_stock']));
 
             if (array_key_exists('category_id', $data)) {
                 $product->category_id = $this->idOf(Category::class, $data['category_id']);
@@ -106,7 +106,7 @@ class ProductService
                     continue;
                 }
 
-                $clone = new Product(Arr::only($source->getAttributes(), ['sku', 'name', 'description', 'status']));
+                $clone = new Product(Arr::only($source->getAttributes(), ['sku', 'name', 'description', 'status', 'min_stock']));
                 $clone->specs = $source->specs;
                 $clone->track_batch = $source->track_batch;
                 $clone->type = $source->type;

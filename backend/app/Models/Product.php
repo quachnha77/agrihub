@@ -25,13 +25,13 @@ class Product extends Model
 
     protected string $auditModule = 'product';
 
-    protected $fillable = ['sku', 'name', 'description', 'specs', 'track_batch', 'status'];
+    protected $fillable = ['sku', 'name', 'description', 'specs', 'track_batch', 'status', 'min_stock'];
 
     protected $attributes = ['status' => self::STATUS_ACTIVE, 'track_batch' => false];
 
     protected function casts(): array
     {
-        return ['specs' => 'array', 'track_batch' => 'boolean'];
+        return ['specs' => 'array', 'track_batch' => 'boolean', 'min_stock' => 'decimal:3'];
     }
 
     public function auditLabel(): ?string
