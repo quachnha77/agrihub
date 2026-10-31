@@ -47,6 +47,11 @@
     -webkit-text-size-adjust: 100%;
   }
 
+  /* Popup đang mở khóa cuộn trang: giữ chỗ của thanh cuộn (Windows) để trang phía sau không nới rộng/dịch (xem Modal trong components/ui.tsx). */
+  html.modal-gutter {
+    scrollbar-gutter: stable;
+  }
+
   body {
     background-color: var(--color-canvas);
     color: var(--color-slate-900);

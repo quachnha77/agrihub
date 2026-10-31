@@ -1,5 +1,6 @@
 import { ChevronDown, ChevronLeft, ChevronRight, CircleAlert, CircleCheck, Info, TriangleAlert, X, type LucideIcon } from 'lucide-react'
 import { useEffect, useId, useRef, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type Ref, type SelectHTMLAttributes } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { Link, type LinkProps } from 'react-router'
 import { buttonStyles, fieldBase, fieldTone, iconButtonStyles, type ButtonSize, type ButtonVariant } from './styles.ts'
@@ -146,18 +147,21 @@ interface TextFieldProps extends InputHTMLAttributes<HTMLInputElement> {
   ref?: Ref<HTMLInputElement>
 }
 
-export function TextField({ label, error, hint, id, className = '', trailing, ref, ...rest }: TextFieldProps) {
+/** Dấu * đỏ sau nhãn ô bắt buộc. Vẽ bằng CSS (không nằm trong chữ của nhãn) nên tên của ô cho trình đọc màn hình và cho test vẫn là "Tên sản phẩm"; ô có thuộc tính `required` nên trình đọc màn hình vẫn đọc "bắt buộc". */
+const requiredMark = "after:ml-0.5 after:text-red-600 after:content-['*']"
+
+export function TextField({ label, error, hint, id, className = '', trailing, ref, required, ...rest }: TextFieldProps) {
   const autoId = useId()
   const inputId = id ?? autoId
   const describedBy = [error ? `${inputId}-error` : null, hint ? `${inputId}-hint` : null].filter(Boolean).join(' ') || undefined
 
   return (
     <div className={className}>
-      <label htmlFor={inputId} className="mb-1.5 block text-sm font-medium text-slate-800">
+      <label htmlFor={inputId} className={`mb-1.5 block text-sm font-medium text-slate-800 ${required ? requiredMark : ''}`}>
         {label}
       </label>
       <div className="relative">
-        <input id={inputId} ref={ref} aria-invalid={error ? true : undefined} aria-describedby={describedBy} className={`${fieldBase} ${fieldTone(Boolean(error))} ${trailing ? 'pr-11' : ''}`} {...rest} />
+        <input id={inputId} ref={ref} required={required} aria-invalid={error ? true : undefined} aria-describedby={describedBy} className={`${fieldBase} ${fieldTone(Boolean(error))} ${trailing ? 'pr-11' : ''}`} {...rest} />
         {trailing && <div className="absolute inset-y-0 right-1 flex items-center">{trailing}</div>}
       </div>
       {hint && !error && (
@@ -183,18 +187,18 @@ interface SelectFieldProps extends SelectHTMLAttributes<HTMLSelectElement> {
 }
 
 /** Ô chọn một giá trị trong danh sách, cùng kiểu và cách báo lỗi với TextField. Mũi tên vẽ riêng để giống nhau trên mọi hệ điều hành. */
-export function SelectField({ label, error, hint, id, className = '', children, ref, ...rest }: SelectFieldProps) {
+export function SelectField({ label, error, hint, id, className = '', children, ref, required, ...rest }: SelectFieldProps) {
   const autoId = useId()
   const selectId = id ?? autoId
   const describedBy = [error ? `${selectId}-error` : null, hint ? `${selectId}-hint` : null].filter(Boolean).join(' ') || undefined
 
   return (
     <div className={className}>
-      <label htmlFor={selectId} className="mb-1.5 block text-sm font-medium text-slate-800">
+      <label htmlFor={selectId} className={`mb-1.5 block text-sm font-medium text-slate-800 ${required ? requiredMark : ''}`}>
         {label}
       </label>
       <div className="relative">
-        <select id={selectId} ref={ref} aria-invalid={error ? true : undefined} aria-describedby={describedBy} className={`${fieldBase} appearance-none pr-10 ${fieldTone(Boolean(error))}`} {...rest}>
+        <select id={selectId} ref={ref} required={required} aria-invalid={error ? true : undefined} aria-describedby={describedBy} className={`${fieldBase} appearance-none pr-10 ${fieldTone(Boolean(error))}`} {...rest}>
           {children}
         </select>
         <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" aria-hidden="true" />
@@ -287,53 +291,155 @@ export function CheckboxField({ label, description, checked, onChange, disabled 
   )
 }
 
+/** Các hộp thoại đang mở theo thứ tự mở: chỉ hộp trên cùng nhận phím Esc/Tab (vd. hộp "Bỏ thay đổi?" mở chồng lên hộp biểu mẫu). */
+const openModals: symbol[] = []
+
+/** Số hộp đang giữ chỗ cho thanh cuộn của trang (xem `html.modal-gutter` trong index.css). */
+let gutterHolders = 0
+
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
 /**
- * Hộp thoại: đóng bằng Esc hoặc bấm nền; focus vào hộp khi mở và trả lại khi đóng; khóa cuộn trang nền. Trên điện thoại hiện như tấm
- * trượt lên từ cạnh dưới (gần ngón cái), trên máy tính ở giữa màn hình.
+ * Hộp thoại (popup), vẽ ở cuối <body> nên không bị khung chứa cắt hay lệch. Esc đóng (chỉ hộp trên cùng); Tab quay vòng trong hộp; focus vào
+ * hộp khi mở và trả lại chỗ vừa bấm khi đóng; khóa cuộn trang nền mà không làm trang dịch ngang khi thanh cuộn biến mất. Trên điện thoại hiện
+ * như tấm trượt lên từ cạnh dưới (gần ngón cái), trên máy tính ở giữa màn hình; tiêu đề luôn thấy, phần thân tự cuộn.
+ * `dismissOnBackdrop={false}` dành cho biểu mẫu: bấm nhầm ra ngoài không làm mất dữ liệu đang nhập.
+ * `fixedHeight` dành cho biểu mẫu lớn: khung có chiều cao CỐ ĐỊNH nên không đổi cỡ khi dữ liệu tải xong, đổi loại phiếu hay thêm dòng, và không
+ * bị nhảy/giật giữa màn hình (hộp ở giữa mà đổi chiều cao thì mép trên dịch theo); phần thân cuộn bên trong, thanh nút luôn sát đáy.
+ * `fixedHeight="sheet"` (hộp xem chi tiết): cố định chiều cao chỉ trên điện thoại (tấm trượt neo ở đáy mà đổi cỡ thì cả tấm nhảy lên), còn trên
+ * máy tính hộp ôm theo nội dung nên phiếu ngắn không bị khoảng trống lớn.
  */
-export function Modal({ title, onClose, children, size = 'md' }: { title: string; onClose: () => void; children: ReactNode; size?: 'md' | 'lg' | 'xl' }) {
+export function Modal({
+  title,
+  description,
+  onClose,
+  children,
+  size = 'md',
+  dismissOnBackdrop = true,
+  fixedHeight = false,
+}: {
+  title: ReactNode
+  description?: ReactNode
+  onClose: () => void
+  children: ReactNode
+  size?: 'md' | 'lg' | 'xl'
+  dismissOnBackdrop?: boolean
+  fixedHeight?: boolean | 'sheet'
+}) {
   const { t } = useTranslation()
   const titleId = useId()
+  const descriptionId = useId()
   const panel = useRef<HTMLDivElement>(null)
+  // `onClose` thường là hàm tạo lại mỗi lần vẽ: giữ bản mới nhất trong ref để hiệu ứng bên dưới chỉ chạy lúc mở/đóng. Nếu không, mỗi
+  // lần gõ một phím trong biểu mẫu sẽ chạy lại hiệu ứng và đưa focus về hộp.
+  const latestClose = useRef(onClose)
 
   useEffect(() => {
+    latestClose.current = onClose
+  })
+
+  useEffect(() => {
+    const me = Symbol('modal')
+    const node = panel.current
     const previous = document.activeElement as HTMLElement | null
-    const overflow = document.body.style.overflow
-    panel.current?.focus()
-    document.body.style.overflow = 'hidden'
+    const { body, documentElement } = document
+    const overflow = body.style.overflow
+    const hadScrollbar = window.innerWidth - documentElement.clientWidth > 0
+
+    openModals.push(me)
+    body.style.overflow = 'hidden'
+    // Khóa cuộn làm thanh cuộn của trang biến mất (trên Windows chiếm ~15px): giữ nguyên chỗ của nó (`html.modal-gutter` trong index.css đặt
+    // `scrollbar-gutter: stable`) để trang phía sau không nới rộng/dịch trong lúc popup mở. Dùng `scrollbar-gutter` thay vì bù bằng padding vì
+    // cách bù thủ công làm trang chớp một khung hình sai bề rộng. Đếm số hộp đang giữ chỗ để đóng hộp chồng không nhả chỗ khi hộp dưới còn mở.
+    if (hadScrollbar) {
+      gutterHolders++
+      documentElement.classList.add('modal-gutter')
+    }
+    if (node && !node.contains(document.activeElement)) node.focus()
 
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
+      if (openModals[openModals.length - 1] !== me || !node) return
+
+      if (event.key === 'Escape') {
+        latestClose.current()
+      } else if (event.key === 'Tab') {
+        const items = Array.from(node.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((item) => !item.closest('[hidden]'))
+        const first = items[0]
+        const last = items[items.length - 1]
+        const active = document.activeElement
+
+        if (!first) {
+          event.preventDefault()
+          node.focus()
+        } else if (!node.contains(active) || active === node) {
+          event.preventDefault()
+          const target = event.shiftKey ? last : first
+          target.focus()
+        } else if (event.shiftKey && active === first) {
+          event.preventDefault()
+          last.focus()
+        } else if (!event.shiftKey && active === last) {
+          event.preventDefault()
+          first.focus()
+        }
+      }
     }
     document.addEventListener('keydown', onKey)
 
     return () => {
       document.removeEventListener('keydown', onKey)
-      document.body.style.overflow = overflow
+      openModals.splice(openModals.indexOf(me), 1)
+      body.style.overflow = overflow
+      if (hadScrollbar && --gutterHolders === 0) documentElement.classList.remove('modal-gutter')
       previous?.focus?.()
     }
-  }, [onClose])
+  }, [])
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 motion-safe:animate-fade-in sm:items-center sm:p-4" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 motion-safe:animate-fade-in sm:items-center sm:p-4"
+      onMouseDown={(event) => {
+        if (dismissOnBackdrop && event.target === event.currentTarget) onClose()
+      }}
+    >
       <div
         ref={panel}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
+        aria-describedby={description ? descriptionId : undefined}
         tabIndex={-1}
-        className={`max-h-[92vh] w-full overflow-y-auto rounded-t-2xl bg-white shadow-pop outline-none motion-safe:animate-sheet-in sm:rounded-2xl sm:motion-safe:animate-pop-in ${size === 'xl' ? 'sm:max-w-4xl' : size === 'lg' ? 'sm:max-w-2xl' : 'sm:max-w-md'}`}
+        className={`flex w-full flex-col rounded-t-2xl bg-white shadow-pop outline-none motion-safe:animate-sheet-in sm:rounded-2xl sm:motion-safe:animate-pop-in ${
+          fixedHeight === true ? 'h-[92dvh] sm:h-[min(90dvh,54rem)]' : fixedHeight === 'sheet' ? 'h-[92dvh] sm:max-h-[90dvh]' : 'max-h-[92dvh] sm:max-h-[90dvh]'
+        } ${size === 'xl' ? 'sm:max-w-4xl' : size === 'lg' ? 'sm:max-w-2xl' : 'sm:max-w-md'}`}
       >
-        <div className="sticky top-0 z-10 flex items-center justify-between rounded-t-2xl border-b border-slate-100 bg-white px-5 py-3.5">
-          <h2 id={titleId} className="text-base font-semibold text-slate-900">
-            {title}
-          </h2>
-          <button type="button" onClick={onClose} aria-label={t('common.close')} className="-mr-2 inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900">
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 px-5 py-3.5">
+          <div className="min-w-0">
+            <h2 id={titleId} className="text-base font-semibold text-slate-900">
+              {title}
+            </h2>
+            {description && (
+              <p id={descriptionId} className="mt-0.5 text-sm text-slate-600">
+                {description}
+              </p>
+            )}
+          </div>
+          <button type="button" onClick={onClose} aria-label={t('common.close')} className="-mr-2 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900">
             <X className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
-        <div className="p-5">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
+}
+
+/**
+ * Thanh nút Lưu/Hủy của biểu mẫu trong hộp thoại: dính đáy phần thân đang cuộn nên nút luôn thấy dù biểu mẫu dài, và sát mép hộp
+ * (bù lại phần đệm 20px của thân hộp: lề âm cho khung, và `-bottom-5` vì "dính" tính từ mép trong của phần đệm, không phải mép hộp).
+ * Đặt ở cuối <form> (khung `flex flex-col` cao tối thiểu bằng thân hộp): nội dung ngắn thì thanh nút vẫn nằm sát đáy hộp (`mt-auto`).
+ */
+export function ModalActions({ children }: { children: ReactNode }) {
+  return <div className="sticky -bottom-5 z-10 -mx-5 -mb-5 mt-auto flex items-center justify-end gap-2 border-t border-slate-200 bg-white px-5 py-3 max-sm:pb-[max(0.75rem,env(safe-area-inset-bottom))]">{children}</div>
 }

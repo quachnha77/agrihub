@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
-import { Link } from 'react-router'
+import { Link, type To } from 'react-router'
 import type { LucideIcon } from 'lucide-react'
 
 /**
@@ -74,8 +74,8 @@ export function Menu({ label, trigger, triggerClassName = '', align = 'right', c
   )
 }
 
-/** Một mục của <Menu>: là liên kết nếu có `to`, ngược lại là nút. */
-export function MenuItem({ icon: Icon, to, onSelect, danger = false, children }: { icon?: LucideIcon; to?: string; onSelect?: () => void; danger?: boolean; children: ReactNode }) {
+/** Một mục của <Menu>: là liên kết nếu có `to` (kèm `state` nếu cần, vd. từ `useDialog().link()`), ngược lại là nút. */
+export function MenuItem({ icon: Icon, to, state, onSelect, danger = false, children }: { icon?: LucideIcon; to?: To; state?: unknown; onSelect?: () => void; danger?: boolean; children: ReactNode }) {
   const className = `flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm font-medium outline-none focus-visible:bg-slate-100 ${danger ? 'text-red-700 hover:bg-red-50 focus-visible:bg-red-50' : 'text-slate-800 hover:bg-slate-100'}`
   const content = (
     <>
@@ -86,7 +86,7 @@ export function MenuItem({ icon: Icon, to, onSelect, danger = false, children }:
 
   if (to) {
     return (
-      <Link role="menuitem" tabIndex={-1} to={to} onClick={onSelect} className={className}>
+      <Link role="menuitem" tabIndex={-1} to={to} state={state} onClick={onSelect} className={className}>
         {content}
       </Link>
     )

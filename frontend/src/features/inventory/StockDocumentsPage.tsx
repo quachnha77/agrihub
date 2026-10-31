@@ -6,6 +6,7 @@ import { EmptyState, FilterBar, FilterDate, FilterSelect, PageHeader, SearchFiel
 import { Refreshable, TableSkeleton } from '../../components/skeleton.tsx'
 import { DataTable } from '../../components/table.tsx'
 import { Alert, Button, Card, Pagination } from '../../components/ui.tsx'
+import { useDialog } from '../../lib/dialog.ts'
 import { countActiveFilters } from '../../lib/filters.ts'
 import { formatDateTime } from '../../lib/format.ts'
 import { useClampPage } from '../../lib/pagination.ts'
@@ -18,6 +19,7 @@ const EMPTY_FILTERS: DocumentFilters = { q: '', type: '', warehouse: '', from: '
 /** Các phiếu kho đã ghi (mới nhất trước). Phiếu không sửa/xóa được: sai sót sửa bằng phiếu điều chỉnh. */
 export default function StockDocumentsPage() {
   const { t } = useTranslation()
+  const { link } = useDialog()
   const [filters, setFilters] = useState<DocumentFilters>(EMPTY_FILTERS)
   const search = useDeferredValue(filters.q)
   const documents = useStockDocuments({ ...filters, q: search })
@@ -84,7 +86,7 @@ export default function StockDocumentsPage() {
                 {rows.map((document) => (
                   <tr key={document.id}>
                     <td className="py-3 pr-4 whitespace-nowrap">
-                      <Link to={`/stock/documents/${document.id}`} className="font-mono text-xs font-semibold text-brand-700 hover:underline">{document.code}</Link>{' '}
+                      <Link {...link('stock-doc', document.id)} className="font-mono text-xs font-semibold text-brand-700 hover:underline">{document.code}</Link>{' '}
                       <TypeBadge type={document.type} />
                     </td>
                     <td className="py-3 pr-4 whitespace-nowrap">{formatDateTime(document.performed_at)}</td>

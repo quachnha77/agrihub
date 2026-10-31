@@ -106,6 +106,12 @@ const base = (extra: Record<string, unknown> = {}, permissions: Permissions = FU
     ...extra,
   }) as never
 
+/** Popup lập phiếu: khung (có tiêu đề) hiện ngay, biểu mẫu chỉ dựng sau khi danh sách kho tải xong. */
+async function formReady(title: string) {
+  expect(await screen.findByRole('heading', { name: title })).toBeInTheDocument()
+  await screen.findByLabelText('Kho')
+}
+
 describe('trang Tồn kho', () => {
   it('hiện số lượng, mức tối thiểu, hạn gần nhất, giá vốn, giá trị và các cảnh báo', async () => {
     mockApi(base())
@@ -278,7 +284,7 @@ describe('trang Tồn kho', () => {
     // Hai phiếu ít dùng nằm trong menu "Phiếu khác" cho đỡ rối.
     await userEvent.setup().click(screen.getByRole('button', { name: 'Phiếu khác' }))
     const menu = await screen.findByRole('menu', { name: 'Phiếu khác' })
-    expect(within(menu).getByRole('menuitem', { name: 'Tồn đầu kỳ' })).toHaveAttribute('href', '/stock/new?type=opening')
+    expect(within(menu).getByRole('menuitem', { name: 'Tồn đầu kỳ' })).toHaveAttribute('href', '/stock?dialog=stock-new:opening')
     expect(within(menu).queryByRole('menuitem', { name: 'Điều chỉnh' })).not.toBeInTheDocument()
   })
 
@@ -288,7 +294,7 @@ describe('trang Tồn kho', () => {
 
     await userEvent.setup().click(await screen.findByRole('button', { name: 'Phiếu khác' }))
     const menu = await screen.findByRole('menu', { name: 'Phiếu khác' })
-    expect(within(menu).getByRole('menuitem', { name: 'Điều chỉnh' })).toHaveAttribute('href', '/stock/new?type=adjustment')
+    expect(within(menu).getByRole('menuitem', { name: 'Điều chỉnh' })).toHaveAttribute('href', '/stock?dialog=stock-new:adjustment')
   })
 })
 
@@ -299,7 +305,7 @@ describe('phiếu kho', () => {
     const user = userEvent.setup()
 
     const table = await screen.findByRole('table')
-    expect(within(table).getByRole('link', { name: 'PN0001' })).toHaveAttribute('href', '/stock/documents/d-1')
+    expect(within(table).getByRole('link', { name: 'PN0001' })).toHaveAttribute('href', '/stock/documents?dialog=stock-doc:d-1')
     expect(within(table).getByText('Nhập kho')).toBeInTheDocument()
     expect(within(table).getByText('Xuất kho')).toBeInTheDocument()
     expect(within(table).getAllByText('Nguyễn Văn A')).toHaveLength(2)
@@ -315,7 +321,7 @@ describe('phiếu kho', () => {
 
   it('chi tiết: từng dòng với số lượng đã nhập, thay đổi theo đơn vị cơ sở, tồn sau, giá vốn và giá trị', async () => {
     mockApi(base({ 'GET /api/v1/stock/documents/d-1': { json: { data: DETAIL } } }))
-    renderApp('/stock/documents/d-1')
+    renderApp('/notifications?dialog=stock-doc:d-1')
 
     expect(await screen.findByRole('heading', { name: /Phiếu PN0001/ })).toBeInTheDocument()
     expect(screen.getByText('Nhập lô đầu')).toBeInTheDocument()
@@ -331,7 +337,7 @@ describe('phiếu kho', () => {
   it('chi tiết cho nhân viên bán hàng không có cột giá vốn', async () => {
     const hidden = { ...DETAIL, value: undefined, lines: DETAIL.lines!.map((l) => ({ ...l, unit_cost: undefined, value: undefined })) }
     mockApi(base({ 'GET /api/v1/stock/documents/d-1': { json: { data: hidden } } }, SALES))
-    renderApp('/stock/documents/d-1')
+    renderApp('/notifications?dialog=stock-doc:d-1')
 
     expect(await screen.findByRole('heading', { name: /Phiếu PN0001/ })).toBeInTheDocument()
     expect(screen.queryByText('Giá vốn')).not.toBeInTheDocument()
@@ -340,7 +346,7 @@ describe('phiếu kho', () => {
 
   it('phiếu không có hoặc ngoài phạm vi: báo không tìm thấy', async () => {
     mockApi(base({ 'GET /api/v1/stock/documents/zzz': problem(404, 'not_found', 'Không tìm thấy.') }))
-    renderApp('/stock/documents/zzz')
+    renderApp('/notifications?dialog=stock-doc:zzz')
 
     expect(await screen.findByText('Không tìm thấy phiếu này hoặc bạn không có quyền xem.')).toBeInTheDocument()
   })
@@ -433,11 +439,11 @@ describe('lập phiếu kho', () => {
   }
 
   it('nhập kho: chọn sản phẩm, đơn vị Bao, số lượng và đơn giá; hiện quy đổi và gửi đúng nội dung', async () => {
-    const server = mockApi(base({ 'POST /api/v1/stock/documents': CREATED, 'GET /api/v1/stock/documents/d-1': { json: { data: DETAIL } } }))
-    renderApp('/stock/new?type=receipt')
+    const server = mockApi(base({ 'POST /api/v1/stock/documents': CREATED }))
+    renderApp('/notifications?dialog=stock-new:receipt')
     const user = userEvent.setup()
 
-    expect(await screen.findByRole('heading', { name: 'Nhập kho' })).toBeInTheDocument()
+    await formReady('Nhập kho')
     expect(screen.getByText('Chọn kho trước để chọn sản phẩm của chi nhánh đó.')).toBeInTheDocument()
     await user.selectOptions(screen.getByLabelText('Kho'), 'w-1')
     await pickProduct(user, /NPK-16/)
@@ -456,13 +462,15 @@ describe('lập phiếu kho', () => {
       warehouse_id: 'w-1', type: 'receipt', reason: null, note: 'Nhập lô đầu',
       lines: [{ product_id: 'p-npk', unit_id: 'u-bao', quantity: 10, unit_cost: 750000 }],
     })
-    expect(await screen.findByRole('heading', { name: /Phiếu PN0001/ })).toBeInTheDocument()
-    expect(screen.getByText('Đã ghi phiếu PN0001. Tồn kho đã được cập nhật.')).toBeInTheDocument()
+    // Ghi xong popup tự đóng (không chuyển trang); thông báo nổi báo đã ghi và có đường tới phiếu vừa ghi.
+    expect(await screen.findByText('Đã ghi phiếu PN0001. Tồn kho đã được cập nhật.')).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(screen.getByRole('link', { name: 'Xem phiếu' })).toHaveAttribute('href', '/notifications?dialog=stock-doc:d-1')
   })
 
   it('kiểm tra ngay trên trình duyệt: thiếu kho, sản phẩm, số lượng, đơn giá thì không gọi API', async () => {
     const server = mockApi(base())
-    renderApp('/stock/new?type=receipt')
+    renderApp('/notifications?dialog=stock-new:receipt')
     const user = userEvent.setup()
 
     await user.click(await screen.findByRole('button', { name: 'Ghi phiếu' }))
@@ -480,8 +488,8 @@ describe('lập phiếu kho', () => {
   })
 
   it('hàng theo dõi lô: nhập kho phải khai số lô và hạn dùng, rồi gửi kèm lô mới', async () => {
-    const server = mockApi(base({ 'POST /api/v1/stock/documents': CREATED, 'GET /api/v1/stock/documents/d-1': { json: { data: DETAIL } } }))
-    renderApp('/stock/new?type=receipt')
+    const server = mockApi(base({ 'POST /api/v1/stock/documents': CREATED }))
+    renderApp('/notifications?dialog=stock-new:receipt')
     const user = userEvent.setup()
 
     await user.selectOptions(await screen.findByLabelText('Kho'), 'w-1')
@@ -506,8 +514,8 @@ describe('lập phiếu kho', () => {
   })
 
   it('xuất kho: chọn lô có sẵn (kèm hạn và số còn), bắt buộc có lý do, gửi mã lô', async () => {
-    const server = mockApi(base({ 'POST /api/v1/stock/documents': CREATED, 'GET /api/v1/stock/documents/d-1': { json: { data: DETAIL } } }))
-    renderApp('/stock/new?type=issue')
+    const server = mockApi(base({ 'POST /api/v1/stock/documents': CREATED }))
+    renderApp('/notifications?dialog=stock-new:issue')
     const user = userEvent.setup()
 
     await user.selectOptions(await screen.findByLabelText('Kho'), 'w-1')
@@ -539,11 +547,11 @@ describe('lập phiếu kho', () => {
   })
 
   it('điều chỉnh: nhập số dương, chọn "Giảm tồn" thì gửi số âm; lý do "Khác" bắt buộc ghi chú', async () => {
-    const server = mockApi(base({ 'POST /api/v1/stock/documents': CREATED, 'GET /api/v1/stock/documents/d-1': { json: { data: DETAIL } } }))
-    renderApp('/stock/new?type=adjustment')
+    const server = mockApi(base({ 'POST /api/v1/stock/documents': CREATED }))
+    renderApp('/notifications?dialog=stock-new:adjustment')
     const user = userEvent.setup()
 
-    expect(await screen.findByRole('heading', { name: 'Điều chỉnh tồn kho' })).toBeInTheDocument()
+    await formReady('Điều chỉnh tồn kho')
     await user.selectOptions(screen.getByLabelText('Kho'), 'w-1')
     await pickProduct(user, /NPK-16/)
     const line = screen.getByRole('group', { name: 'Dòng 1' })
@@ -563,8 +571,8 @@ describe('lập phiếu kho', () => {
   })
 
   it('điều chỉnh tăng hàng theo dõi lô có thể khai lô mới', async () => {
-    const server = mockApi(base({ 'POST /api/v1/stock/documents': CREATED, 'GET /api/v1/stock/documents/d-1': { json: { data: DETAIL } } }))
-    renderApp('/stock/new?type=adjustment')
+    const server = mockApi(base({ 'POST /api/v1/stock/documents': CREATED }))
+    renderApp('/notifications?dialog=stock-new:adjustment')
     const user = userEvent.setup()
 
     await user.selectOptions(await screen.findByLabelText('Kho'), 'w-1')
@@ -590,7 +598,7 @@ describe('lập phiếu kho', () => {
         errors: { 'lines.0.quantity': ['Không đủ tồn: còn 20 Kg, cần 25 Kg.'], reason: ['Vui lòng chọn lý do.'], lines: ['Phiếu có lỗi.'] },
       }),
     }))
-    renderApp('/stock/new?type=issue')
+    renderApp('/notifications?dialog=stock-new:issue')
     const user = userEvent.setup()
 
     await user.selectOptions(await screen.findByLabelText('Kho'), 'w-1')
@@ -606,7 +614,7 @@ describe('lập phiếu kho', () => {
 
   it('thêm và bỏ dòng; chỉ có một kho thì chọn sẵn; đổi sản phẩm của dòng', async () => {
     mockApi(base({}, FULL, ONE_WAREHOUSE))
-    renderApp('/stock/new?type=receipt')
+    renderApp('/notifications?dialog=stock-new:receipt')
     const user = userEvent.setup()
 
     await waitFor(() => expect(screen.getByLabelText('Kho')).toHaveValue('w-1'))
@@ -624,7 +632,7 @@ describe('lập phiếu kho', () => {
 
   it('tìm sản phẩm theo từ khóa gửi lên máy chủ kèm chi nhánh của kho', async () => {
     const server = mockApi(base())
-    renderApp('/stock/new?type=receipt')
+    renderApp('/notifications?dialog=stock-new:receipt')
     const user = userEvent.setup()
 
     await user.selectOptions(await screen.findByLabelText('Kho'), 'w-1')
@@ -639,9 +647,9 @@ describe('lập phiếu kho', () => {
 
   it('loại phiếu theo quyền: không có quyền điều chỉnh thì không chọn được và đường dẫn ?type=adjustment rơi về nhập kho', async () => {
     mockApi(base({}, RECEIVER))
-    renderApp('/stock/new?type=adjustment')
+    renderApp('/notifications?dialog=stock-new:adjustment')
 
-    expect(await screen.findByRole('heading', { name: 'Nhập kho' })).toBeInTheDocument()
+    await formReady('Nhập kho')
     const types = within(screen.getByRole('group', { name: 'Loại phiếu' }))
     expect(types.queryByRole('radio', { name: 'Điều chỉnh' })).not.toBeInTheDocument()
     expect(types.getByRole('radio', { name: 'Tồn đầu kỳ' })).toBeInTheDocument()
@@ -650,16 +658,16 @@ describe('lập phiếu kho', () => {
 
   it('người không có quyền lập phiếu không vào được trang lập phiếu', async () => {
     mockApi(base({}, SALES))
-    renderApp('/stock/new')
+    renderApp('/notifications?dialog=stock-new')
 
     expect(await screen.findByText('Bạn không có quyền truy cập')).toBeInTheDocument()
   })
 
   it('thủ kho (quyền chi nhánh) lập được cả nhập, xuất, điều chỉnh', async () => {
     mockApi(base({}, KEEPER))
-    renderApp('/stock/new?type=adjustment')
+    renderApp('/notifications?dialog=stock-new:adjustment')
 
-    expect(await screen.findByRole('heading', { name: 'Điều chỉnh tồn kho' })).toBeInTheDocument()
+    await formReady('Điều chỉnh tồn kho')
     const types = within(screen.getByRole('group', { name: 'Loại phiếu' }))
     for (const name of ['Nhập kho', 'Xuất kho', 'Điều chỉnh', 'Tồn đầu kỳ']) expect(types.getByRole('radio', { name })).toBeInTheDocument()
     expect(types.getByRole('radio', { name: 'Điều chỉnh' })).toBeChecked()
@@ -682,13 +690,13 @@ describe('trang Tổng quan', () => {
     expect(within(attention).getByRole('link', { name: /Lô đã hết hạn/ })).toHaveAttribute('href', '/stock?expiry=expired')
 
     const quick = screen.getByRole('region', { name: 'Làm nhanh' })
-    expect(within(quick).getByRole('link', { name: 'Nhập kho' })).toHaveAttribute('href', '/stock/new?type=receipt')
-    expect(within(quick).getByRole('link', { name: 'Xuất kho' })).toHaveAttribute('href', '/stock/new?type=issue')
-    expect(within(quick).getByRole('link', { name: 'Thêm sản phẩm' })).toHaveAttribute('href', '/products/new')
-    expect(within(quick).getByRole('link', { name: 'Thêm khách hàng' })).toHaveAttribute('href', '/customers/new')
-    expect(within(quick).getByRole('link', { name: 'Thêm nhà cung cấp' })).toHaveAttribute('href', '/suppliers/new')
+    expect(within(quick).getByRole('link', { name: 'Nhập kho' })).toHaveAttribute('href', '/?dialog=stock-new:receipt')
+    expect(within(quick).getByRole('link', { name: 'Xuất kho' })).toHaveAttribute('href', '/?dialog=stock-new:issue')
+    expect(within(quick).getByRole('link', { name: 'Thêm sản phẩm' })).toHaveAttribute('href', '/?dialog=product')
+    expect(within(quick).getByRole('link', { name: 'Thêm khách hàng' })).toHaveAttribute('href', '/?dialog=customer')
+    expect(within(quick).getByRole('link', { name: 'Thêm nhà cung cấp' })).toHaveAttribute('href', '/?dialog=supplier')
 
-    expect(await screen.findByRole('link', { name: /PN0001/ })).toHaveAttribute('href', '/stock/documents/d-1')
+    expect(await screen.findByRole('link', { name: /PN0001/ })).toHaveAttribute('href', '/?dialog=stock-doc:d-1')
     expect(screen.queryByText('Bắt đầu với AgriHub')).not.toBeInTheDocument() // đã có sản phẩm
 
     // Bấm thẻ cảnh báo: sang Tồn kho và danh sách đã lọc sẵn theo đúng loại cảnh báo.
@@ -704,7 +712,7 @@ describe('trang Tổng quan', () => {
 
     const start = await screen.findByRole('region', { name: 'Bắt đầu với AgriHub' })
     const steps = within(start).getAllByRole('link')
-    expect(steps.map((step) => step.getAttribute('href'))).toEqual(['/products/new', '/stock/new?type=opening', '/customers/new'])
+    expect(steps.map((step) => step.getAttribute('href'))).toEqual(['/?dialog=product', '/?dialog=stock-new:opening', '/?dialog=customer'])
     expect(within(start).getByText('Thêm sản phẩm đầu tiên')).toBeInTheDocument()
   })
 
@@ -730,14 +738,14 @@ describe('trang Tổng quan', () => {
 describe('đổi loại phiếu và bộ lọc từ liên kết', () => {
   it('đổi loại phiếu bằng thanh chọn: tiêu đề đổi theo và ô "Lý do" xuất hiện cho phiếu xuất', async () => {
     mockApi(base())
-    renderApp('/stock/new?type=receipt')
+    renderApp('/notifications?dialog=stock-new:receipt')
     const user = userEvent.setup()
 
-    expect(await screen.findByRole('heading', { name: 'Nhập kho' })).toBeInTheDocument()
+    await formReady('Nhập kho')
     expect(screen.queryByLabelText('Lý do')).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('radio', { name: 'Xuất kho' }))
-    expect(await screen.findByRole('heading', { name: 'Xuất kho' })).toBeInTheDocument()
+    await formReady('Xuất kho')
     expect(screen.getByLabelText('Lý do')).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: 'Xuất kho' })).toBeChecked()
   })
@@ -757,5 +765,122 @@ describe('đổi loại phiếu và bộ lọc từ liên kết', () => {
 
     await screen.findByRole('table')
     expect(server.calls.filter((c) => c.path.startsWith('/api/v1/stock/products?')).every((c) => !c.path.includes('abc') && !c.path.includes('script'))).toBe(true)
+  })
+})
+
+describe('popup phiếu kho: không chuyển trang', () => {
+  const OWNER_LIKE: Permissions = { ...FULL, 'catalog.product.create': 'tenant', 'crm.customer.create': 'tenant', 'purchase.supplier.create': 'tenant' }
+  const closed = () => waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+
+  it('lối tắt "Nhập kho" trên Tổng quan bật popup ngay trên Tổng quan: không sang trang Kho, Esc là đóng', async () => {
+    mockApi(base({}, OWNER_LIKE))
+    const { router } = renderApp('/')
+    const user = userEvent.setup()
+
+    const quick = await screen.findByRole('region', { name: 'Làm nhanh' })
+    await user.click(within(quick).getByRole('link', { name: 'Nhập kho' }))
+
+    expect(await screen.findByRole('dialog', { name: 'Nhập kho' })).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/')
+    expect(router.state.location.search).toBe('?dialog=stock-new:receipt')
+    expect(screen.getByText('Xin chào, Nguyễn Văn A')).toBeInTheDocument() // Tổng quan vẫn ở phía sau
+
+    await user.keyboard('{Escape}')
+    await closed()
+    expect(router.state.location.pathname).toBe('/')
+    expect(router.state.location.search).toBe('')
+  })
+
+  it('"Thêm sản phẩm" và "Thêm khách hàng" trên Tổng quan cũng là popup ngay tại chỗ', async () => {
+    mockApi(
+      base(
+        {
+          'GET /api/v1/products/types': { json: { data: [], meta: { max_units: 8 } } },
+          'GET /api/v1/units': { json: { data: [], meta: { current_page: 1, last_page: 1, total: 0, per_page: 20 } } },
+          'GET /api/v1/categories': { json: { data: [], meta: { current_page: 1, last_page: 1, total: 0, per_page: 20 } } },
+          'GET /api/v1/brands': { json: { data: [], meta: { current_page: 1, last_page: 1, total: 0, per_page: 20 } } },
+          'GET /api/v1/customer-groups': { json: { data: [], meta: { current_page: 1, last_page: 1, total: 0, per_page: 20 } } },
+        },
+        OWNER_LIKE,
+      ),
+    )
+    const { router } = renderApp('/')
+    const user = userEvent.setup()
+
+    const quick = await screen.findByRole('region', { name: 'Làm nhanh' })
+    await user.click(within(quick).getByRole('link', { name: 'Thêm sản phẩm' }))
+    expect(await screen.findByRole('dialog', { name: 'Thêm sản phẩm' })).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/')
+
+    await user.keyboard('{Escape}')
+    await closed()
+    await user.click(within(quick).getByRole('link', { name: 'Thêm khách hàng' }))
+    expect(await screen.findByRole('dialog', { name: 'Thêm khách hàng' })).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/')
+  })
+
+  it('trang Tồn kho: "Nhập kho" mở popup trên chính trang Tồn kho, đóng lại vẫn đúng bộ lọc đang xem', async () => {
+    mockApi(base())
+    const { router } = renderApp('/stock?stock=low')
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('link', { name: 'Nhập kho' }))
+    expect(await screen.findByRole('dialog', { name: 'Nhập kho' })).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/stock')
+    expect(new URLSearchParams(router.state.location.search).get('stock')).toBe('low') // giữ nguyên bộ lọc
+    expect(new URLSearchParams(router.state.location.search).get('dialog')).toBe('stock-new:receipt')
+
+    await user.click(screen.getByRole('button', { name: 'Đóng' }))
+    await closed()
+    expect(router.state.location.search).toBe('?stock=low')
+  })
+
+  it('danh sách phiếu: bấm mã phiếu mở chi tiết thành popup ngay trên danh sách', async () => {
+    mockApi(base({ 'GET /api/v1/stock/documents/d-1': { json: { data: DETAIL } } }))
+    const { router } = renderApp('/stock/documents')
+    const user = userEvent.setup()
+
+    const table = await screen.findByRole('table')
+    await user.click(within(table).getByRole('link', { name: 'PN0001' }))
+
+    const dialog = await screen.findByRole('dialog', { name: /Phiếu PN0001/ })
+    expect(await within(dialog).findByText('Phân NPK 16-16-8')).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/stock/documents')
+    expect(screen.getAllByRole('table')).toHaveLength(2) // danh sách phiếu vẫn ở phía sau + bảng các dòng hàng trong popup
+
+    await user.click(within(dialog).getAllByRole('button', { name: 'Đóng' })[1])
+    await closed()
+  })
+
+  it('ghi phiếu xong: popup đóng ngay tại trang Tồn kho, thông báo nổi có liên kết "Xem phiếu" mở chi tiết phiếu thành popup', async () => {
+    mockApi(base({ 'POST /api/v1/stock/documents': { status: 201, json: { data: DETAIL } }, 'GET /api/v1/stock/documents/d-1': { json: { data: DETAIL } } }))
+    const { router } = renderApp('/stock')
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('link', { name: 'Nhập kho' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Nhập kho' })
+    await user.selectOptions(await within(dialog).findByLabelText('Kho'), 'w-1')
+    await user.click(await within(dialog).findByRole('button', { name: /NPK-16/ }))
+    await user.type(within(dialog).getByLabelText('Số lượng'), '10')
+    await user.type(within(dialog).getByLabelText('Đơn giá nhập (đồng)'), '15000')
+    await user.click(within(dialog).getByRole('button', { name: 'Ghi phiếu' }))
+
+    expect(await screen.findByText('Đã ghi phiếu PN0001. Tồn kho đã được cập nhật.')).toBeInTheDocument()
+    await closed()
+    expect(router.state.location.pathname).toBe('/stock')
+    expect(router.state.location.search).toBe('')
+
+    await user.click(screen.getByRole('link', { name: 'Xem phiếu' }))
+    expect(await screen.findByRole('dialog', { name: /Phiếu PN0001/ })).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/stock') // vẫn ở trang Tồn kho
+  })
+
+  it('người chỉ có quyền điều chỉnh vẫn mở được popup lập phiếu điều chỉnh (không rơi vào ngõ cụt "không có quyền")', async () => {
+    const ADJUST_ONLY: Permissions = { 'inventory.movement.view': 'tenant', 'inventory.adjustment.create': 'tenant', 'inventory.warehouse.view': 'tenant', 'catalog.product.view': 'tenant', 'tenant.branch.view': 'tenant' }
+    mockApi(base({}, ADJUST_ONLY))
+    renderApp('/stock?dialog=stock-new:adjustment')
+
+    await formReady('Điều chỉnh tồn kho')
+    expect(screen.queryByText('Bạn không có quyền truy cập')).not.toBeInTheDocument()
   })
 })

@@ -1,0 +1,78 @@
+import { useCallback } from 'react'
+import { useLocation, useNavigate, useSearchParams, type To } from 'react-router'
+
+/*
+ * Popup (hộp thoại biểu mẫu) mở bằng tham số `?dialog=` trên địa chỉ của trang đang xem:
+ *   `?dialog=product`           thêm sản phẩm        `?dialog=product:<id>`     sửa/xem sản phẩm
+ *   `?dialog=stock-new:receipt` lập phiếu nhập kho   `?dialog=stock-doc:<id>`  xem phiếu kho
+ * Mở được trên MỌI trang (kể cả Tổng quan) mà trang phía sau vẫn nguyên: không chuyển trang, giữ bộ lọc và vị trí cuộn. Vì nằm trên địa chỉ
+ * nên nút Quay lại của trình duyệt/điện thoại đóng popup, tải lại trang vẫn mở đúng popup, và gửi liên kết cho người khác được.
+ */
+
+const PARAM = 'dialog'
+
+export type DialogName = 'product' | 'customer' | 'supplier' | 'stock-new' | 'stock-doc'
+
+/** Thuộc tính mà mọi popup nhận từ khung (DialogHost). `arg` là phần sau dấu ":" (mã bản ghi cần sửa/xem, hoặc loại phiếu). */
+export interface DialogProps {
+  arg?: string
+  onClose: () => void
+}
+
+export interface DialogRef {
+  name: string
+  arg?: string
+}
+
+export function parseDialog(value: string | null): DialogRef | null {
+  if (!value) return null
+
+  const split = value.indexOf(':')
+  const name = split === -1 ? value : value.slice(0, split)
+  const arg = split === -1 ? '' : value.slice(split + 1)
+
+  return name ? { name, arg: arg || undefined } : null
+}
+
+/** Dấu hiệu "popup này do một liên kết trong ứng dụng mở": đóng popup thì lùi về đúng chỗ vừa bấm thay vì thêm một mục lịch sử. */
+interface DialogState {
+  dialog?: boolean
+}
+
+/** Chuỗi tham số cho địa chỉ; dấu ":" hợp lệ trong tham số nên giữ nguyên cho dễ đọc (`stock-new:receipt`, không phải `stock-new%3Areceipt`). */
+const stringify = (params: URLSearchParams) => params.toString().replace(/%3A/gi, ':')
+
+export function useDialog() {
+  const [params] = useSearchParams()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const current = parseDialog(params.get(PARAM))
+  const openedByLink = (location.state as DialogState | null)?.dialog === true
+
+  /** Thuộc tính cho `<Link>` / `<ButtonLink>`: ở lại trang hiện tại, thêm `?dialog=…` và giữ nguyên các tham số khác (bộ lọc...). */
+  const link = useCallback(
+    (name: DialogName, arg?: string): { to: To; state: DialogState } => {
+      const next = new URLSearchParams(params)
+      next.set(PARAM, arg ? `${name}:${arg}` : name)
+
+      return { to: { pathname: location.pathname, search: `?${stringify(next)}` }, state: { dialog: true } }
+    },
+    [params, location.pathname],
+  )
+
+  const close = useCallback(() => {
+    // Mở bằng liên kết: lùi một bước là về đúng trang trước đó (cùng địa chỉ nhưng chưa có popup).
+    if (openedByLink) {
+      navigate(-1)
+
+      return
+    }
+
+    // Vào thẳng bằng địa chỉ (hoặc tải lại ở chỗ không có lịch sử): bỏ tham số popup, giữ nguyên phần còn lại.
+    const next = new URLSearchParams(params)
+    next.delete(PARAM)
+    navigate({ pathname: location.pathname, search: next.size > 0 ? `?${stringify(next)}` : '' }, { replace: true })
+  }, [openedByLink, navigate, params, location.pathname])
+
+  return { current, link, close }
+}

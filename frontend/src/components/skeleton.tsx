@@ -220,22 +220,6 @@ export function ListPageSkeleton({ columns = 5, action = true }: { columns?: num
   )
 }
 
-/** Trang biểu mẫu (thêm/sửa): tiêu đề + một thẻ các ô nhập + hàng nút. */
-export function FormPageSkeleton({ fields = 8 }: { fields?: number }) {
-  return (
-    <SkeletonRegion className="space-y-4">
-      <PageHeaderSkeleton />
-      <Card>
-        <FieldsSkeleton fields={fields} />
-      </Card>
-      <div className="flex justify-end gap-2">
-        <Skeleton className="h-9 w-20" />
-        <Skeleton className="h-9 w-24" />
-      </div>
-    </SkeletonRegion>
-  )
-}
-
 /** Trang chi tiết: tiêu đề + thẻ thông tin + thẻ bảng chi tiết. */
 export function DetailPageSkeleton({ columns = 5 }: { columns?: number }) {
   return (

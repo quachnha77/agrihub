@@ -53,7 +53,7 @@ Thực thể tổ chức: **Platform Admin → Tenant → Branch → User**; **C
 - **Backup/Restore**: có giao diện cho quản trị viên (xem BACKUP_DISASTER_RECOVERY.md).
 
 ## 5. Phi chức năng
-Giao diện tiếng Việt mặc định (i18n sẵn sàng), responsive, phân trang theo máy chủ/tìm kiếm/lọc, trạng thái loading (skeleton đúng hình, không để trang giật)/empty/error, không có nút trang trí. **Đơn giản và dễ dùng cho người không rành công nghệ:** mỗi màn hình một hành động chính, điều hướng gọn (≤ 8 mục chính, phần còn lại thành tab), chữ và nút đủ lớn, dùng được đầy đủ trên điện thoại (bảng thành thẻ, không tràn ngang), biểu tượng luôn có chú giải/nhãn.
+Giao diện tiếng Việt mặc định (i18n sẵn sàng), responsive, phân trang theo máy chủ/tìm kiếm/lọc, trạng thái loading (skeleton đúng hình, không để trang giật)/empty/error, không có nút trang trí. **Đơn giản và dễ dùng cho người không rành công nghệ:** mỗi màn hình một hành động chính, điều hướng gọn (≤ 8 mục chính, phần còn lại thành tab), chữ và nút đủ lớn, dùng được đầy đủ trên điện thoại (bảng thành thẻ, không tràn ngang), biểu tượng luôn có chú giải/nhãn. **Không chuyển trang khi thêm/sửa/xem một bản ghi:** các việc đó mở thành popup ngay trên trang đang xem (cả từ Tổng quan); lưu xong popup tự đóng và có thông báo nổi; đóng dở thì hỏi "Bỏ thay đổi chưa lưu?"; ô bắt buộc có dấu * và chú thích ở đầu biểu mẫu.
 
 ## 6. Đặt hàng online (5.20)
 Luồng: Khách chọn sản phẩm/chi nhánh → chọn hình thức thanh toán → tạo đơn `pending_confirmation` → cửa hàng **gọi điện số điện thoại khách để xác nhận** → `confirmed` → (giao hàng) → hoàn tất.

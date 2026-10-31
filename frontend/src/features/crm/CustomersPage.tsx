@@ -1,11 +1,11 @@
 import { Contact, Eye, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useDeferredValue, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useLocation } from 'react-router'
 import { EmptyState, FilterBar, FilterSelect, PageHeader, SearchField } from '../../components/page.tsx'
 import { Refreshable, TableSkeleton } from '../../components/skeleton.tsx'
 import { DataTable } from '../../components/table.tsx'
 import { Alert, Badge, Button, ButtonLink, Card, ConfirmDialog, IconButton, IconLink, Pagination } from '../../components/ui.tsx'
+import { useDialog } from '../../lib/dialog.ts'
 import { countActiveFilters } from '../../lib/filters.ts'
 import { formatVnd } from '../../lib/format.ts'
 import { describeError } from '../../lib/forms.ts'
@@ -37,8 +37,7 @@ const EMPTY_FILTERS: CustomerFilters = { q: '', type: '', status: '', branch: ''
 export default function CustomersPage() {
   const { t } = useTranslation()
   const { can } = useAuth()
-  const location = useLocation()
-  const saved = (location.state as { saved?: 'created' | 'updated'; name?: string } | null) ?? null
+  const { link } = useDialog()
 
   const [filters, setFilters] = useState<CustomerFilters>(EMPTY_FILTERS)
   const search = useDeferredValue(filters.q)
@@ -49,7 +48,6 @@ export default function CustomersPage() {
 
   const [deleting, setDeleting] = useState<Customer | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
-  const [dismissed, setDismissed] = useState(false)
 
   const canCreate = can('crm.customer.create')
   const canUpdate = can('crm.customer.update')
@@ -84,22 +82,13 @@ export default function CustomersPage() {
         tabs={<CustomerTabs />}
         actions={
           canCreate && (
-            <ButtonLink to="/customers/new">
+            <ButtonLink {...link('customer')}>
               <Plus className="h-4 w-4" aria-hidden="true" />
               {t('crm.customers.add')}
             </ButtonLink>
           )
         }
       />
-
-      {saved?.saved && !dismissed && (
-        <Alert tone="success">
-          <span className="flex flex-wrap items-center justify-between gap-2">
-            {t(saved.saved === 'created' ? 'crm.customers.savedCreated' : 'crm.customers.savedUpdated', { name: saved.name })}
-            <Button variant="ghost" onClick={() => setDismissed(true)}>{t('common.close')}</Button>
-          </span>
-        </Alert>
-      )}
 
       <Card>
         <FilterBar
@@ -139,7 +128,7 @@ export default function CustomersPage() {
             icon={Contact}
             title={t('crm.customers.empty')}
             description={filtered ? t('common.tryOtherFilters') : undefined}
-            action={filtered ? <Button variant="secondary" onClick={() => setFilters(EMPTY_FILTERS)}>{t('common.clearFilters')}</Button> : canCreate ? <ButtonLink to="/customers/new">{t('crm.customers.add')}</ButtonLink> : undefined}
+            action={filtered ? <Button variant="secondary" onClick={() => setFilters(EMPTY_FILTERS)}>{t('common.clearFilters')}</Button> : canCreate ? <ButtonLink {...link('customer')}>{t('crm.customers.add')}</ButtonLink> : undefined}
           />
         ) : (
           <Refreshable refreshing={customers.isPlaceholderData}>
@@ -179,7 +168,7 @@ export default function CustomersPage() {
                     </td>
                     <td className="py-3 text-right">
                       <div className="flex justify-end gap-1">
-                        <IconLink to={`/customers/${customer.id}`} label={`${canUpdate ? t('common.edit') : t('crm.view')} ${customer.name}`} text={canUpdate ? t('common.edit') : t('crm.view')}>
+                        <IconLink {...link('customer', customer.id)} label={`${canUpdate ? t('common.edit') : t('crm.view')} ${customer.name}`} text={canUpdate ? t('common.edit') : t('crm.view')}>
                           {canUpdate ? <Pencil className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
                         </IconLink>
                         {canDelete && (

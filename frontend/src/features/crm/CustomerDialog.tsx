@@ -2,14 +2,15 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect, useMemo, useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import { Link, useNavigate, useParams } from 'react-router'
-import { FormActions, PageHeader } from '../../components/page.tsx'
+import { DialogSkeleton, DialogSubject, FormSection, RequiredNote, UnsavedChangesDialog } from '../../components/dialog-parts.tsx'
 import { fieldBase, fieldTone } from '../../components/styles.ts'
-import { FormPageSkeleton } from '../../components/skeleton.tsx'
-import { Alert, Badge, Button, Card, SelectField, TextField } from '../../components/ui.tsx'
+import { Alert, Badge, Button, Modal, ModalActions, SelectField, TextField } from '../../components/ui.tsx'
 import { ApiError } from '../../lib/api.ts'
+import type { DialogProps } from '../../lib/dialog.ts'
 import { formatVnd } from '../../lib/format.ts'
 import { describeError } from '../../lib/forms.ts'
+import { useToast } from '../../lib/toast.ts'
+import { useUnsavedGuard } from '../../lib/unsaved.ts'
 import { useAuth } from '../auth/auth-context.ts'
 import { useAllBranches, type Branch } from '../branches/api.ts'
 import { useCatalogList, type ListItem } from '../catalog/api.ts'
@@ -19,30 +20,44 @@ import { AddressesEditor, CustomerContactsEditor } from './PartyEditors.tsx'
 
 const KNOWN = ['branch_id', 'code', 'type', 'name', 'phone', 'email', 'tax_code', 'group_id', 'credit_limit', 'credit_days', 'notes', 'status']
 
-/** Thêm (`/customers/new`) hoặc sửa (`/customers/:id`) một khách hàng. Danh sách chọn tải xong mới dựng form để ô chọn có giá trị đúng ngay từ đầu. */
-export default function CustomerFormPage() {
+/**
+ * Popup thêm (`?dialog=customer`) hoặc sửa (`?dialog=customer:<id>`) một khách hàng. Khung popup hiện ngay; biểu mẫu chỉ dựng sau khi
+ * danh sách chọn tải xong để ô chọn có giá trị đúng ngay từ đầu.
+ */
+export default function CustomerDialog({ arg: id, onClose }: DialogProps) {
   const { t } = useTranslation()
-  const { id } = useParams()
   const customer = useCustomer(id)
   const groups = useCatalogList('customer-groups')
   const branches = useAllBranches()
 
-  if ((id !== undefined && customer.isPending) || groups.isPending || branches.isPending) {
-    return <FormPageSkeleton fields={8} />
-  }
+  const creating = id === undefined
+  const loaded = customer.data
+  const notFound = customer.error instanceof ApiError && (customer.error.status === 404 || customer.error.status === 403)
+  const loading = (!creating && customer.isPending) || groups.isPending || branches.isPending
 
-  if (customer.isError) {
-    const notFound = customer.error instanceof ApiError && (customer.error.status === 404 || customer.error.status === 403)
-
-    return (
-      <div className="space-y-3">
-        <Alert tone="danger">{notFound ? t('crm.customers.notFound') : t('common.loadError')}</Alert>
-        <Link to="/customers" className="text-sm font-medium text-brand-700 hover:underline">{t('crm.customers.back')}</Link>
-      </div>
-    )
-  }
-
-  return <CustomerForm key={customer.data?.id ?? 'new'} customer={customer.data} groups={groups.data ?? []} branches={branches.data ?? []} />
+  return (
+    <Modal
+      size="xl"
+      fixedHeight
+      dismissOnBackdrop={false}
+      onClose={onClose}
+      title={creating ? t('crm.customers.createTitle') : t('crm.customers.editTitle')}
+      description={creating ? t('crm.customers.createIntro') : <DialogSubject name={loaded?.name} badge={loaded && <Badge tone="info">{loaded.code}</Badge>} />}
+    >
+      {customer.isError ? (
+        <div className="space-y-4">
+          <Alert tone="danger">{notFound ? t('crm.customers.notFound') : t('common.loadError')}</Alert>
+          <div className="flex justify-end">
+            <Button onClick={onClose}>{t('common.close')}</Button>
+          </div>
+        </div>
+      ) : loading ? (
+        <DialogSkeleton fields={8} />
+      ) : (
+        <CustomerForm key={loaded?.id ?? 'new'} customer={loaded} groups={groups.data ?? []} branches={branches.data ?? []} onClose={onClose} />
+      )}
+    </Modal>
+  )
 }
 
 function ReadOnly({ label, value }: { label: string; value: string }) {
@@ -54,9 +69,9 @@ function ReadOnly({ label, value }: { label: string; value: string }) {
   )
 }
 
-function CustomerForm({ customer, groups, branches }: { customer?: Customer; groups: ListItem[]; branches: Branch[] }) {
+function CustomerForm({ customer, groups, branches, onClose }: { customer?: Customer; groups: ListItem[]; branches: Branch[]; onClose: () => void }) {
   const { t } = useTranslation()
-  const navigate = useNavigate()
+  const toast = useToast()
   const { can } = useAuth()
   const creating = customer === undefined
   const editable = creating ? can('crm.customer.create') : can('crm.customer.update')
@@ -67,6 +82,7 @@ function CustomerForm({ customer, groups, branches }: { customer?: Customer; gro
   const schema = useMemo(() => customerSchema(t, creating), [t, creating])
   const form = useForm<CustomerFormValues>({ resolver: zodResolver(schema), defaultValues: customerDefaults(customer) })
   const errors = form.formState.errors
+  const guard = useUnsavedGuard(form.formState.isDirty)
 
   const creditLimit = useWatch({ control: form.control, name: 'credit_limit' })
   const branchId = useWatch({ control: form.control, name: 'branch_id' })
@@ -86,7 +102,9 @@ function CustomerForm({ customer, groups, branches }: { customer?: Customer; gro
 
     try {
       await save.mutateAsync(customerPayload(values, customer))
-      navigate('/customers', { state: { saved: creating ? 'created' : 'updated', name: values.name.trim() } })
+      toast.success(t(creating ? 'crm.customers.savedCreated' : 'crm.customers.savedUpdated', { name: values.name.trim() }))
+      guard.release()
+      onClose()
     } catch (error) {
       const result = applyPartyErrors(error, form.setError, KNOWN)
       if (result.leftover.length > 0) setFormError(result.leftover.join(' '))
@@ -95,26 +113,17 @@ function CustomerForm({ customer, groups, branches }: { customer?: Customer; gro
   })
 
   return (
-    <div className="mx-auto max-w-5xl space-y-5">
-      <PageHeader
-        back={{ to: '/customers', label: t('crm.customers.back') }}
-        title={
-          <span className="flex flex-wrap items-center gap-2">
-            {creating ? t('crm.customers.createTitle') : t('crm.customers.editTitle', { name: customer.name })}
-            {customer && <Badge tone="info">{customer.code}</Badge>}
-          </span>
-        }
-        description={creating ? t('crm.customers.createIntro') : t('crm.customers.editIntro')}
-      />
-
+    <div className="flex min-h-full flex-col gap-4">
       {!editable && <Alert tone="info">{t('crm.customers.readOnly')}</Alert>}
       {formError && <Alert tone="danger">{formError}</Alert>}
 
-      <form onSubmit={submit} noValidate className="space-y-5">
-        <fieldset disabled={!editable} className="space-y-4">
-          <Card title={t('crm.form.general')}>
+      <form onSubmit={submit} noValidate className="flex flex-1 flex-col gap-5">
+        {editable && <RequiredNote />}
+
+        <fieldset disabled={!editable} className="space-y-5">
+          <FormSection title={t('crm.form.general')}>
             <div className="grid gap-4 sm:grid-cols-2">
-              <SelectField label={t('crm.form.type')} error={errors.type?.message} {...form.register('type')}>
+              <SelectField required label={t('crm.form.type')} error={errors.type?.message} {...form.register('type')}>
                 {CUSTOMER_TYPES.map((type) => <option key={type} value={type}>{t(`crm.types.${type}`)}</option>)}
               </SelectField>
 
@@ -124,7 +133,7 @@ function CustomerForm({ customer, groups, branches }: { customer?: Customer; gro
                 <ReadOnly label={t('crm.form.code')} value={customer.code} />
               )}
 
-              <TextField label={t('crm.form.name')} error={errors.name?.message} autoComplete="off" className="sm:col-span-2" {...form.register('name')} />
+              <TextField required label={t('crm.form.name')} error={errors.name?.message} autoComplete="off" className="sm:col-span-2" {...form.register('name')} />
               <TextField label={t('crm.form.phone')} error={errors.phone?.message} inputMode="tel" autoComplete="off" {...form.register('phone')} />
               <TextField label={t('crm.form.email')} error={errors.email?.message} inputMode="email" autoComplete="off" {...form.register('email')} />
               <TextField label={t('crm.form.taxCode')} hint={t('crm.form.taxCodeHint')} error={errors.tax_code?.message} inputMode="numeric" autoComplete="off" {...form.register('tax_code')} />
@@ -134,7 +143,7 @@ function CustomerForm({ customer, groups, branches }: { customer?: Customer; gro
                 {groupOptions.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
               </SelectField>
 
-              <SelectField label={t('crm.form.branch')} hint={creating ? t('crm.form.branchHint') : t('crm.form.branchMoveHint')} error={errors.branch_id?.message} {...form.register('branch_id')}>
+              <SelectField required label={t('crm.form.branch')} hint={creating ? t('crm.form.branchHint') : t('crm.form.branchMoveHint')} error={errors.branch_id?.message} {...form.register('branch_id')}>
                 <option value="">{t('crm.form.choose')}</option>
                 {openBranches.map((branch) => <option key={branch.id} value={branch.id}>{branch.code} — {branch.name}</option>)}
               </SelectField>
@@ -150,10 +159,9 @@ function CustomerForm({ customer, groups, branches }: { customer?: Customer; gro
                 {errors.notes && <p role="alert" className="mt-1 text-sm text-red-700">{errors.notes.message}</p>}
               </div>
             </div>
-          </Card>
+          </FormSection>
 
-          <Card title={t('crm.form.creditTitle')}>
-            <p className="mb-4 text-sm text-slate-600">{t('crm.form.creditIntro')}</p>
+          <FormSection title={t('crm.form.creditTitle')} description={t('crm.form.creditIntro')}>
             <div className="grid gap-4 sm:grid-cols-2">
               <TextField
                 label={t('crm.form.creditLimit')}
@@ -165,23 +173,24 @@ function CustomerForm({ customer, groups, branches }: { customer?: Customer; gro
               />
               <TextField label={t('crm.form.creditDays')} hint={t('crm.form.creditDaysHint')} error={errors.credit_days?.message} inputMode="numeric" autoComplete="off" {...form.register('credit_days')} />
             </div>
-          </Card>
+          </FormSection>
 
-          <Card title={t('crm.addresses.title')}>
-            <p className="mb-3 text-sm text-slate-600">{t('crm.addresses.intro')}</p>
+          <FormSection title={t('crm.addresses.title')} description={t('crm.addresses.intro')}>
             <AddressesEditor form={form} />
-          </Card>
+          </FormSection>
 
-          <Card title={t('crm.contacts.title')}>
+          <FormSection title={t('crm.contacts.title')}>
             <CustomerContactsEditor form={form} />
-          </Card>
+          </FormSection>
         </fieldset>
 
-        <FormActions>
-          <Button variant="ghost" onClick={() => navigate('/customers')}>{t('common.cancel')}</Button>
+        <ModalActions>
+          <Button variant="ghost" onClick={onClose}>{t('common.cancel')}</Button>
           {editable && <Button type="submit" loading={save.isPending}>{save.isPending ? t('common.saving') : t('common.save')}</Button>}
-        </FormActions>
+        </ModalActions>
       </form>
+
+      <UnsavedChangesDialog guard={guard} />
     </div>
   )
 }

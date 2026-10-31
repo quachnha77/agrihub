@@ -1,11 +1,11 @@
 import { Eye, Pencil, Plus, Trash2, Truck } from 'lucide-react'
 import { useDeferredValue, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useLocation } from 'react-router'
 import { EmptyState, FilterBar, FilterSelect, PageHeader, SearchField } from '../../components/page.tsx'
 import { Refreshable, TableSkeleton } from '../../components/skeleton.tsx'
 import { DataTable } from '../../components/table.tsx'
 import { Alert, Badge, Button, ButtonLink, Card, ConfirmDialog, IconButton, IconLink, Pagination } from '../../components/ui.tsx'
+import { useDialog } from '../../lib/dialog.ts'
 import { countActiveFilters } from '../../lib/filters.ts'
 import { describeError } from '../../lib/forms.ts'
 import { useClampPage } from '../../lib/pagination.ts'
@@ -18,8 +18,7 @@ const EMPTY_FILTERS: SupplierFilters = { q: '', status: '', page: 1 }
 export default function SuppliersPage() {
   const { t } = useTranslation()
   const { can } = useAuth()
-  const location = useLocation()
-  const saved = (location.state as { saved?: 'created' | 'updated'; name?: string } | null) ?? null
+  const { link } = useDialog()
 
   const [filters, setFilters] = useState<SupplierFilters>(EMPTY_FILTERS)
   const search = useDeferredValue(filters.q)
@@ -28,7 +27,6 @@ export default function SuppliersPage() {
 
   const [deleting, setDeleting] = useState<Supplier | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
-  const [dismissed, setDismissed] = useState(false)
 
   const canCreate = can('purchase.supplier.create')
   const canUpdate = can('purchase.supplier.update')
@@ -59,22 +57,13 @@ export default function SuppliersPage() {
         description={t('crm.suppliers.intro')}
         actions={
           canCreate && (
-            <ButtonLink to="/suppliers/new">
+            <ButtonLink {...link('supplier')}>
               <Plus className="h-4 w-4" aria-hidden="true" />
               {t('crm.suppliers.add')}
             </ButtonLink>
           )
         }
       />
-
-      {saved?.saved && !dismissed && (
-        <Alert tone="success">
-          <span className="flex flex-wrap items-center justify-between gap-2">
-            {t(saved.saved === 'created' ? 'crm.suppliers.savedCreated' : 'crm.suppliers.savedUpdated', { name: saved.name })}
-            <Button variant="ghost" onClick={() => setDismissed(true)}>{t('common.close')}</Button>
-          </span>
-        </Alert>
-      )}
 
       <Card>
         <FilterBar
@@ -98,7 +87,7 @@ export default function SuppliersPage() {
             icon={Truck}
             title={t('crm.suppliers.empty')}
             description={filtered ? t('common.tryOtherFilters') : undefined}
-            action={filtered ? <Button variant="secondary" onClick={() => setFilters(EMPTY_FILTERS)}>{t('common.clearFilters')}</Button> : canCreate ? <ButtonLink to="/suppliers/new">{t('crm.suppliers.add')}</ButtonLink> : undefined}
+            action={filtered ? <Button variant="secondary" onClick={() => setFilters(EMPTY_FILTERS)}>{t('common.clearFilters')}</Button> : canCreate ? <ButtonLink {...link('supplier')}>{t('crm.suppliers.add')}</ButtonLink> : undefined}
           />
         ) : (
           <Refreshable refreshing={suppliers.isPlaceholderData}>
@@ -128,7 +117,7 @@ export default function SuppliersPage() {
                     </td>
                     <td className="py-3 text-right">
                       <div className="flex justify-end gap-1">
-                        <IconLink to={`/suppliers/${supplier.id}`} label={`${canUpdate ? t('common.edit') : t('crm.view')} ${supplier.name}`} text={canUpdate ? t('common.edit') : t('crm.view')}>
+                        <IconLink {...link('supplier', supplier.id)} label={`${canUpdate ? t('common.edit') : t('crm.view')} ${supplier.name}`} text={canUpdate ? t('common.edit') : t('crm.view')}>
                           {canUpdate ? <Pencil className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
                         </IconLink>
                         {canDelete && (

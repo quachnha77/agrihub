@@ -2,13 +2,14 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import { Link, useNavigate, useParams } from 'react-router'
-import { FormActions, PageHeader } from '../../components/page.tsx'
+import { DialogSkeleton, DialogSubject, FormSection, RequiredNote, UnsavedChangesDialog } from '../../components/dialog-parts.tsx'
 import { fieldBase, fieldTone } from '../../components/styles.ts'
-import { FormPageSkeleton } from '../../components/skeleton.tsx'
-import { Alert, Badge, Button, Card, SelectField, TextField } from '../../components/ui.tsx'
+import { Alert, Badge, Button, Modal, ModalActions, SelectField, TextField } from '../../components/ui.tsx'
 import { ApiError } from '../../lib/api.ts'
+import type { DialogProps } from '../../lib/dialog.ts'
 import { describeError } from '../../lib/forms.ts'
+import { useToast } from '../../lib/toast.ts'
+import { useUnsavedGuard } from '../../lib/unsaved.ts'
 import { useAuth } from '../auth/auth-context.ts'
 import { useSaveSupplier, useSupplier, type Supplier } from './api.ts'
 import { applyPartyErrors, supplierDefaults, supplierPayload, supplierSchema, type SupplierFormValues } from './forms.ts'
@@ -16,26 +17,38 @@ import { SupplierContactsEditor } from './PartyEditors.tsx'
 
 const KNOWN = ['code', 'name', 'tax_code', 'phone', 'email', 'address', 'payment_terms_days', 'notes', 'status']
 
-/** Thêm (`/suppliers/new`) hoặc sửa (`/suppliers/:id`) một nhà cung cấp. */
-export default function SupplierFormPage() {
+/** Popup thêm (`?dialog=supplier`) hoặc sửa (`?dialog=supplier:<id>`) một nhà cung cấp. */
+export default function SupplierDialog({ arg: id, onClose }: DialogProps) {
   const { t } = useTranslation()
-  const { id } = useParams()
   const supplier = useSupplier(id)
 
-  if (id !== undefined && supplier.isPending) return <FormPageSkeleton fields={6} />
+  const creating = id === undefined
+  const loaded = supplier.data
+  const notFound = supplier.error instanceof ApiError && (supplier.error.status === 404 || supplier.error.status === 403)
 
-  if (supplier.isError) {
-    const notFound = supplier.error instanceof ApiError && (supplier.error.status === 404 || supplier.error.status === 403)
-
-    return (
-      <div className="space-y-3">
-        <Alert tone="danger">{notFound ? t('crm.suppliers.notFound') : t('common.loadError')}</Alert>
-        <Link to="/suppliers" className="text-sm font-medium text-brand-700 hover:underline">{t('crm.suppliers.back')}</Link>
-      </div>
-    )
-  }
-
-  return <SupplierForm key={supplier.data?.id ?? 'new'} supplier={supplier.data} />
+  return (
+    <Modal
+      size="xl"
+      fixedHeight
+      dismissOnBackdrop={false}
+      onClose={onClose}
+      title={creating ? t('crm.suppliers.createTitle') : t('crm.suppliers.editTitle')}
+      description={creating ? t('crm.suppliers.formIntro') : <DialogSubject name={loaded?.name} badge={loaded && <Badge tone="info">{loaded.code}</Badge>} />}
+    >
+      {supplier.isError ? (
+        <div className="space-y-4">
+          <Alert tone="danger">{notFound ? t('crm.suppliers.notFound') : t('common.loadError')}</Alert>
+          <div className="flex justify-end">
+            <Button onClick={onClose}>{t('common.close')}</Button>
+          </div>
+        </div>
+      ) : !creating && supplier.isPending ? (
+        <DialogSkeleton fields={6} />
+      ) : (
+        <SupplierForm key={loaded?.id ?? 'new'} supplier={loaded} onClose={onClose} />
+      )}
+    </Modal>
+  )
 }
 
 function ReadOnly({ label, value }: { label: string; value: string }) {
@@ -47,9 +60,9 @@ function ReadOnly({ label, value }: { label: string; value: string }) {
   )
 }
 
-function SupplierForm({ supplier }: { supplier?: Supplier }) {
+function SupplierForm({ supplier, onClose }: { supplier?: Supplier; onClose: () => void }) {
   const { t } = useTranslation()
-  const navigate = useNavigate()
+  const toast = useToast()
   const { can } = useAuth()
   const creating = supplier === undefined
   const editable = creating ? can('purchase.supplier.create') : can('purchase.supplier.update')
@@ -60,13 +73,16 @@ function SupplierForm({ supplier }: { supplier?: Supplier }) {
   const schema = useMemo(() => supplierSchema(t, creating), [t, creating])
   const form = useForm<SupplierFormValues>({ resolver: zodResolver(schema), defaultValues: supplierDefaults(supplier) })
   const errors = form.formState.errors
+  const guard = useUnsavedGuard(form.formState.isDirty)
 
   const submit = form.handleSubmit(async (values) => {
     setFormError(null)
 
     try {
       await save.mutateAsync(supplierPayload(values, creating))
-      navigate('/suppliers', { state: { saved: creating ? 'created' : 'updated', name: values.name.trim() } })
+      toast.success(t(creating ? 'crm.suppliers.savedCreated' : 'crm.suppliers.savedUpdated', { name: values.name.trim() }))
+      guard.release()
+      onClose()
     } catch (error) {
       const result = applyPartyErrors(error, form.setError, KNOWN)
       if (result.leftover.length > 0) setFormError(result.leftover.join(' '))
@@ -75,31 +91,22 @@ function SupplierForm({ supplier }: { supplier?: Supplier }) {
   })
 
   return (
-    <div className="mx-auto max-w-5xl space-y-5">
-      <PageHeader
-        back={{ to: '/suppliers', label: t('crm.suppliers.back') }}
-        title={
-          <span className="flex flex-wrap items-center gap-2">
-            {creating ? t('crm.suppliers.createTitle') : t('crm.suppliers.editTitle', { name: supplier.name })}
-            {supplier && <Badge tone="info">{supplier.code}</Badge>}
-          </span>
-        }
-        description={t('crm.suppliers.formIntro')}
-      />
-
+    <div className="flex min-h-full flex-col gap-4">
       {!editable && <Alert tone="info">{t('crm.suppliers.readOnly')}</Alert>}
       {formError && <Alert tone="danger">{formError}</Alert>}
 
-      <form onSubmit={submit} noValidate className="space-y-5">
-        <fieldset disabled={!editable} className="space-y-4">
-          <Card title={t('crm.form.general')}>
+      <form onSubmit={submit} noValidate className="flex flex-1 flex-col gap-5">
+        {editable && <RequiredNote />}
+
+        <fieldset disabled={!editable} className="space-y-5">
+          <FormSection title={t('crm.form.general')}>
             <div className="grid gap-4 sm:grid-cols-2">
               {creating ? (
                 <TextField label={t('crm.form.code')} hint={t('crm.form.codeHint', { example: 'NCC0001' })} error={errors.code?.message} autoComplete="off" {...form.register('code')} />
               ) : (
                 <ReadOnly label={t('crm.form.code')} value={supplier.code} />
               )}
-              <TextField label={t('crm.form.supplierName')} error={errors.name?.message} autoComplete="off" {...form.register('name')} />
+              <TextField required label={t('crm.form.supplierName')} error={errors.name?.message} autoComplete="off" {...form.register('name')} />
               <TextField label={t('crm.form.taxCode')} hint={t('crm.form.taxCodeHint')} error={errors.tax_code?.message} inputMode="numeric" autoComplete="off" {...form.register('tax_code')} />
               <TextField label={t('crm.form.phone')} error={errors.phone?.message} inputMode="tel" autoComplete="off" {...form.register('phone')} />
               <TextField label={t('crm.form.email')} error={errors.email?.message} inputMode="email" autoComplete="off" {...form.register('email')} />
@@ -116,18 +123,20 @@ function SupplierForm({ supplier }: { supplier?: Supplier }) {
                 {errors.notes && <p role="alert" className="mt-1 text-sm text-red-700">{errors.notes.message}</p>}
               </div>
             </div>
-          </Card>
+          </FormSection>
 
-          <Card title={t('crm.contacts.title')}>
+          <FormSection title={t('crm.contacts.title')}>
             <SupplierContactsEditor form={form} />
-          </Card>
+          </FormSection>
         </fieldset>
 
-        <FormActions>
-          <Button variant="ghost" onClick={() => navigate('/suppliers')}>{t('common.cancel')}</Button>
+        <ModalActions>
+          <Button variant="ghost" onClick={onClose}>{t('common.cancel')}</Button>
           {editable && <Button type="submit" loading={save.isPending}>{save.isPending ? t('common.saving') : t('common.save')}</Button>}
-        </FormActions>
+        </ModalActions>
       </form>
+
+      <UnsavedChangesDialog guard={guard} />
     </div>
   )
 }

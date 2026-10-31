@@ -8,6 +8,7 @@ import { Refreshable, StatCardsSkeleton, TableSkeleton } from '../../components/
 import { buttonStyles } from '../../components/styles.ts'
 import { DataTable } from '../../components/table.tsx'
 import { Alert, Badge, Button, ButtonLink, Card, Modal, Pagination } from '../../components/ui.tsx'
+import { useDialog } from '../../lib/dialog.ts'
 import { countActiveFilters } from '../../lib/filters.ts'
 import { formatDateTime, formatQuantity, formatVnd } from '../../lib/format.ts'
 import { useClampPage } from '../../lib/pagination.ts'
@@ -24,6 +25,7 @@ const EMPTY_FILTERS: StockFilters = { q: '', type: '', warehouse: '', stock: '',
 /** Tồn kho theo sản phẩm: số lượng (đơn vị cơ sở), mức tối thiểu, hạn dùng gần nhất, cảnh báo sắp hết hàng / sắp hết hạn / đã hết hạn. */
 export default function StockPage() {
   const { t } = useTranslation()
+  const { link } = useDialog()
   const { can } = useAuth()
   // Trang Tổng quan dẫn thẳng tới danh sách đã lọc (?stock=low, ?expiry=soon|expired).
   const [params] = useSearchParams()
@@ -65,13 +67,13 @@ export default function StockPage() {
           (canMove || canAdjust) && (
             <>
               {canMove && (
-                <ButtonLink to="/stock/new?type=receipt">
+                <ButtonLink {...link('stock-new', 'receipt')}>
                   <PackagePlus className="h-4 w-4" aria-hidden="true" />
                   {t('inventory.types.receipt')}
                 </ButtonLink>
               )}
               {canMove && (
-                <ButtonLink variant="secondary" to="/stock/new?type=issue">
+                <ButtonLink variant="secondary" {...link('stock-new', 'issue')}>
                   {t('inventory.types.issue')}
                 </ButtonLink>
               )}
@@ -87,8 +89,8 @@ export default function StockPage() {
               >
                 {(close) => (
                   <>
-                    {canAdjust && <MenuItem to="/stock/new?type=adjustment" onSelect={close}>{t('inventory.types.adjustment')}</MenuItem>}
-                    {canMove && <MenuItem to="/stock/new?type=opening" onSelect={close}>{t('inventory.types.opening')}</MenuItem>}
+                    {canAdjust && <MenuItem {...link('stock-new', 'adjustment')} onSelect={close}>{t('inventory.types.adjustment')}</MenuItem>}
+                    {canMove && <MenuItem {...link('stock-new', 'opening')} onSelect={close}>{t('inventory.types.opening')}</MenuItem>}
                   </>
                 )}
               </Menu>
@@ -249,6 +251,7 @@ function SummaryCard({ icon: Icon, label, value, tone, active, onClick }: { icon
 /** Chi tiết tồn của một sản phẩm: từng lô (và kho) với hạn dùng, và thẻ kho gần đây. */
 function ProductStockDialog({ product, warehouse, warnDays, onClose }: { product: StockProduct; warehouse: string; warnDays: number; onClose: () => void }) {
   const { t } = useTranslation()
+  const { link } = useDialog()
   const [balancePage, setBalancePage] = useState(1)
   const [movementPage, setMovementPage] = useState(1)
   const balances = useStockBalancePage({ product: product.id, warehouse }, balancePage)
@@ -258,7 +261,7 @@ function ProductStockDialog({ product, warehouse, warnDays, onClose }: { product
   useClampPage(movements.data?.meta, setMovementPage)
 
   return (
-    <Modal title={t('inventory.detail.title', { name: product.name })} onClose={onClose} size="xl">
+    <Modal title={t('inventory.detail.title', { name: product.name })} onClose={onClose} size="xl" fixedHeight="sheet">
       <div className="space-y-5">
         <p className="text-sm text-slate-600">
           {t('inventory.detail.summary', { total: formatQuantity(product.total_qty), unit: product.base_unit.name })}
@@ -326,7 +329,7 @@ function ProductStockDialog({ product, warehouse, warnDays, onClose }: { product
                     <tr key={m.id}>
                       <td className="py-3 pr-4 whitespace-nowrap">{formatDateTime(m.performed_at)}</td>
                       <td className="py-3 pr-4">
-                        <Link to={`/stock/documents/${m.document.id}`} onClick={onClose} className="font-mono text-xs text-brand-700 hover:underline">{m.document.code}</Link>
+                        <Link {...link('stock-doc', m.document.id)} onClick={onClose} className="font-mono text-xs text-brand-700 hover:underline">{m.document.code}</Link>
                         <span className="ml-1"><TypeBadge type={m.type} /></span>
                       </td>
                       <td className="py-3 pr-4">{m.batch?.batch_no ?? '—'}</td>

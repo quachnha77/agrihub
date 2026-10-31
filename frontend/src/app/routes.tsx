@@ -44,47 +44,25 @@ export const routes: RouteObject[] = [
                 children: [
                   { path: 'products', lazy: async () => ({ Component: (await import('../features/catalog/ProductsPage.tsx')).default }) },
                   { path: 'products/lists', lazy: async () => ({ Component: (await import('../features/catalog/CatalogListsPage.tsx')).default }) },
-                  { path: 'products/:id', lazy: async () => ({ Component: (await import('../features/catalog/ProductFormPage.tsx')).default }) },
                 ],
-              },
-              {
-                element: <RequireAccess permission="catalog.product.create" />,
-                children: [{ path: 'products/new', lazy: async () => ({ Component: (await import('../features/catalog/ProductFormPage.tsx')).default }) }],
               },
               {
                 element: <RequireAccess permission="crm.customer.view" />,
                 children: [
                   { path: 'customers', lazy: async () => ({ Component: (await import('../features/crm/CustomersPage.tsx')).default }) },
                   { path: 'customers/groups', lazy: async () => ({ Component: (await import('../features/crm/CustomerGroupsPage.tsx')).default }) },
-                  { path: 'customers/:id', lazy: async () => ({ Component: (await import('../features/crm/CustomerFormPage.tsx')).default }) },
                 ],
-              },
-              {
-                element: <RequireAccess permission="crm.customer.create" />,
-                children: [{ path: 'customers/new', lazy: async () => ({ Component: (await import('../features/crm/CustomerFormPage.tsx')).default }) }],
               },
               {
                 element: <RequireAccess permission="purchase.supplier.view" />,
-                children: [
-                  { path: 'suppliers', lazy: async () => ({ Component: (await import('../features/crm/SuppliersPage.tsx')).default }) },
-                  { path: 'suppliers/:id', lazy: async () => ({ Component: (await import('../features/crm/SupplierFormPage.tsx')).default }) },
-                ],
-              },
-              {
-                element: <RequireAccess permission="purchase.supplier.create" />,
-                children: [{ path: 'suppliers/new', lazy: async () => ({ Component: (await import('../features/crm/SupplierFormPage.tsx')).default }) }],
+                children: [{ path: 'suppliers', lazy: async () => ({ Component: (await import('../features/crm/SuppliersPage.tsx')).default }) }],
               },
               {
                 element: <RequireAccess permission="inventory.movement.view" />,
                 children: [
                   { path: 'stock', lazy: async () => ({ Component: (await import('../features/inventory/StockPage.tsx')).default }) },
                   { path: 'stock/documents', lazy: async () => ({ Component: (await import('../features/inventory/StockDocumentsPage.tsx')).default }) },
-                  { path: 'stock/documents/:id', lazy: async () => ({ Component: (await import('../features/inventory/StockDocumentPage.tsx')).default }) },
                 ],
-              },
-              {
-                element: <RequireAccess permission="inventory.movement.create" />,
-                children: [{ path: 'stock/new', lazy: async () => ({ Component: (await import('../features/inventory/StockDocumentFormPage.tsx')).default }) }],
               },
               {
                 element: <RequireAccess permission="inventory.warehouse.view" />,

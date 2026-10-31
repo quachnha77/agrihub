@@ -151,7 +151,10 @@ export function useSaveCustomer(existing?: Customer) {
   return useMutation({
     mutationFn: async (payload: CustomerPayload) =>
       (await (existing ? api<{ data: Customer }>('PATCH', `/customers/${existing.id}`, payload) : post<{ data: Customer }>('/customers', payload))).data,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: CUSTOMERS }),
+    // Không `await`: popup đóng ngay khi máy chủ đã nhận, danh sách phía sau tự làm mới.
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: CUSTOMERS })
+    },
   })
 }
 
@@ -183,7 +186,10 @@ export function useSaveSupplier(existing?: Supplier) {
   return useMutation({
     mutationFn: async (payload: SupplierPayload) =>
       (await (existing ? api<{ data: Supplier }>('PATCH', `/suppliers/${existing.id}`, payload) : post<{ data: Supplier }>('/suppliers', payload))).data,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: SUPPLIERS }),
+    // Không `await`: popup đóng ngay khi máy chủ đã nhận, danh sách phía sau tự làm mới.
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: SUPPLIERS })
+    },
   })
 }
 

@@ -273,6 +273,9 @@ export function usePostStockDocument() {
 
   return useMutation({
     mutationFn: async (payload: DocumentPayload) => (await post<{ data: StockDocument }>('/stock/documents', payload)).data,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: STOCK }),
+    // Không `await`: popup đóng ngay khi máy chủ đã nhận, tồn kho phía sau tự làm mới.
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: STOCK })
+    },
   })
 }

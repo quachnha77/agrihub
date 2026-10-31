@@ -180,7 +180,7 @@ describe('danh sách khách hàng', () => {
 describe('thêm khách hàng', () => {
   it('kiểm tra ngay trên trình duyệt: báo từng ô còn thiếu và không gọi API', async () => {
     const server = mockApi(base())
-    renderApp('/customers/new')
+    renderApp('/notifications?dialog=customer')
     const user = userEvent.setup()
 
     await user.type(await screen.findByLabelText('Số điện thoại'), '123')
@@ -196,7 +196,7 @@ describe('thêm khách hàng', () => {
 
   it('gửi đúng nội dung: tiền theo kiểu Việt Nam, địa chỉ mặc định, người liên hệ; rồi về danh sách kèm thông báo', async () => {
     const server = mockApi(base({ 'POST /api/v1/customers': { status: 201, json: { data: customer({ id: 'c9', name: 'Đại lý Phát Tài' }) } } }))
-    renderApp('/customers/new')
+    renderApp('/notifications?dialog=customer')
     const user = userEvent.setup()
 
     await user.selectOptions(await screen.findByLabelText('Chi nhánh phụ trách'), 'br-2')
@@ -252,11 +252,12 @@ describe('thêm khách hàng', () => {
     })
 
     expect(await screen.findByText('Đã thêm khách hàng "Đại lý Phát Tài".')).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument()) // lưu xong popup tự đóng, không chuyển trang
   })
 
   it('để trống mã thì không gửi mã (máy chủ tự cấp); hạn mức mặc định 0 và số ngày nợ bỏ trống gửi null', async () => {
     const server = mockApi(base({ 'POST /api/v1/customers': { status: 201, json: { data: customer() } } }))
-    renderApp('/customers/new')
+    renderApp('/notifications?dialog=customer')
     const user = userEvent.setup()
 
     await user.selectOptions(await screen.findByLabelText('Chi nhánh phụ trách'), 'br-1')
@@ -283,7 +284,7 @@ describe('thêm khách hàng', () => {
         }),
       }),
     )
-    renderApp('/customers/new')
+    renderApp('/notifications?dialog=customer')
     const user = userEvent.setup()
 
     await user.selectOptions(await screen.findByLabelText('Chi nhánh phụ trách'), 'br-1')
@@ -305,22 +306,22 @@ describe('thêm khách hàng', () => {
 
   it('chỉ có một chi nhánh được dùng thì chọn sẵn', async () => {
     mockApi(base({ 'GET /api/v1/branches': { json: page([BRANCHES[0]]) } }))
-    renderApp('/customers/new')
+    renderApp('/notifications?dialog=customer')
 
     await waitFor(() => expect(screen.getByLabelText('Chi nhánh phụ trách')).toHaveValue('br-1'))
   })
 
   it('nhân viên bán hàng (quyền chi nhánh) vào được trang thêm khách, nhưng chỉ xem khi mở khách đã có', async () => {
     mockApi(base({ 'GET /api/v1/customers/c1': { json: { data: customer() } } }, SALES))
-    renderApp('/customers/new')
+    renderApp('/notifications?dialog=customer')
     expect(await screen.findByRole('heading', { name: 'Thêm khách hàng' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Lưu' })).toBeInTheDocument() // khung popup hiện ngay; nút Lưu có khi biểu mẫu đã dựng xong
     expect(screen.queryByText('Bạn chỉ có quyền xem khách hàng này.')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Lưu' })).toBeInTheDocument()
   })
 
   it('nhân viên bán hàng mở khách đã có thì form bị khóa (không có quyền sửa)', async () => {
     mockApi(base({ 'GET /api/v1/customers/c1': { json: { data: customer() } } }, SALES))
-    renderApp('/customers/c1')
+    renderApp('/notifications?dialog=customer:c1')
 
     expect(await screen.findByText('Bạn chỉ có quyền xem khách hàng này.')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Lưu' })).not.toBeInTheDocument()
@@ -328,7 +329,7 @@ describe('thêm khách hàng', () => {
 
   it('người không có quyền tạo không vào được trang thêm', async () => {
     mockApi(base({}, VIEW_ONLY))
-    renderApp('/customers/new')
+    renderApp('/notifications?dialog=customer')
 
     expect(await screen.findByText('Bạn không có quyền truy cập')).toBeInTheDocument()
   })
@@ -339,9 +340,11 @@ describe('sửa khách hàng', () => {
 
   it('hiện sẵn giá trị đang có; mã chỉ đọc, địa chỉ và người liên hệ được nạp theo dòng', async () => {
     mockApi(base(detail()))
-    renderApp('/customers/c1')
+    renderApp('/notifications?dialog=customer:c1')
 
-    expect(await screen.findByRole('heading', { name: /Sửa khách hàng: Nguyễn Văn Nông/ })).toBeInTheDocument()
+    const editor = await screen.findByRole('dialog', { name: 'Sửa khách hàng' })
+
+    await waitFor(() => expect(editor).toHaveAccessibleDescription(/Nguyễn Văn Nông/)) // tên bản ghi nằm ở dòng mô tả của popup
     expect(screen.getByLabelText('Tên khách hàng')).toHaveValue('Nguyễn Văn Nông')
     expect(screen.getByLabelText('Nhóm khách')).toHaveValue('g-1')
     expect(screen.getByLabelText('Chi nhánh phụ trách')).toHaveValue('br-1')
@@ -357,7 +360,7 @@ describe('sửa khách hàng', () => {
 
   it('lưu bằng PATCH, không gửi mã; bỏ một địa chỉ thì không gửi dòng đó nữa', async () => {
     const server = mockApi(base({ ...detail(), 'PATCH /api/v1/customers/c1': { json: { data: customer({ name: 'Nông Văn Mới' }) } } }))
-    renderApp('/customers/c1')
+    renderApp('/notifications?dialog=customer:c1')
     const user = userEvent.setup()
 
     const name = await screen.findByLabelText('Tên khách hàng')
@@ -374,11 +377,12 @@ describe('sửa khách hàng', () => {
     expect(body.addresses).toHaveLength(1)
     expect(body.contacts).toHaveLength(1)
     expect(await screen.findByText('Đã lưu thay đổi của khách hàng "Nông Văn Mới".')).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument()) // lưu xong popup tự đóng, không chuyển trang
   })
 
   it('đổi chi nhánh phụ trách = chuyển khách: gửi chi nhánh mới', async () => {
     const server = mockApi(base({ ...detail(), 'PATCH /api/v1/customers/c1': { json: { data: customer() } } }))
-    renderApp('/customers/c1')
+    renderApp('/notifications?dialog=customer:c1')
     const user = userEvent.setup()
 
     await user.selectOptions(await screen.findByLabelText('Chi nhánh phụ trách'), 'br-2')
@@ -395,14 +399,14 @@ describe('sửa khách hàng', () => {
         'GET /api/v1/customer-groups': { json: page([{ id: 'g-1', name: 'Nông dân', is_active: false }, GROUPS[1]]) },
       }),
     )
-    renderApp('/customers/c1')
+    renderApp('/notifications?dialog=customer:c1')
 
     expect(await screen.findByLabelText('Nhóm khách')).toHaveValue('g-1')
   })
 
   it('người chỉ có quyền xem: form bị khóa, không có nút Lưu', async () => {
     mockApi(base(detail(), VIEW_ONLY))
-    renderApp('/customers/c1')
+    renderApp('/notifications?dialog=customer:c1')
 
     expect(await screen.findByText('Bạn chỉ có quyền xem khách hàng này.')).toBeInTheDocument()
     expect(screen.getByLabelText('Tên khách hàng')).toBeDisabled()
@@ -411,7 +415,7 @@ describe('sửa khách hàng', () => {
 
   it('khách không tồn tại hoặc ngoài phạm vi chi nhánh: báo không tìm thấy', async () => {
     mockApi(base({ 'GET /api/v1/customers/zzz': problem(404, 'not_found', 'Không tìm thấy.') }))
-    renderApp('/customers/zzz')
+    renderApp('/notifications?dialog=customer:zzz')
 
     expect(await screen.findByText('Không tìm thấy khách hàng này hoặc bạn không có quyền xem.')).toBeInTheDocument()
   })
@@ -515,7 +519,7 @@ describe('nhà cung cấp', () => {
 
   it('thêm nhà cung cấp: kiểm tra ô còn thiếu, rồi gửi đúng nội dung', async () => {
     const server = mockApi(base({ 'POST /api/v1/suppliers': { status: 201, json: { data: supplier({ id: 's9', name: 'Syngenta' }) } } }))
-    renderApp('/suppliers/new')
+    renderApp('/notifications?dialog=supplier')
     const user = userEvent.setup()
 
     await user.click(await screen.findByRole('button', { name: 'Lưu' }))
@@ -543,6 +547,7 @@ describe('nhà cung cấp', () => {
       contacts: [{ name: 'Chị Mai', phone: null, email: 'mai@syngenta.vn', position: null }],
     })
     expect(await screen.findByText('Đã thêm nhà cung cấp "Syngenta".')).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument()) // lưu xong popup tự đóng, không chuyển trang
   })
 
   it('lỗi từ máy chủ hiện đúng ô, kể cả email của người liên hệ theo dòng', async () => {
@@ -553,7 +558,7 @@ describe('nhà cung cấp', () => {
         }),
       }),
     )
-    renderApp('/suppliers/new')
+    renderApp('/notifications?dialog=supplier')
     const user = userEvent.setup()
 
     await user.type(await screen.findByLabelText('Tên nhà cung cấp'), 'Trùng MST')
@@ -567,10 +572,12 @@ describe('nhà cung cấp', () => {
 
   it('sửa nhà cung cấp: nạp sẵn giá trị, mã chỉ đọc, lưu bằng PATCH không gửi mã', async () => {
     const server = mockApi(base({ 'GET /api/v1/suppliers/s1': { json: { data: supplier() } }, 'PATCH /api/v1/suppliers/s1': { json: { data: supplier({ payment_terms_days: 60 }) } } }))
-    renderApp('/suppliers/s1')
+    renderApp('/notifications?dialog=supplier:s1')
     const user = userEvent.setup()
 
-    expect(await screen.findByRole('heading', { name: /Sửa nhà cung cấp: Công ty Phân bón Miền Nam/ })).toBeInTheDocument()
+    const editor = await screen.findByRole('dialog', { name: 'Sửa nhà cung cấp' })
+
+    await waitFor(() => expect(editor).toHaveAccessibleDescription(/Công ty Phân bón Miền Nam/)) // tên bản ghi nằm ở dòng mô tả của popup
     expect(screen.getByLabelText('Mã số thuế')).toHaveValue('0300000101')
     expect(screen.getByLabelText('Số ngày thanh toán')).toHaveValue('30')
     expect(within(screen.getByRole('group', { name: 'Người liên hệ 1' })).getByLabelText('Email')).toHaveValue('hung@mau.vn')
@@ -589,7 +596,7 @@ describe('nhà cung cấp', () => {
 
   it('người chỉ có quyền xem: form bị khóa, không có nút Lưu; không vào được trang thêm', async () => {
     mockApi(base({ 'GET /api/v1/suppliers/s1': { json: { data: supplier() } } }, VIEW_ONLY))
-    renderApp('/suppliers/s1')
+    renderApp('/notifications?dialog=supplier:s1')
 
     expect(await screen.findByText('Bạn chỉ có quyền xem nhà cung cấp này.')).toBeInTheDocument()
     expect(screen.getByLabelText('Tên nhà cung cấp')).toBeDisabled()
@@ -598,7 +605,7 @@ describe('nhà cung cấp', () => {
 
   it('người không có quyền tạo không vào được trang thêm nhà cung cấp', async () => {
     mockApi(base({}, VIEW_ONLY))
-    renderApp('/suppliers/new')
+    renderApp('/notifications?dialog=supplier')
 
     expect(await screen.findByText('Bạn không có quyền truy cập')).toBeInTheDocument()
   })

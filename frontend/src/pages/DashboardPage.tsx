@@ -1,6 +1,6 @@
 import { CircleCheck, Clock, Contact, Package, PackageMinus, PackagePlus, PhoneCall, Store, Tags, Truck, TriangleAlert, type LucideIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Link } from 'react-router'
+import { Link, type To } from 'react-router'
 import { PageHeader } from '../components/page.tsx'
 import { ListSkeleton, Skeleton, SkeletonRegion, StatCardsSkeleton } from '../components/skeleton.tsx'
 import { Alert, ButtonLink, Card } from '../components/ui.tsx'
@@ -11,6 +11,7 @@ import { HealthSummary } from '../features/health/HealthSummary.tsx'
 import { DEFAULT_EXPIRY_WARNING_DAYS, useRecentStockDocuments, useStockSummary } from '../features/inventory/api.ts'
 import { TypeBadge } from '../features/inventory/parts.tsx'
 import { useLatestNotices } from '../features/notifications/api.ts'
+import { useDialog } from '../lib/dialog.ts'
 import { formatAgo, formatToday } from '../lib/format.ts'
 
 /** Thông báo QUAN TRỌNG chưa đọc hiện ngay khi đăng nhập (kênh "in-app" đã chốt). */
@@ -37,7 +38,9 @@ function CriticalNotices() {
 }
 
 interface Shortcut {
-  to: string
+  to: To
+  /** `state` của liên kết (dấu hiệu "popup mở bằng liên kết", xem lib/dialog.ts). */
+  state?: unknown
   label: string
   icon: LucideIcon
   visible: boolean
@@ -50,8 +53,8 @@ function ShortcutGrid({ items }: { items: Shortcut[] }) {
       {items
         .filter((item) => item.visible)
         .map((item) => (
-          <li key={item.to}>
-            <Link to={item.to} className="flex h-full min-h-24 flex-col items-start justify-between gap-3 rounded-xl border border-slate-200/80 bg-white p-4 shadow-card transition-colors hover:border-brand-300 hover:bg-brand-50/40">
+          <li key={item.label}>
+            <Link to={item.to} state={item.state} className="flex h-full min-h-24 flex-col items-start justify-between gap-3 rounded-xl border border-slate-200/80 bg-white p-4 shadow-card transition-colors hover:border-brand-300 hover:bg-brand-50/40">
               <span className="grid h-10 w-10 place-items-center rounded-full bg-brand-50 text-brand-700">
                 <item.icon className="h-5 w-5" aria-hidden="true" />
               </span>
@@ -124,6 +127,7 @@ function StockAttention() {
 /** Vài phiếu kho mới nhất. */
 function RecentDocuments({ canCreate }: { canCreate: boolean }) {
   const { t } = useTranslation()
+  const { link } = useDialog()
   const query = useRecentStockDocuments()
   const rows = query.data ?? []
 
@@ -143,13 +147,13 @@ function RecentDocuments({ canCreate }: { canCreate: boolean }) {
       ) : rows.length === 0 ? (
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-slate-600">{t('dashboard.noRecentDocs')}</p>
-          {canCreate && <ButtonLink to="/stock/new?type=receipt" size="sm">{t('inventory.types.receipt')}</ButtonLink>}
+          {canCreate && <ButtonLink {...link('stock-new', 'receipt')} size="sm">{t('inventory.types.receipt')}</ButtonLink>}
         </div>
       ) : (
         <ul className="divide-y divide-slate-100">
           {rows.map((document) => (
             <li key={document.id}>
-              <Link to={`/stock/documents/${document.id}`} className="-mx-2 flex items-center justify-between gap-3 rounded-lg px-2 py-2.5 hover:bg-slate-50">
+              <Link {...link('stock-doc', document.id)} className="-mx-2 flex items-center justify-between gap-3 rounded-lg px-2 py-2.5 hover:bg-slate-50">
                 <span className="min-w-0">
                   <span className="flex items-center gap-2">
                     <span className="font-mono text-xs font-semibold text-brand-700">{document.code}</span>
@@ -170,10 +174,11 @@ function RecentDocuments({ canCreate }: { canCreate: boolean }) {
 /** Cửa hàng mới chưa có sản phẩm: ba việc đầu tiên, mỗi việc một nút. */
 function GettingStarted({ canProduct, canStock, canCustomer }: { canProduct: boolean; canStock: boolean; canCustomer: boolean }) {
   const { t } = useTranslation()
+  const { link } = useDialog()
   const steps = [
-    { to: '/products/new', title: t('dashboard.start.step1'), hint: t('dashboard.start.step1Hint'), visible: canProduct },
-    { to: '/stock/new?type=opening', title: t('dashboard.start.step2'), hint: t('dashboard.start.step2Hint'), visible: canStock },
-    { to: '/customers/new', title: t('dashboard.start.step3'), hint: t('dashboard.start.step3Hint'), visible: canCustomer },
+    { ...link('product'), title: t('dashboard.start.step1'), hint: t('dashboard.start.step1Hint'), visible: canProduct },
+    { ...link('stock-new', 'opening'), title: t('dashboard.start.step2'), hint: t('dashboard.start.step2Hint'), visible: canStock },
+    { ...link('customer'), title: t('dashboard.start.step3'), hint: t('dashboard.start.step3Hint'), visible: canCustomer },
   ].filter((step) => step.visible)
 
   if (steps.length === 0) return null
@@ -184,8 +189,8 @@ function GettingStarted({ canProduct, canStock, canCustomer }: { canProduct: boo
       <p className="mt-0.5 text-sm text-brand-900/80">{t('dashboard.start.intro')}</p>
       <ol className="mt-4 grid gap-3 sm:grid-cols-3">
         {steps.map((step, index) => (
-          <li key={step.to}>
-            <Link to={step.to} className="flex h-full items-start gap-3 rounded-lg bg-white p-3.5 shadow-card ring-1 ring-brand-100 transition-colors hover:ring-brand-300">
+          <li key={step.title}>
+            <Link to={step.to} state={step.state} className="flex h-full items-start gap-3 rounded-lg bg-white p-3.5 shadow-card ring-1 ring-brand-100 transition-colors hover:ring-brand-300">
               <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-brand-700 text-sm font-semibold text-white">{index + 1}</span>
               <span>
                 <span className="block text-sm font-semibold text-slate-900">{step.title}</span>
@@ -237,6 +242,7 @@ function DashboardSkeleton({ stock, quick }: { stock: boolean; quick: boolean })
 function TenantDashboard() {
   const { t } = useTranslation()
   const { can } = useAuth()
+  const { link } = useDialog()
   const canStockView = can('inventory.movement.view')
   const canMove = can('inventory.movement.create')
   const canProduct = can('catalog.product.create')
@@ -245,11 +251,11 @@ function TenantDashboard() {
   const products = useProductCount(can('catalog.product.view'))
 
   const shortcuts: Shortcut[] = [
-    { to: '/stock/new?type=receipt', label: t('inventory.types.receipt'), icon: PackagePlus, visible: canMove },
-    { to: '/stock/new?type=issue', label: t('inventory.types.issue'), icon: PackageMinus, visible: canMove },
-    { to: '/products/new', label: t('catalog.add'), icon: Package, visible: canProduct },
-    { to: '/customers/new', label: t('crm.customers.add'), icon: Contact, visible: canCustomer },
-    { to: '/suppliers/new', label: t('crm.suppliers.add'), icon: Truck, visible: canSupplier },
+    { ...link('stock-new', 'receipt'), label: t('inventory.types.receipt'), icon: PackagePlus, visible: canMove },
+    { ...link('stock-new', 'issue'), label: t('inventory.types.issue'), icon: PackageMinus, visible: canMove },
+    { ...link('product'), label: t('catalog.add'), icon: Package, visible: canProduct },
+    { ...link('customer'), label: t('crm.customers.add'), icon: Contact, visible: canCustomer },
+    { ...link('supplier'), label: t('crm.suppliers.add'), icon: Truck, visible: canSupplier },
   ]
   const hasShortcuts = shortcuts.some((item) => item.visible)
   const nothing = !canStockView && !hasShortcuts

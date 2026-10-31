@@ -12,10 +12,9 @@ import { Button } from './ui.tsx'
  *   SectionTabs → chuyển giữa các màn hình cùng phân hệ (Tồn kho | Phiếu kho | Kho) thay cho hàng nút rời rạc
  *   FilterBar   → một hàng tìm kiếm + ô lọc gọn; trên điện thoại ô lọc thu vào nút "Bộ lọc"
  *   EmptyState  → danh sách rỗng có hướng dẫn và nút làm ngay
- *   FormActions → thanh Lưu/Hủy dính đáy màn hình để không phải cuộn xuống mới thấy nút Lưu
  */
 
-/** Tiêu đề trang. `back`: liên kết quay lại đặt phía trên (cho trang con như biểu mẫu thêm/sửa). */
+/** Tiêu đề trang. `back`: liên kết quay lại đặt phía trên (cho trang con như chi tiết doanh nghiệp). Thêm/sửa là popup, không phải trang con. */
 export function PageHeader({ title, description, actions, back, tabs }: { title: ReactNode; description?: ReactNode; actions?: ReactNode; back?: { to: string; label: string }; /** Thanh tab của phân hệ, đặt ngay dưới tiêu đề. */ tabs?: ReactNode }) {
   return (
     <header className="space-y-4">
@@ -45,14 +44,17 @@ export interface TabItem {
   visible?: boolean
 }
 
-/** Thanh tab của một phân hệ. Cuộn ngang được trên điện thoại. */
+/**
+ * Thanh tab của một phân hệ. Cuộn ngang được trên điện thoại. Ẩn thanh cuộn: tab đang chọn lấn xuống 1px (`-mb-px`) để đè lên đường kẻ,
+ * 1px đó làm trình duyệt hiện thêm thanh cuộn dọc nhỏ cạnh thanh tab trên Windows (thanh cuộn kiểu cũ); cuộn bằng ngón tay/bàn phím vẫn được.
+ */
 export function SectionTabs({ label, items }: { label: string; items: TabItem[] }) {
   const visible = items.filter((item) => item.visible !== false)
 
   if (visible.length < 2) return null
 
   return (
-    <nav aria-label={label} className="-mx-4 overflow-x-auto border-b border-slate-200 px-4 md:mx-0 md:px-0">
+    <nav aria-label={label} className="-mx-4 overflow-x-auto border-b border-slate-200 px-4 [scrollbar-width:none] md:mx-0 md:px-0 [&::-webkit-scrollbar]:hidden">
       <ul className="flex min-w-max gap-1">
         {visible.map((item) => (
           <li key={item.to}>
@@ -85,13 +87,6 @@ export function EmptyState({ icon: Icon, title, description, action }: { icon: L
       {description && <p className="mt-1 max-w-sm text-sm text-slate-600">{description}</p>}
       {action && <div className="mt-4">{action}</div>}
     </div>
-  )
-}
-
-/** Thanh nút của biểu mẫu dài: dính đáy màn hình, trải hết bề rộng nội dung. */
-export function FormActions({ children }: { children: ReactNode }) {
-  return (
-    <div className="sticky bottom-0 z-10 -mx-4 flex items-center justify-end gap-2 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur md:-mx-6 md:px-6">{children}</div>
   )
 }
 

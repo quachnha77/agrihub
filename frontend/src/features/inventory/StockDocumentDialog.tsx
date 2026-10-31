@@ -3,13 +3,15 @@ import { Plus, Search, Trash2 } from 'lucide-react'
 import { useDeferredValue, useState } from 'react'
 import { useFieldArray, useForm, useWatch, type Resolver, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import { Link, useNavigate, useSearchParams } from 'react-router'
-import { FormActions, PageHeader } from '../../components/page.tsx'
-import { FormPageSkeleton, ListSkeleton } from '../../components/skeleton.tsx'
+import { DialogSkeleton, FormSection, RequiredNote, UnsavedChangesDialog } from '../../components/dialog-parts.tsx'
+import { ListSkeleton } from '../../components/skeleton.tsx'
 import { fieldBase, fieldTone } from '../../components/styles.ts'
-import { Alert, Badge, Button, Card, SelectField, TextField } from '../../components/ui.tsx'
+import { Alert, Badge, Button, Modal, ModalActions, SelectField, TextField } from '../../components/ui.tsx'
+import { useDialog, type DialogProps } from '../../lib/dialog.ts'
 import { formatIsoDate, formatQuantity, formatVnd } from '../../lib/format.ts'
 import { describeError } from '../../lib/forms.ts'
+import { useToast } from '../../lib/toast.ts'
+import { useUnsavedGuard } from '../../lib/unsaved.ts'
 import { useAuth } from '../auth/auth-context.ts'
 import { parseNumber } from '../catalog/form.ts'
 import { useProducts, type Product } from '../catalog/api.ts'
@@ -18,34 +20,41 @@ import { NEW_BATCH, applyStockErrors, defaultUnit, emptyLine, factorOf, isIncomi
 
 const inputClass = (error: boolean) => `${fieldBase} ${fieldTone(error)}`
 
-/** Ghi một phiếu kho: nhập kho, xuất kho, điều chỉnh hoặc tồn đầu kỳ (`/stock/new?type=receipt`). Kho tải xong mới dựng form. */
-export default function StockDocumentFormPage() {
+/**
+ * Popup ghi một phiếu kho: nhập kho, xuất kho, điều chỉnh hoặc tồn đầu kỳ (`?dialog=stock-new:receipt`). Tiêu đề đổi theo loại phiếu đang chọn.
+ * Khung popup hiện ngay; biểu mẫu dựng sau khi danh sách kho tải xong.
+ */
+export default function StockDocumentDialog({ arg, onClose }: DialogProps) {
   const { t } = useTranslation()
   const { can } = useAuth()
-  const [params] = useSearchParams()
   const warehouses = useAllWarehouses()
 
-  if (warehouses.isPending) return <FormPageSkeleton fields={4} />
-
-  if (warehouses.isError) {
-    return (
-      <div className="space-y-3">
-        <Alert tone="danger">{t('common.loadError')}</Alert>
-        <Link to="/stock" className="text-sm font-medium text-brand-700 hover:underline">{t('inventory.form.back')}</Link>
-      </div>
-    )
-  }
-
   const allowed = DOCUMENT_TYPES.filter((type) => (type === 'adjustment' ? can('inventory.adjustment.create') : can('inventory.movement.create')))
-  const requested = params.get('type') as DocumentType | null
-  const initial = requested && allowed.includes(requested) ? requested : (allowed[0] ?? 'receipt')
+  const requested = arg as DocumentType | undefined
+  const [type, setType] = useState<DocumentType>(requested && allowed.includes(requested) ? requested : (allowed[0] ?? 'receipt'))
 
-  return <StockForm initialType={initial} allowed={allowed} warehouses={warehouses.data.filter((w) => w.status === 'active')} />
+  return (
+    <Modal size="xl" fixedHeight dismissOnBackdrop={false} onClose={onClose} title={t(`inventory.form.title.${type}`)} description={t(`inventory.form.intro.${type}`)}>
+      {warehouses.isError ? (
+        <div className="space-y-4">
+          <Alert tone="danger">{t('common.loadError')}</Alert>
+          <div className="flex justify-end">
+            <Button onClick={onClose}>{t('common.close')}</Button>
+          </div>
+        </div>
+      ) : warehouses.isPending ? (
+        <DialogSkeleton fields={1} tabs={allowed.length > 1} />
+      ) : (
+        <StockForm type={type} onTypeChange={setType} allowed={allowed} warehouses={warehouses.data.filter((w) => w.status === 'active')} onClose={onClose} />
+      )}
+    </Modal>
+  )
 }
 
-function StockForm({ initialType, allowed, warehouses }: { initialType: DocumentType; allowed: DocumentType[]; warehouses: Warehouse[] }) {
+function StockForm({ type: initialType, onTypeChange, allowed, warehouses, onClose }: { type: DocumentType; onTypeChange: (type: DocumentType) => void; allowed: DocumentType[]; warehouses: Warehouse[]; onClose: () => void }) {
   const { t } = useTranslation()
-  const navigate = useNavigate()
+  const toast = useToast()
+  const { link } = useDialog()
   const post = usePostStockDocument()
   const [formError, setFormError] = useState<string | null>(null)
   /** Sản phẩm đã chọn theo vị trí dòng: chứa đơn vị quy đổi và cờ theo dõi lô để dựng ô nhập. */
@@ -58,8 +67,10 @@ function StockForm({ initialType, allowed, warehouses }: { initialType: Document
   })
   const { fields, append, remove, replace } = useFieldArray({ control: form.control, name: 'lines' })
   const errors = form.formState.errors
+  const guard = useUnsavedGuard(form.formState.isDirty)
   const type = useWatch({ control: form.control, name: 'type' })
   const warehouseId = useWatch({ control: form.control, name: 'warehouse_id' })
+  const reason = useWatch({ control: form.control, name: 'reason' })
   const warehouse = warehouses.find((w) => w.id === warehouseId)
   const showBranch = new Set(warehouses.map((w) => w.branch.id)).size > 1
   const reasons = type === 'issue' ? ISSUE_REASONS : type === 'adjustment' ? ADJUSTMENT_REASONS : []
@@ -74,7 +85,8 @@ function StockForm({ initialType, allowed, warehouses }: { initialType: Document
     }
   }
 
-  function changeType() {
+  function changeType(next: DocumentType) {
+    onTypeChange(next)
     form.setValue('reason', '')
     form.clearErrors()
     // Đổi giữa nhập (có đơn giá, khai lô mới) và xuất/điều chỉnh (chọn lô có sẵn): lô đã chọn dở không còn ý nghĩa.
@@ -114,7 +126,9 @@ function StockForm({ initialType, allowed, warehouses }: { initialType: Document
 
     try {
       const document = await post.mutateAsync(stockPayload(values, picked))
-      navigate(`/stock/documents/${document.id}`, { state: { created: document.code } })
+      toast.success(t('inventory.documents.created', { code: document.code }), { label: t('inventory.documents.view'), ...link('stock-doc', document.id) })
+      guard.release()
+      onClose()
     } catch (error) {
       const result = applyStockErrors(error, form.setError)
       if (result.leftover.length > 0) setFormError(result.leftover.join(' '))
@@ -123,23 +137,19 @@ function StockForm({ initialType, allowed, warehouses }: { initialType: Document
   })
 
   return (
-    <div className="mx-auto max-w-5xl space-y-5">
-      <PageHeader
-        back={{ to: '/stock', label: t('inventory.form.back') }}
-        title={t(`inventory.form.title.${type}`)}
-        description={t(`inventory.form.intro.${type}`)}
-      />
-
+    <div className="flex min-h-full flex-col gap-4">
       {formError && <Alert tone="danger">{formError}</Alert>}
 
-      <form onSubmit={submit} noValidate className="space-y-5">
+      <form onSubmit={submit} noValidate className="flex flex-1 flex-col gap-5">
+        <RequiredNote />
+
         {allowed.length > 1 && (
           <fieldset>
             <legend className="sr-only">{t('inventory.form.type')}</legend>
             <div className="inline-flex max-w-full flex-wrap gap-1 rounded-xl bg-slate-200/70 p-1">
               {allowed.map((value) => (
                 <label key={value} className="cursor-pointer">
-                  <input type="radio" value={value} className="peer sr-only" {...form.register('type', { onChange: changeType })} />
+                  <input type="radio" value={value} className="peer sr-only" {...form.register('type', { onChange: (event) => changeType(event.target.value as DocumentType) })} />
                   <span className="block rounded-lg px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900 peer-checked:bg-white peer-checked:text-brand-800 peer-checked:shadow-sm peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-brand-600">
                     {t(`inventory.types.${value}`)}
                   </span>
@@ -149,9 +159,10 @@ function StockForm({ initialType, allowed, warehouses }: { initialType: Document
           </fieldset>
         )}
 
-        <Card title={t('inventory.form.general')}>
+        <FormSection title={t('inventory.form.general')}>
           <div className="grid gap-4 sm:grid-cols-2">
             <SelectField
+              required
               label={t('inventory.form.warehouse')}
               error={errors.warehouse_id?.message}
               {...form.register('warehouse_id', { onChange: (event) => changeWarehouse(event.target.value) })}
@@ -161,21 +172,15 @@ function StockForm({ initialType, allowed, warehouses }: { initialType: Document
             </SelectField>
 
             {reasons.length > 0 && (
-              <SelectField label={t('inventory.form.reason')} error={errors.reason?.message} {...form.register('reason')}>
+              <SelectField required label={t('inventory.form.reason')} error={errors.reason?.message} {...form.register('reason')}>
                 <option value="">{t('inventory.form.choose')}</option>
-                {reasons.map((reason) => <option key={reason} value={reason}>{t(`inventory.reasons.${reason}`)}</option>)}
+                {reasons.map((value) => <option key={value} value={value}>{t(`inventory.reasons.${value}`)}</option>)}
               </SelectField>
             )}
-
-            <div className={reasons.length > 0 ? '' : 'sm:col-span-2'}>
-              <label htmlFor="stock-note" className="mb-1.5 block text-sm font-medium text-slate-800">{t('inventory.form.note')}</label>
-              <textarea id="stock-note" rows={2} className={inputClass(!!errors.note)} {...form.register('note')} />
-              {errors.note && <p role="alert" className="mt-1 text-sm text-red-700">{errors.note.message}</p>}
-            </div>
           </div>
-        </Card>
+        </FormSection>
 
-        <Card title={t('inventory.form.lines')}>
+        <FormSection title={t('inventory.form.lines')}>
           {!warehouse ? (
             <p className="text-sm text-slate-500">{t('inventory.form.pickWarehouseFirst')}</p>
           ) : (
@@ -216,13 +221,21 @@ function StockForm({ initialType, allowed, warehouses }: { initialType: Document
               </Button>
             </div>
           )}
-        </Card>
+        </FormSection>
 
-        <FormActions>
-          <Button variant="ghost" onClick={() => navigate('/stock')}>{t('common.cancel')}</Button>
+        <div>
+          <label htmlFor="stock-note" className={`mb-1.5 block text-sm font-medium text-slate-800 ${reason === 'other' ? "after:ml-0.5 after:text-red-600 after:content-['*']" : ''}`}>{t('inventory.form.note')}</label>
+          <textarea id="stock-note" rows={2} className={inputClass(!!errors.note)} {...form.register('note')} />
+          {errors.note && <p role="alert" className="mt-1 text-sm text-red-700">{errors.note.message}</p>}
+        </div>
+
+        <ModalActions>
+          <Button variant="ghost" onClick={onClose}>{t('common.cancel')}</Button>
           <Button type="submit" loading={post.isPending}>{post.isPending ? t('common.saving') : t('inventory.form.submit')}</Button>
-        </FormActions>
+        </ModalActions>
       </form>
+
+      <UnsavedChangesDialog guard={guard} />
     </div>
   )
 }
@@ -292,10 +305,11 @@ function LineEditor({ index, form, type, warehouse, product, onPick, onRemove, c
                 <option value="in">{t('inventory.form.directionIn')}</option>
               </SelectField>
             )}
-            <SelectField label={t('inventory.form.unit')} error={errors?.unit_id?.message} {...form.register(`lines.${index}.unit_id`)}>
+            <SelectField required label={t('inventory.form.unit')} error={errors?.unit_id?.message} {...form.register(`lines.${index}.unit_id`)}>
               {product.units.map((u) => <option key={u.unit.id} value={u.unit.id}>{u.unit.name}{u.is_base ? '' : ` (= ${formatQuantity(u.factor)} ${baseName})`}</option>)}
             </SelectField>
             <TextField
+              required
               label={t('inventory.form.quantity')}
               hint={quantity !== null && factor !== 1 ? t('inventory.form.equals', { qty: formatQuantity(quantity * factor), unit: baseName }) : undefined}
               error={errors?.quantity?.message}
@@ -305,6 +319,7 @@ function LineEditor({ index, form, type, warehouse, product, onPick, onRemove, c
             />
             {incoming && (
               <TextField
+                required
                 label={t('inventory.form.unitCost')}
                 hint={cost !== null ? `${formatVnd(cost)}${factor !== 1 ? ` — ${t('inventory.form.perBase', { cost: formatVnd(Math.round((cost / factor) * 100) / 100), unit: baseName })}` : ''}` : t('inventory.form.unitCostHint')}
                 error={errors?.unit_cost?.message}
@@ -318,7 +333,7 @@ function LineEditor({ index, form, type, warehouse, product, onPick, onRemove, c
           {product.track_batch && (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {!incoming && (
-                <SelectField label={t('inventory.form.batch')} className="sm:col-span-2" error={errors?.batch_id?.message} {...form.register(`lines.${index}.batch_id`)}>
+                <SelectField required label={t('inventory.form.batch')} className="sm:col-span-2" error={errors?.batch_id?.message} {...form.register(`lines.${index}.batch_id`)}>
                   <option value="">{t('inventory.form.choose')}</option>
                   {batchRows.map((row) => (
                     <option key={row.batch!.id} value={row.batch!.id}>
@@ -330,8 +345,8 @@ function LineEditor({ index, form, type, warehouse, product, onPick, onRemove, c
               )}
               {fresh && (
                 <>
-                  <TextField label={t('inventory.form.batchNo')} error={errors?.batch_no?.message} autoComplete="off" {...form.register(`lines.${index}.batch_no`)} />
-                  <TextField label={t('inventory.form.expiresAt')} type="date" error={errors?.expires_at?.message} {...form.register(`lines.${index}.expires_at`)} />
+                  <TextField required label={t('inventory.form.batchNo')} error={errors?.batch_no?.message} autoComplete="off" {...form.register(`lines.${index}.batch_no`)} />
+                  <TextField required label={t('inventory.form.expiresAt')} type="date" error={errors?.expires_at?.message} {...form.register(`lines.${index}.expires_at`)} />
                   <TextField label={t('inventory.form.manufacturedAt')} type="date" error={errors?.manufactured_at?.message} {...form.register(`lines.${index}.manufactured_at`)} />
                 </>
               )}

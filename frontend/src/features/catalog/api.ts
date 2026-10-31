@@ -143,7 +143,10 @@ export function useSaveProduct(existing?: Product) {
   return useMutation({
     mutationFn: async (payload: ProductPayload) =>
       (await (existing ? api<{ data: Product }>('PATCH', `/products/${existing.id}`, payload) : post<{ data: Product }>('/products', payload))).data,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: PRODUCTS }),
+    // Không `await`: popup đóng ngay khi máy chủ đã nhận, danh sách phía sau tự làm mới (nếu chờ làm mới xong thì nút Lưu quay vòng thêm vài giây).
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: PRODUCTS })
+    },
   })
 }
 

@@ -1,11 +1,11 @@
 import { Copy, Eye, Package, Pencil, Plus, Trash2 } from 'lucide-react'
 import { Fragment, useDeferredValue, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useLocation } from 'react-router'
 import { EmptyState, FilterBar, FilterSelect, PageHeader, SearchField } from '../../components/page.tsx'
 import { Refreshable, TableSkeleton } from '../../components/skeleton.tsx'
 import { DataTable } from '../../components/table.tsx'
 import { Alert, Badge, Button, ButtonLink, Card, ConfirmDialog, IconButton, IconLink, Pagination } from '../../components/ui.tsx'
+import { useDialog } from '../../lib/dialog.ts'
 import { countActiveFilters } from '../../lib/filters.ts'
 import { describeError } from '../../lib/forms.ts'
 import { formatVnd } from '../../lib/format.ts'
@@ -36,8 +36,7 @@ const EMPTY_FILTERS: ProductFilters = { q: '', type: '', status: '', branch: '',
 export default function ProductsPage() {
   const { t } = useTranslation()
   const { can } = useAuth()
-  const location = useLocation()
-  const saved = (location.state as { saved?: 'created' | 'updated'; name?: string } | null) ?? null
+  const { link } = useDialog()
 
   const [filters, setFilters] = useState<ProductFilters>(EMPTY_FILTERS)
   const search = useDeferredValue(filters.q)
@@ -52,7 +51,6 @@ export default function ProductsPage() {
   const [deleting, setDeleting] = useState<Product | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [copying, setCopying] = useState(false)
-  const [dismissed, setDismissed] = useState(false)
 
   const canCreate = can('catalog.product.create')
   const canUpdate = can('catalog.product.update')
@@ -91,22 +89,13 @@ export default function ProductsPage() {
         tabs={<ProductTabs />}
         actions={
           canCreate && (
-            <ButtonLink to="/products/new">
+            <ButtonLink {...link('product')}>
               <Plus className="h-4 w-4" aria-hidden="true" />
               {t('catalog.add')}
             </ButtonLink>
           )
         }
       />
-
-      {saved?.saved && !dismissed && (
-        <Alert tone="success">
-          <span className="flex flex-wrap items-center justify-between gap-2">
-            {t(saved.saved === 'created' ? 'catalog.savedCreated' : 'catalog.savedUpdated', { name: saved.name })}
-            <Button variant="ghost" onClick={() => setDismissed(true)}>{t('common.close')}</Button>
-          </span>
-        </Alert>
-      )}
 
       <Card>
         <FilterBar
@@ -163,7 +152,7 @@ export default function ProductsPage() {
             icon={Package}
             title={t('catalog.empty')}
             description={filtered ? t('common.tryOtherFilters') : undefined}
-            action={filtered ? <Button variant="secondary" onClick={() => setFilters(EMPTY_FILTERS)}>{t('common.clearFilters')}</Button> : canCreate ? <ButtonLink to="/products/new">{t('catalog.add')}</ButtonLink> : undefined}
+            action={filtered ? <Button variant="secondary" onClick={() => setFilters(EMPTY_FILTERS)}>{t('common.clearFilters')}</Button> : canCreate ? <ButtonLink {...link('product')}>{t('catalog.add')}</ButtonLink> : undefined}
           />
         ) : (
           <Refreshable refreshing={products.isPlaceholderData}>
@@ -228,7 +217,7 @@ export default function ProductsPage() {
                       </td>
                       <td className="py-3 text-right">
                         <div className="flex justify-end gap-1">
-                          <IconLink to={`/products/${product.id}`} label={`${canUpdate ? t('common.edit') : t('catalog.view')} ${product.name}`} text={canUpdate ? t('common.edit') : t('catalog.view')}>
+                          <IconLink {...link('product', product.id)} label={`${canUpdate ? t('common.edit') : t('catalog.view')} ${product.name}`} text={canUpdate ? t('common.edit') : t('catalog.view')}>
                             {canUpdate ? <Pencil className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
                           </IconLink>
                           {canDelete && (

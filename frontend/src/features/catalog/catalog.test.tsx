@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { meOk, mockApi, problem, renderApp, tenantUser } from '../../test/utils.tsx'
@@ -87,6 +87,9 @@ const base = (extra: Record<string, unknown> = {}, permissions: Permissions = FU
   }) as never
 
 const labelled = (name: string | RegExp) => screen.findByLabelText(name)
+
+/** Giả lập `GET /products/:id` cho trang/popup sửa một sản phẩm. */
+const detail = (p: Product = product()) => ({ [`GET /api/v1/products/${p.id}`]: { json: { data: p } } })
 
 describe('danh sách sản phẩm', () => {
   it('hiện sản phẩm với loại hàng, giá tiền mặt/công nợ của đơn vị cơ sở, số đơn vị khác và cờ theo dõi lô', async () => {
@@ -208,7 +211,7 @@ describe('danh sách sản phẩm', () => {
 describe('thêm sản phẩm', () => {
   it('chọn loại hàng thì hiện đúng trường đặc thù; thuốc BVTV bắt buộc số đăng ký và theo dõi lô', async () => {
     mockApi(base())
-    renderApp('/products/new')
+    renderApp('/notifications?dialog=product')
     const user = userEvent.setup()
 
     await user.selectOptions(await labelled('Loại hàng'), 'fertilizer')
@@ -219,8 +222,8 @@ describe('thêm sản phẩm', () => {
 
     await user.selectOptions(screen.getByLabelText('Loại hàng'), 'pesticide')
     expect(await screen.findByText('Thông tin đặc thù — Thuốc bảo vệ thực vật')).toBeInTheDocument()
-    expect(screen.getByLabelText('Số đăng ký lưu hành *')).toBeInTheDocument()
-    expect(screen.getByLabelText('Hoạt chất *')).toBeInTheDocument()
+    expect(screen.getByLabelText('Số đăng ký lưu hành')).toBeInTheDocument()
+    expect(screen.getByLabelText('Hoạt chất')).toBeInTheDocument()
     expect(screen.getByLabelText('Nhóm độc')).toBeInTheDocument()
     expect(screen.queryByLabelText('Thành phần / hàm lượng')).not.toBeInTheDocument()
     const batch = screen.getByRole('checkbox', { name: /Theo dõi lô và hạn dùng/ })
@@ -234,7 +237,7 @@ describe('thêm sản phẩm', () => {
 
   it('kiểm tra ngay trên trình duyệt: báo từng ô còn thiếu và không gọi API', async () => {
     const server = mockApi(base())
-    renderApp('/products/new')
+    renderApp('/notifications?dialog=product')
     const user = userEvent.setup()
 
     await user.selectOptions(await labelled('Loại hàng'), 'pesticide')
@@ -256,8 +259,8 @@ describe('thêm sản phẩm', () => {
     await user.type(screen.getByLabelText('Mã sản phẩm'), 'TS-NEW')
     await user.type(screen.getByLabelText('Tên sản phẩm'), 'Thuốc trừ nấm 250EC')
     await user.selectOptions(screen.getByLabelText('Nhóm hàng'), 'c-1')
-    await user.type(await screen.findByLabelText('Số đăng ký lưu hành *'), '1234/CP-BVTV')
-    await user.type(screen.getByLabelText('Hoạt chất *'), 'Difenoconazole')
+    await user.type(await screen.findByLabelText('Số đăng ký lưu hành'), '1234/CP-BVTV')
+    await user.type(screen.getByLabelText('Hoạt chất'), 'Difenoconazole')
     await user.selectOptions(screen.getByLabelText('Nhóm độc'), 'III')
     await user.type(screen.getByLabelText('Thời gian cách ly (ngày)'), '7')
     await user.selectOptions(screen.getByLabelText('Đơn vị cơ sở'), unit('Chai'))
@@ -268,7 +271,7 @@ describe('thêm sản phẩm', () => {
   it('gửi đúng nội dung: số tiền theo kiểu Việt Nam, đơn vị quy đổi, thông tin đặc thù, theo dõi lô; rồi về danh sách kèm thông báo', async () => {
     const created = product({ id: 'p9', name: 'Thuốc trừ nấm 250EC', sku: 'TS-NEW' })
     const server = mockApi(base({ 'POST /api/v1/products': { status: 201, json: { data: created } } }))
-    renderApp('/products/new')
+    renderApp('/notifications?dialog=product')
     const user = userEvent.setup()
 
     await fillPesticide(user)
@@ -305,6 +308,8 @@ describe('thêm sản phẩm', () => {
     })
 
     expect(await screen.findByText('Đã thêm sản phẩm "Thuốc trừ nấm 250EC".')).toBeInTheDocument()
+    // Lưu xong popup tự đóng (không chuyển trang), thông báo nổi cho biết đã xong.
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 
   it('lỗi từ máy chủ hiện đúng ô: mã trùng, giá, mã vạch của đơn vị quy đổi, trường đặc thù; lỗi chung hiện ở đầu form', async () => {
@@ -321,7 +326,7 @@ describe('thêm sản phẩm', () => {
         }),
       }),
     )
-    renderApp('/products/new')
+    renderApp('/notifications?dialog=product')
     const user = userEvent.setup()
 
     await fillPesticide(user)
@@ -341,7 +346,7 @@ describe('thêm sản phẩm', () => {
 
   it('không cho chọn trùng đơn vị và báo khi hệ số không hợp lệ', async () => {
     const server = mockApi(base())
-    renderApp('/products/new')
+    renderApp('/notifications?dialog=product')
     const user = userEvent.setup()
 
     await fillPesticide(user)
@@ -361,27 +366,28 @@ describe('thêm sản phẩm', () => {
 
   it('chỉ có một chi nhánh được dùng thì chọn sẵn', async () => {
     mockApi(base({ 'GET /api/v1/branches': { json: page([BRANCHES[0]]) } }))
-    renderApp('/products/new')
+    renderApp('/notifications?dialog=product')
 
     await waitFor(() => expect(screen.getByLabelText('Chi nhánh')).toHaveValue('br-1'))
   })
 
   it('người không có quyền tạo không vào được trang thêm', async () => {
     mockApi(base({}, VIEW_ONLY))
-    renderApp('/products/new')
+    renderApp('/notifications?dialog=product')
 
     expect(await screen.findByText('Bạn không có quyền truy cập')).toBeInTheDocument()
   })
 })
 
 describe('sửa sản phẩm', () => {
-  const detail = (p: Product = product()) => ({ [`GET /api/v1/products/${p.id}`]: { json: { data: p } } })
 
   it('hiện sẵn giá trị đang có; loại hàng, chi nhánh, đơn vị cơ sở chỉ đọc', async () => {
     mockApi(base(detail()))
-    renderApp('/products/p1')
+    renderApp('/notifications?dialog=product:p1')
 
-    expect(await screen.findByRole('heading', { name: /Sửa sản phẩm: Phân NPK 16-16-8/ })).toBeInTheDocument()
+    const editor = await screen.findByRole('dialog', { name: 'Sửa sản phẩm' })
+
+    await waitFor(() => expect(editor).toHaveAccessibleDescription(/Phân NPK 16-16-8/)) // tên bản ghi nằm ở dòng mô tả của popup
     expect(screen.getByLabelText('Mã sản phẩm')).toHaveValue('NPK-16')
     expect(screen.getByLabelText('Nhóm hàng')).toHaveValue('c-1')
     expect(screen.getByLabelText('Thương hiệu')).toHaveValue('b-1')
@@ -399,7 +405,7 @@ describe('sửa sản phẩm', () => {
 
   it('lưu bằng PATCH và không gửi loại hàng, chi nhánh, đơn vị cơ sở', async () => {
     const server = mockApi(base({ ...detail(), 'PATCH /api/v1/products/p1': { json: { data: product({ name: 'NPK mới' }) } } }))
-    renderApp('/products/p1')
+    renderApp('/notifications?dialog=product:p1')
     const user = userEvent.setup()
 
     const name = await screen.findByLabelText('Tên sản phẩm')
@@ -418,11 +424,12 @@ describe('sửa sản phẩm', () => {
     expect(body).toMatchObject({ name: 'NPK mới', category_id: 'c-1', brand_id: 'b-1', specs: { composition: 'N16 P16 K8' } })
     expect((body.units as { price_cash: number }[])[0].price_cash).toBe(16500)
     expect(await screen.findByText('Đã lưu thay đổi của sản phẩm "NPK mới".')).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument()) // lưu xong popup tự đóng, không chuyển trang
   })
 
   it('tồn tối thiểu: hiện giá trị đang có, sửa kiểu Việt Nam gửi lên máy chủ, bỏ trống thì gửi null, nhập sai bị báo', async () => {
     const server = mockApi(base({ ...detail(product({ min_stock: '12.500' })), 'PATCH /api/v1/products/p1': { json: { data: product() } } }))
-    renderApp('/products/p1')
+    renderApp('/notifications?dialog=product:p1')
     const user = userEvent.setup()
 
     const field = await screen.findByLabelText('Tồn tối thiểu (Kg)')
@@ -442,7 +449,7 @@ describe('sửa sản phẩm', () => {
 
   it('bỏ trống tồn tối thiểu thì gửi null để máy chủ xóa mức đã đặt', async () => {
     const server = mockApi(base({ ...detail(product({ min_stock: '5.000' })), 'PATCH /api/v1/products/p1': { json: { data: product() } } }))
-    renderApp('/products/p1')
+    renderApp('/notifications?dialog=product:p1')
     const user = userEvent.setup()
 
     await user.clear(await screen.findByLabelText('Tồn tối thiểu (Kg)'))
@@ -453,7 +460,7 @@ describe('sửa sản phẩm', () => {
 
   it('bỏ một đơn vị quy đổi thì không gửi dòng đó nữa', async () => {
     const server = mockApi(base({ ...detail(), 'PATCH /api/v1/products/p1': { json: { data: product() } } }))
-    renderApp('/products/p1')
+    renderApp('/notifications?dialog=product:p1')
     const user = userEvent.setup()
 
     await user.click(await screen.findByRole('button', { name: 'Bỏ đơn vị Bao' }))
@@ -465,7 +472,7 @@ describe('sửa sản phẩm', () => {
 
   it('người chỉ có quyền xem: form bị khóa, không có nút Lưu', async () => {
     mockApi(base(detail(), VIEW_ONLY))
-    renderApp('/products/p1')
+    renderApp('/notifications?dialog=product:p1')
 
     expect(await screen.findByText('Bạn chỉ có quyền xem sản phẩm này.')).toBeInTheDocument()
     expect(screen.getByLabelText('Mã sản phẩm')).toBeDisabled()
@@ -475,7 +482,7 @@ describe('sửa sản phẩm', () => {
 
   it('sản phẩm không tồn tại hoặc ngoài phạm vi: báo không tìm thấy', async () => {
     mockApi(base({ 'GET /api/v1/products/zzz': problem(404, 'not_found', 'Không tìm thấy.') }))
-    renderApp('/products/zzz')
+    renderApp('/notifications?dialog=product:zzz')
 
     expect(await screen.findByText('Không tìm thấy sản phẩm này hoặc bạn không có quyền xem.')).toBeInTheDocument()
   })
@@ -586,5 +593,173 @@ describe('đơn vị tính, nhóm hàng, thương hiệu', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Lưu' }))
 
     await waitFor(() => expect(server.to('PATCH', '/api/v1/brands/b-2')[0]?.body).toEqual({ name: 'Hãng cũ', is_active: true }))
+  })
+})
+
+describe('popup thêm/sửa: không chuyển trang', () => {
+  /** Mở popup từ nút "Thêm sản phẩm" của danh sách và chờ khung popup hiện ra. */
+  async function openFromList(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(await screen.findByRole('link', { name: 'Thêm sản phẩm' }))
+
+    return screen.findByRole('dialog', { name: 'Thêm sản phẩm' })
+  }
+
+  const closed = () => waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+
+  it('bấm "Thêm sản phẩm" mở popup ngay trên danh sách: không chuyển trang, danh sách vẫn ở phía sau', async () => {
+    mockApi(base())
+    const { router } = renderApp('/products')
+
+    await openFromList(userEvent.setup())
+
+    expect(router.state.location.pathname).toBe('/products')
+    expect(router.state.location.search).toBe('?dialog=product')
+    expect(screen.getByRole('heading', { level: 1, name: 'Sản phẩm' })).toBeInTheDocument()
+    expect(screen.getByText('Phân NPK 16-16-8')).toBeInTheDocument()
+  })
+
+  it('Esc, nút X và nút Hủy đều đóng popup và về đúng trang trước đó (không để lại mục lịch sử thừa)', async () => {
+    mockApi(base())
+    const { router } = renderApp('/products')
+    const user = userEvent.setup()
+
+    await openFromList(user)
+    await user.keyboard('{Escape}')
+    await closed()
+    expect(router.state.location.search).toBe('')
+
+    const dialog = await openFromList(user)
+    await user.click(within(dialog).getByRole('button', { name: 'Đóng' }))
+    await closed()
+    expect(router.state.location.search).toBe('')
+
+    const third = await openFromList(user)
+    await user.click(await within(third).findByRole('button', { name: 'Hủy' }))
+    await closed()
+    expect(router.state.location.pathname).toBe('/products')
+    expect(router.state.location.search).toBe('')
+  })
+
+  it('vào thẳng địa chỉ có ?dialog=… thì mở đúng popup; đóng chỉ bỏ tham số, vẫn ở trang đó', async () => {
+    mockApi(base(detail()))
+    const { router } = renderApp('/products?dialog=product:p1')
+    const user = userEvent.setup()
+
+    const editor = await screen.findByRole('dialog', { name: 'Sửa sản phẩm' })
+
+    await waitFor(() => expect(editor).toHaveAccessibleDescription(/Phân NPK 16-16-8/)) // tên bản ghi nằm ở dòng mô tả của popup
+    await user.click(await screen.findByRole('button', { name: 'Hủy' }))
+
+    await closed()
+    expect(router.state.location.pathname).toBe('/products')
+    expect(router.state.location.search).toBe('')
+    expect(await screen.findByText('Phân Urê')).toBeInTheDocument()
+  })
+
+  it('tên popup lạ trên địa chỉ bị bỏ qua, trang vẫn dùng bình thường', async () => {
+    mockApi(base())
+    renderApp('/products?dialog=khong-co')
+
+    expect(await screen.findByText('Phân NPK 16-16-8')).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('bấm ra ngoài popup không đóng biểu mẫu (khỏi mất dữ liệu đang gõ)', async () => {
+    mockApi(base())
+    renderApp('/notifications?dialog=product')
+
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.mouseDown(dialog.parentElement!)
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+  })
+
+  it('ô bắt buộc báo `required` (hiện dấu * đỏ), ô tùy chọn thì không; đầu biểu mẫu có chú thích dấu *', async () => {
+    mockApi(base())
+    renderApp('/notifications?dialog=product')
+
+    const dialog = await screen.findByRole('dialog')
+    expect(await within(dialog).findByText('Các ô có dấu * là bắt buộc.')).toBeInTheDocument()
+    for (const name of ['Chi nhánh', 'Loại hàng', 'Mã sản phẩm', 'Tên sản phẩm', 'Đơn vị cơ sở']) expect(within(dialog).getByLabelText(name)).toBeRequired()
+    for (const name of ['Nhóm hàng', 'Thương hiệu', 'Mô tả']) expect(within(dialog).getByLabelText(name)).not.toBeRequired()
+  })
+
+  it('gõ dở rồi đóng thì hỏi "Bỏ thay đổi?": "Tiếp tục nhập" giữ nguyên chữ đã gõ, "Bỏ thay đổi" mới đóng', async () => {
+    mockApi(base())
+    const { router } = renderApp('/products')
+    const user = userEvent.setup()
+
+    const dialog = await openFromList(user)
+    await user.type(await within(dialog).findByLabelText('Tên sản phẩm'), 'Phân thử')
+    await user.click(within(dialog).getByRole('button', { name: 'Hủy' }))
+
+    const confirm = await screen.findByRole('dialog', { name: 'Bỏ thay đổi chưa lưu?' })
+    await user.click(within(confirm).getByRole('button', { name: 'Tiếp tục nhập' }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Bỏ thay đổi chưa lưu?' })).not.toBeInTheDocument())
+    expect(within(dialog).getByLabelText('Tên sản phẩm')).toHaveValue('Phân thử')
+    expect(router.state.location.search).toBe('?dialog=product')
+
+    await user.click(within(dialog).getByRole('button', { name: 'Hủy' }))
+    await user.click(await screen.findByRole('button', { name: 'Bỏ thay đổi' }))
+    await closed()
+    expect(router.state.location.search).toBe('')
+  })
+
+  it('chưa gõ gì thì đóng ngay, không hỏi', async () => {
+    mockApi(base())
+    renderApp('/products')
+    const user = userEvent.setup()
+
+    const dialog = await openFromList(user)
+    await user.click(await within(dialog).findByRole('button', { name: 'Hủy' }))
+
+    await closed()
+    expect(screen.queryByRole('dialog', { name: 'Bỏ thay đổi chưa lưu?' })).not.toBeInTheDocument()
+  })
+
+  it('nút Quay lại của trình duyệt khi đang gõ dở cũng bị chặn và hỏi, không âm thầm mất dữ liệu', async () => {
+    mockApi(base())
+    const { router } = renderApp('/products')
+    const user = userEvent.setup()
+
+    const dialog = await openFromList(user)
+    await user.type(await within(dialog).findByLabelText('Tên sản phẩm'), 'Phân thử')
+
+    await act(async () => {
+      await router.navigate(-1)
+    })
+    expect(await screen.findByRole('dialog', { name: 'Bỏ thay đổi chưa lưu?' })).toBeInTheDocument()
+    expect(router.state.location.search).toBe('?dialog=product')
+
+    await user.click(screen.getByRole('button', { name: 'Bỏ thay đổi' }))
+    await waitFor(() => expect(router.state.location.search).toBe(''))
+  })
+
+  it('lưu xong: không hỏi "Bỏ thay đổi?", popup đóng, thông báo nổi hiện và danh sách phía sau được làm mới', async () => {
+    const server = mockApi(base({ ...detail(), 'PATCH /api/v1/products/p1': { json: { data: product({ name: 'NPK mới' }) } } }))
+    renderApp('/products?dialog=product:p1')
+    const user = userEvent.setup()
+
+    const name = await screen.findByLabelText('Tên sản phẩm')
+    await user.clear(name)
+    await user.type(name, 'NPK mới')
+    await user.click(screen.getByRole('button', { name: 'Lưu' }))
+
+    expect(await screen.findByText('Đã lưu thay đổi của sản phẩm "NPK mới".')).toBeInTheDocument()
+    await closed() // không còn hộp nào, kể cả hộp "Bỏ thay đổi?"
+    await waitFor(() => expect(server.to('GET', '/api/v1/products').length).toBeGreaterThanOrEqual(2))
+  })
+
+  it('người không có quyền thêm: popup báo không có quyền thay cho biểu mẫu, bấm Đóng là xong', async () => {
+    mockApi(base({}, VIEW_ONLY))
+    const { router } = renderApp('/products?dialog=product')
+    const user = userEvent.setup()
+
+    const dialog = await screen.findByRole('dialog', { name: 'Bạn không có quyền truy cập' })
+    expect(within(dialog).queryByLabelText('Tên sản phẩm')).not.toBeInTheDocument()
+    await user.click(within(dialog).getAllByRole('button', { name: 'Đóng' })[1])
+
+    await closed()
+    expect(router.state.location.search).toBe('')
   })
 })

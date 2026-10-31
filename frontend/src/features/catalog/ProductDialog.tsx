@@ -2,23 +2,26 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect, useMemo, useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import { Link, useNavigate, useParams } from 'react-router'
-import { FormActions, PageHeader } from '../../components/page.tsx'
-import { FormPageSkeleton } from '../../components/skeleton.tsx'
+import { DialogSkeleton, DialogSubject, FormSection, RequiredNote, UnsavedChangesDialog } from '../../components/dialog-parts.tsx'
 import { fieldBase, fieldTone } from '../../components/styles.ts'
-import { Alert, Badge, Button, Card, CheckboxField, SelectField, TextField } from '../../components/ui.tsx'
+import { Alert, Badge, Button, CheckboxField, Modal, ModalActions, SelectField, TextField } from '../../components/ui.tsx'
 import { ApiError } from '../../lib/api.ts'
+import type { DialogProps } from '../../lib/dialog.ts'
 import { describeError } from '../../lib/forms.ts'
+import { useToast } from '../../lib/toast.ts'
+import { useUnsavedGuard } from '../../lib/unsaved.ts'
 import { useAuth } from '../auth/auth-context.ts'
 import { useAllBranches, type Branch } from '../branches/api.ts'
 import { useCatalogList, useProduct, useProductTypes, useSaveProduct, type ListItem, type Product, type TypeDefinition } from './api.ts'
 import { applyProductErrors, buildSchema, toFormValues, toPayload, type FormValues } from './form.ts'
 import { UnitsEditor } from './UnitsEditor.tsx'
 
-/** Thêm (`/products/new`) hoặc sửa (`/products/:id`) một sản phẩm. Dữ liệu tải xong mới dựng form để giá trị ban đầu đúng ngay từ đầu. */
-export default function ProductFormPage() {
+/**
+ * Popup thêm (`?dialog=product`) hoặc sửa (`?dialog=product:<id>`) một sản phẩm. Khung popup hiện ngay; biểu mẫu chỉ dựng sau khi dữ liệu
+ * và các danh sách chọn tải xong để giá trị ban đầu đúng ngay từ đầu.
+ */
+export default function ProductDialog({ arg: id, onClose }: DialogProps) {
   const { t } = useTranslation()
-  const { id } = useParams()
   const product = useProduct(id)
   const types = useProductTypes()
   // Ô chọn (select) chỉ nhận giá trị ban đầu lúc dựng: danh sách lựa chọn phải có sẵn trước, nếu không ô sẽ hiện "Chọn…" dù sản phẩm đã có giá trị.
@@ -27,29 +30,41 @@ export default function ProductFormPage() {
   const brands = useCatalogList('brands')
   const branches = useAllBranches()
 
-  if ((id !== undefined && product.isPending) || types.isPending || units.isPending || categories.isPending || brands.isPending || branches.isPending) {
-    return <FormPageSkeleton fields={10} />
-  }
-
-  if (product.isError || types.isError) {
-    const notFound = product.error instanceof ApiError && (product.error.status === 404 || product.error.status === 403)
-
-    return (
-      <div className="space-y-3">
-        <Alert tone="danger">{notFound ? t('catalog.form.notFound') : t('common.loadError')}</Alert>
-        <Link to="/products" className="text-sm font-medium text-brand-700 hover:underline">{t('catalog.form.back')}</Link>
-      </div>
-    )
-  }
+  const creating = id === undefined
+  const loaded = product.data
+  const failed = product.isError || types.isError
+  const notFound = product.error instanceof ApiError && (product.error.status === 404 || product.error.status === 403)
+  const loading = (!creating && product.isPending) || types.isPending || units.isPending || categories.isPending || brands.isPending || branches.isPending
 
   return (
-    <ProductForm
-      key={product.data?.id ?? 'new'}
-      product={product.data}
-      types={types.data.data}
-      maxUnits={types.data.meta.max_units}
-      lists={{ units: units.data ?? [], categories: categories.data ?? [], brands: brands.data ?? [], branches: branches.data ?? [] }}
-    />
+    <Modal
+      size="xl"
+      fixedHeight
+      dismissOnBackdrop={false}
+      onClose={onClose}
+      title={creating ? t('catalog.form.createTitle') : t('catalog.form.editTitle')}
+      description={creating ? t('catalog.form.createIntro') : <DialogSubject name={loaded?.name} badge={loaded && <Badge tone="info">{loaded.type_label}</Badge>} />}
+    >
+      {failed ? (
+        <div className="space-y-4">
+          <Alert tone="danger">{notFound ? t('catalog.form.notFound') : t('common.loadError')}</Alert>
+          <div className="flex justify-end">
+            <Button onClick={onClose}>{t('common.close')}</Button>
+          </div>
+        </div>
+      ) : loading || !types.data ? (
+        <DialogSkeleton fields={10} />
+      ) : (
+        <ProductForm
+          key={loaded?.id ?? 'new'}
+          product={loaded}
+          types={types.data.data}
+          maxUnits={types.data.meta.max_units}
+          lists={{ units: units.data ?? [], categories: categories.data ?? [], brands: brands.data ?? [], branches: branches.data ?? [] }}
+          onClose={onClose}
+        />
+      )}
+    </Modal>
   )
 }
 
@@ -65,9 +80,9 @@ function optionsFor(items: ListItem[] | undefined, current: string | undefined):
   return (items ?? []).filter((item) => item.is_active || item.id === current)
 }
 
-function ProductForm({ product, types, maxUnits, lists }: { product?: Product; types: TypeDefinition[]; maxUnits: number; lists: Lists }) {
+function ProductForm({ product, types, maxUnits, lists, onClose }: { product?: Product; types: TypeDefinition[]; maxUnits: number; lists: Lists; onClose: () => void }) {
   const { t } = useTranslation()
-  const navigate = useNavigate()
+  const toast = useToast()
   const { can } = useAuth()
   const creating = product === undefined
   const editable = creating ? can('catalog.product.create') : can('catalog.product.update')
@@ -78,6 +93,7 @@ function ProductForm({ product, types, maxUnits, lists }: { product?: Product; t
   const schema = useMemo(() => buildSchema(t, types, creating, maxUnits), [t, types, creating, maxUnits])
   const form = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: toFormValues(product, { branch_id: '' }) })
   const errors = form.formState.errors
+  const guard = useUnsavedGuard(form.formState.isDirty)
 
   const type = useWatch({ control: form.control, name: 'type' })
   const trackBatch = useWatch({ control: form.control, name: 'track_batch' })
@@ -103,7 +119,9 @@ function ProductForm({ product, types, maxUnits, lists }: { product?: Product; t
 
     try {
       await save.mutateAsync(toPayload(values, current, creating))
-      navigate('/products', { state: { saved: creating ? 'created' : 'updated', name: values.name.trim() } })
+      toast.success(t(creating ? 'catalog.savedCreated' : 'catalog.savedUpdated', { name: values.name.trim() }))
+      guard.release()
+      onClose()
     } catch (error) {
       const result = applyProductErrors(error, form.setError)
       if (result.leftover.length > 0) setFormError(result.leftover.join(' '))
@@ -112,27 +130,18 @@ function ProductForm({ product, types, maxUnits, lists }: { product?: Product; t
   })
 
   return (
-    <div className="mx-auto max-w-5xl space-y-5">
-      <PageHeader
-        back={{ to: '/products', label: t('catalog.form.back') }}
-        title={
-          <span className="flex flex-wrap items-center gap-2">
-            {creating ? t('catalog.form.createTitle') : t('catalog.form.editTitle', { name: product.name })}
-            {product && <Badge tone="info">{product.type_label}</Badge>}
-          </span>
-        }
-        description={creating ? t('catalog.form.createIntro') : t('catalog.form.editIntro', { branch: product.branch.name })}
-      />
-
+    <div className="flex min-h-full flex-col gap-4">
       {!editable && <Alert tone="info">{t('catalog.form.readOnly')}</Alert>}
       {formError && <Alert tone="danger">{formError}</Alert>}
 
-      <form onSubmit={submit} noValidate className="space-y-5">
+      <form onSubmit={submit} noValidate className="flex flex-1 flex-col gap-5">
+        {editable && <RequiredNote />}
+
         <fieldset disabled={!editable} className="space-y-5">
-          <Card title={t('catalog.form.general')}>
+          <FormSection title={t('catalog.form.general')}>
             <div className="grid gap-4 sm:grid-cols-2">
               {creating ? (
-                <SelectField label={t('catalog.form.branch')} error={errors.branch_id?.message} hint={t('catalog.form.branchHint')} {...form.register('branch_id')}>
+                <SelectField required label={t('catalog.form.branch')} error={errors.branch_id?.message} hint={t('catalog.form.branchHint')} {...form.register('branch_id')}>
                   <option value="">{t('catalog.form.choose')}</option>
                   {openBranches.map((branch) => <option key={branch.id} value={branch.id}>{branch.code} — {branch.name}</option>)}
                 </SelectField>
@@ -142,6 +151,7 @@ function ProductForm({ product, types, maxUnits, lists }: { product?: Product; t
 
               {creating ? (
                 <SelectField
+                  required
                   label={t('catalog.form.type')}
                   error={errors.type?.message}
                   {...form.register('type', {
@@ -160,8 +170,8 @@ function ProductForm({ product, types, maxUnits, lists }: { product?: Product; t
                 <ReadOnly label={t('catalog.form.type')} value={product.type_label} />
               )}
 
-              <TextField label={t('catalog.form.sku')} hint={t('catalog.form.skuHint')} error={errors.sku?.message} autoComplete="off" {...form.register('sku')} />
-              <TextField label={t('catalog.form.name')} error={errors.name?.message} {...form.register('name')} />
+              <TextField required label={t('catalog.form.sku')} hint={t('catalog.form.skuHint')} error={errors.sku?.message} autoComplete="off" {...form.register('sku')} />
+              <TextField required label={t('catalog.form.name')} error={errors.name?.message} {...form.register('name')} />
 
               <SelectField label={t('catalog.form.category')} error={errors.category_id?.message} {...form.register('category_id')}>
                 <option value="">{t('catalog.form.none')}</option>
@@ -202,34 +212,32 @@ function ProductForm({ product, types, maxUnits, lists }: { product?: Product; t
                 {...form.register('min_stock')}
               />
             </div>
-          </Card>
+          </FormSection>
 
           {definition && definition.fields.length > 0 && (
-            <Card title={t('catalog.form.specs', { type: definition.label })}>
+            <FormSection title={t('catalog.form.specs', { type: definition.label })}>
               <div className="grid gap-4 sm:grid-cols-2">
                 {definition.fields.map((field) => {
                   const name = `specs.${field.key}` as const
-                  const label = field.required ? `${field.label} *` : field.label
                   const error = errors.specs?.[field.key]?.message
 
                   return field.type === 'select' ? (
-                    <SelectField key={field.key} label={label} error={error} {...form.register(name)}>
+                    <SelectField key={field.key} required={field.required} label={field.label} error={error} {...form.register(name)}>
                       <option value="">{t('catalog.form.none')}</option>
                       {(field.options ?? []).map((option) => <option key={option} value={option}>{option}</option>)}
                     </SelectField>
                   ) : (
-                    <TextField key={field.key} label={label} error={error} inputMode={field.type === 'text' ? undefined : 'decimal'} autoComplete="off" {...form.register(name)} />
+                    <TextField key={field.key} required={field.required} label={field.label} error={error} inputMode={field.type === 'text' ? undefined : 'decimal'} autoComplete="off" {...form.register(name)} />
                   )
                 })}
               </div>
-            </Card>
+            </FormSection>
           )}
 
-          <Card title={t('catalog.form.unitsTitle')}>
-            <p className="mb-4 text-sm text-slate-600">{t('catalog.form.unitsIntro')}</p>
-            <div className="mb-4 max-w-sm">
+          <FormSection title={t('catalog.form.unitsTitle')} description={t('catalog.form.unitsIntro')}>
+            <div className="max-w-sm">
               {creating ? (
-                <SelectField label={t('catalog.form.baseUnit')} error={errors.base_unit_id?.message} hint={t('catalog.form.baseUnitHint')} {...form.register('base_unit_id')}>
+                <SelectField required label={t('catalog.form.baseUnit')} error={errors.base_unit_id?.message} hint={t('catalog.form.baseUnitHint')} {...form.register('base_unit_id')}>
                   <option value="">{t('catalog.form.choose')}</option>
                   {unitOptions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
                 </SelectField>
@@ -238,15 +246,17 @@ function ProductForm({ product, types, maxUnits, lists }: { product?: Product; t
               )}
             </div>
             <UnitsEditor form={form} unitOptions={unitOptions} baseUnitName={baseUnitName} maxUnits={maxUnits} />
-            <p className="mt-3 text-xs text-slate-500">{t('catalog.form.creditHint')}</p>
-          </Card>
+            <p className="text-xs text-slate-500">{t('catalog.form.creditHint')}</p>
+          </FormSection>
         </fieldset>
 
-        <FormActions>
-          <Button variant="ghost" onClick={() => navigate('/products')}>{t('common.cancel')}</Button>
+        <ModalActions>
+          <Button variant="ghost" onClick={onClose}>{t('common.cancel')}</Button>
           {editable && <Button type="submit" loading={save.isPending}>{save.isPending ? t('common.saving') : t('common.save')}</Button>}
-        </FormActions>
+        </ModalActions>
       </form>
+
+      <UnsavedChangesDialog guard={guard} />
     </div>
   )
 }
