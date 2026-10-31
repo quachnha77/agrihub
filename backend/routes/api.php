@@ -5,6 +5,8 @@ use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BranchController;
 use App\Http\Controllers\Api\V1\BrandController;
 use App\Http\Controllers\Api\V1\CategoryController;
+use App\Http\Controllers\Api\V1\CustomerController;
+use App\Http\Controllers\Api\V1\CustomerGroupController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\PasswordRecoveryController;
@@ -21,6 +23,7 @@ use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\SessionController;
 use App\Http\Controllers\Api\V1\SubscriptionController;
+use App\Http\Controllers\Api\V1\SupplierController;
 use App\Http\Controllers\Api\V1\TenantContextController;
 use App\Http\Controllers\Api\V1\UnitController;
 use App\Http\Controllers\Api\V1\UserController;
@@ -122,6 +125,11 @@ Route::middleware(['auth:sanctum', 'tenant.context'])->group(function () {
             Route::apiResource('units', UnitController::class)->except('show');
             Route::apiResource('categories', CategoryController::class)->except('show');
             Route::apiResource('brands', BrandController::class)->except('show');
+
+            // Khách hàng (có chi nhánh phụ trách) và nhà cung cấp: dùng chung toàn doanh nghiệp.
+            Route::apiResource('customer-groups', CustomerGroupController::class)->except('show');
+            Route::apiResource('customers', CustomerController::class);
+            Route::apiResource('suppliers', SupplierController::class);
 
             Route::get('/permissions', [PermissionController::class, 'index']);
             Route::apiResource('roles', RoleController::class);

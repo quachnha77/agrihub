@@ -120,7 +120,10 @@ abstract class CatalogListController extends Controller
     private function uniqueName(?Model $current): \Closure
     {
         return function (string $attribute, mixed $value, \Closure $fail) use ($current): void {
-            $taken = $this->model()::whereRaw('lower(name) = ?', [mb_strtolower(trim((string) $value))])
+            // So bằng cả lower() của PostgreSQL (đúng như chỉ mục duy nhất) lẫn chữ thường của PHP: database có locale UTF-8 thì hai cách như nhau,
+            // locale "C" (máy dev) thì lower() của PostgreSQL không đổi được chữ hoa tiếng Việt nên cần cách thứ hai để vẫn bắt được trùng.
+            $name = trim((string) $value);
+            $taken = $this->model()::whereRaw('(lower(name) = lower(?) or lower(name) = ?)', [$name, mb_strtolower($name)])
                 ->when($current, fn ($q, Model $own) => $q->where('id', '!=', $own->id))
                 ->exists();
 

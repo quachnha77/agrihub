@@ -140,6 +140,13 @@ return [
         'brands',
         'products',
         'product_units',
+        // Khách hàng và nhà cung cấp (cha → con).
+        'customer_groups',
+        'suppliers',
+        'supplier_contacts',
+        'customers',
+        'customer_addresses',
+        'customer_contacts',
     ],
 
     /**

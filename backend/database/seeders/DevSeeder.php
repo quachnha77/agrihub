@@ -5,15 +5,20 @@ namespace Database\Seeders;
 use App\Models\Branch;
 use App\Models\Brand;
 use App\Models\Category;
+use App\Models\Customer;
+use App\Models\CustomerGroup;
 use App\Models\Product;
 use App\Models\Role;
 use App\Models\Subscription;
+use App\Models\Supplier;
 use App\Models\Tenant;
 use App\Models\Unit;
 use App\Models\User;
 use App\Services\Billing\SubscriptionService;
 use App\Services\Catalog\CatalogDefaults;
 use App\Services\Catalog\ProductService;
+use App\Services\Crm\CustomerService;
+use App\Services\Crm\SupplierService;
 use App\Services\Rbac\RoleProvisioner;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Seeder;
@@ -85,6 +90,55 @@ class DevSeeder extends Seeder
         });
     }
 
+    /** Nhóm khách, khách hàng và nhà cung cấp mẫu (chạy lại không tạo trùng). Số điện thoại và mã số thuế là DỮ LIỆU GIẢ. */
+    private function seedCrm(TenantContext $context, Tenant $tenant, Branch $branch): void
+    {
+        $context->runForTenant($tenant->id, function () use ($branch) {
+            $group = fn (string $name) => CustomerGroup::firstOrCreate(['name' => $name])->uuid;
+            $agent = $group('Đại lý');
+            $farmer = $group('Nông dân');
+            $regular = $group('Khách quen');
+
+            $customers = [
+                ['type' => 'individual', 'name' => 'Nguyễn Văn Nông', 'phone' => '0911000001', 'group_id' => $farmer, 'credit_limit' => 5000000, 'credit_days' => 30, 'notes' => 'Trồng lúa 5 ha',
+                    'addresses' => [['label' => 'Ruộng', 'address' => 'Ấp 3, xã Tân Lợi', 'district' => 'Huyện Thới Lai', 'province' => 'Cần Thơ']]],
+                ['type' => 'individual', 'name' => 'Trần Thị Mận', 'phone' => '0911000002', 'group_id' => $regular, 'credit_limit' => 2000000, 'credit_days' => 15,
+                    'addresses' => [['label' => 'Vườn', 'address' => 'Ấp 5, xã Phước Thới', 'province' => 'Cần Thơ']]],
+                ['type' => 'agent', 'name' => 'Đại lý Phát Tài', 'phone' => '0911000003', 'group_id' => $agent, 'tax_code' => '0300000011', 'credit_limit' => 50000000, 'credit_days' => 45,
+                    'addresses' => [['label' => 'Cửa hàng', 'address' => '25 Quốc lộ 91', 'district' => 'Quận Ô Môn', 'province' => 'Cần Thơ', 'is_default' => true]],
+                    'contacts' => [['name' => 'Anh Tài', 'phone' => '0911000013', 'position' => 'Chủ đại lý']]],
+                ['type' => 'cooperative', 'name' => 'HTX Nông nghiệp Thạnh Phú', 'phone' => '0911000004', 'group_id' => $agent, 'credit_limit' => 30000000, 'credit_days' => 60,
+                    'contacts' => [['name' => 'Chị Lan', 'phone' => '0911000014', 'position' => 'Kế toán'], ['name' => 'Anh Hải', 'position' => 'Chủ nhiệm']]],
+                ['type' => 'company', 'name' => 'Công ty TNHH Nông sản Xanh', 'phone' => '0911000005', 'tax_code' => '0300000022', 'credit_limit' => 0, 'notes' => 'Chỉ bán tiền mặt'],
+                ['type' => 'individual', 'name' => 'Lê Văn Khách lẻ', 'status' => 'inactive', 'credit_limit' => 0],
+            ];
+
+            foreach ($customers as $sample) {
+                if (Customer::where('name', $sample['name'])->exists()) {
+                    continue;
+                }
+
+                app(CustomerService::class)->create($branch, ['branch_id' => $branch->uuid] + $sample);
+            }
+
+            $suppliers = [
+                ['name' => 'Công ty Phân bón Miền Nam (mẫu)', 'tax_code' => '0300000101', 'phone' => '0281000001', 'address' => '1 Đường số 1, TP.HCM', 'payment_terms_days' => 30,
+                    'contacts' => [['name' => 'Anh Hùng', 'phone' => '0911000101', 'email' => 'hung@mau.vn', 'position' => 'Kinh doanh']]],
+                ['name' => 'Bayer Việt Nam (mẫu)', 'tax_code' => '0300000102', 'phone' => '0281000002', 'payment_terms_days' => 45],
+                ['name' => 'Syngenta (mẫu)', 'tax_code' => '0300000103', 'payment_terms_days' => 30],
+                ['name' => 'Đầu Trâu — Phân bón Bình Điền (mẫu)', 'tax_code' => '0300000104', 'payment_terms_days' => 15, 'status' => 'inactive'],
+            ];
+
+            foreach ($suppliers as $sample) {
+                if (Supplier::where('name', $sample['name'])->exists()) {
+                    continue;
+                }
+
+                app(SupplierService::class)->create($sample);
+            }
+        });
+    }
+
     public function run(TenantContext $context, RoleProvisioner $provisioner): void
     {
         $context->runAsPlatform(function () use ($provisioner, $context) {
@@ -98,6 +152,7 @@ class DevSeeder extends Seeder
                 );
 
                 $this->seedCatalog($context, $tenant, $branch);
+                $this->seedCrm($context, $tenant, $branch);
 
                 foreach (array_keys(self::USERS) as $userIndex => $local) {
                     $roleKey = self::USERS[$local];
