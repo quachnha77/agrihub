@@ -14,6 +14,8 @@ const row = (overrides: Partial<BackupRow> = {}): BackupRow => ({
   size_bytes: 148074,
   checksum_sha256: 'a'.repeat(64),
   key_fingerprint: '0123456789abcdef',
+  row_counts: {},
+  original_name: null,
   error: null,
   verify_status: 'passed',
   verified_at: '2026-10-30T04:30:00Z',
@@ -170,11 +172,13 @@ describe('hộp thoại tải về', () => {
 
 describe('trang sao lưu dữ liệu (Chủ doanh nghiệp)', () => {
   const tenantRow = (overrides: Partial<BackupRow> = {}) => row({ id: 't1', scope: 'tenant', key_fingerprint: null, verify_status: null, ...overrides })
+  const noRestores = { 'GET /api/v1/backups/restores': { json: { data: [] } } }
 
   it('liệt kê bản tự động và thủ công, tải về bằng liên kết trực tiếp, không có cột của sao lưu hệ thống', async () => {
     mockApi({
       'GET /api/v1/auth/me': meOk(tenantUser()),
       'GET /api/v1/backups': { json: { data: [tenantRow(), tenantRow({ id: 't2', kind: 'manual' })] } },
+      ...noRestores,
     })
     renderApp('/backups')
 
@@ -191,11 +195,15 @@ describe('trang sao lưu dữ liệu (Chủ doanh nghiệp)', () => {
     mockApi({
       'GET /api/v1/auth/me': meOk(tenantUser({ permissions: { 'backup.backup.view': 'tenant' } })),
       'GET /api/v1/backups': { json: { data: [tenantRow()] } },
+      ...noRestores,
     })
     renderApp('/backups')
 
     await screen.findByRole('table')
     expect(screen.queryByRole('button', { name: 'Sao lưu ngay' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Nhập từ file' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Khôi phục/ })).not.toBeInTheDocument()
+    expect(screen.queryByText('Lịch sử khôi phục')).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /Tải về/ })).not.toBeInTheDocument()
   })
 
@@ -204,6 +212,7 @@ describe('trang sao lưu dữ liệu (Chủ doanh nghiệp)', () => {
       'GET /api/v1/auth/me': meOk(tenantUser()),
       'GET /api/v1/backups': { json: { data: [] } },
       'POST /api/v1/backups': { status: 202, json: { data: tenantRow({ status: 'pending' }) } },
+      ...noRestores,
     })
     renderApp('/backups')
     const user = userEvent.setup()

@@ -71,6 +71,7 @@ describe('đăng nhập', () => {
       'GET /api/v1/auth/me': notSignedIn(),
       'POST /api/v1/auth/login': meOk(tenantUser()),
       'GET /api/v1/backups': { json: { data: [] } },
+      'GET /api/v1/backups/restores': { json: { data: [] } },
     })
     const { router } = renderApp('/backups')
 
@@ -106,6 +107,7 @@ describe('đăng nhập', () => {
     mockApi({
       'GET /api/v1/auth/me': meOk(tenantUser()),
       'GET /api/v1/backups': problem(401, 'unauthenticated', 'Chưa đăng nhập hoặc phiên đã hết hạn.'),
+      'GET /api/v1/backups/restores': problem(401, 'unauthenticated', 'Chưa đăng nhập hoặc phiên đã hết hạn.'),
     })
     const { router } = renderApp('/backups')
 

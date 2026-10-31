@@ -1,4 +1,4 @@
-import { ArrowLeft, Eye, Pencil } from 'lucide-react'
+import { ArrowLeft, DatabaseBackup, Eye, Pencil } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useParams } from 'react-router'
@@ -81,6 +81,13 @@ export default function TenantDetailPage() {
             <Eye className="h-4 w-4" aria-hidden="true" />
             {t('platform.support.open')}
           </Button>
+          <Link
+            to={`/platform/tenants/${data.id}/backups`}
+            className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50"
+          >
+            <DatabaseBackup className="h-4 w-4" aria-hidden="true" />
+            {t('platform.tenants.backups')}
+          </Link>
           <Button variant="secondary" onClick={() => setDialog('edit')}>
             <Pencil className="h-4 w-4" aria-hidden="true" />
             {t('common.edit')}

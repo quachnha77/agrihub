@@ -9,6 +9,7 @@ export interface ApiCall {
   method: string
   path: string
   body: unknown
+  headers: Record<string, string>
 }
 
 export interface MockResponse {
@@ -50,7 +51,9 @@ export function mockApi(handlers: Record<string, Handler>) {
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url, 'http://localhost')
       const method = (init?.method ?? 'GET').toUpperCase()
-      const call: ApiCall = { method, path: `${url.pathname}${url.search}`, body: typeof init?.body === 'string' ? JSON.parse(init.body) : undefined }
+      // Form có file: trả về { tên-trường: giá-trị } (File giữ nguyên) để test kiểm tra được file đã gửi.
+      const body = typeof init?.body === 'string' ? JSON.parse(init.body) : init?.body instanceof FormData ? Object.fromEntries(init.body.entries()) : undefined
+      const call: ApiCall = { method, path: `${url.pathname}${url.search}`, body, headers: { ...(init?.headers as Record<string, string> | undefined) } }
       calls.push(call)
 
       const handler = all[`${method} ${call.path}`] ?? all[`${method} ${url.pathname}`]

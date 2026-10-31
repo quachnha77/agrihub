@@ -71,7 +71,9 @@ export async function api<T = unknown>(method: string, path: string, body?: unkn
     if (token) headers['X-XSRF-TOKEN'] = token
   }
 
-  if (body !== undefined) headers['Content-Type'] = 'application/json'
+  // FormData (tải file lên): để trình duyệt tự đặt Content-Type kèm ranh giới multipart.
+  const isForm = typeof FormData !== 'undefined' && body instanceof FormData
+  if (body !== undefined && !isForm) headers['Content-Type'] = 'application/json'
 
   let response: Response
   try {
@@ -79,7 +81,7 @@ export async function api<T = unknown>(method: string, path: string, body?: unkn
       method,
       headers,
       credentials: 'include',
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: body === undefined ? undefined : isForm ? (body as FormData) : JSON.stringify(body),
       signal: options.signal,
     })
   } catch (cause) {
@@ -122,3 +124,5 @@ export async function api<T = unknown>(method: string, path: string, body?: unkn
 export const get = <T>(path: string, options?: RequestOptions) => api<T>('GET', path, undefined, options)
 export const post = <T>(path: string, body?: unknown, options?: RequestOptions) => api<T>('POST', path, body ?? {}, options)
 export const del = <T>(path: string, options?: RequestOptions) => api<T>('DELETE', path, undefined, options)
+/** Gửi form có file (multipart). */
+export const postForm = <T>(path: string, form: FormData, options?: RequestOptions) => api<T>('POST', path, form, options)

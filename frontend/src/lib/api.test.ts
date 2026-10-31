@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
-import { ApiError, api, onSessionProblem } from './api.ts'
+import { ApiError, api, onSessionProblem, postForm } from './api.ts'
 import { mockApi, problem } from '../test/utils.tsx'
 
 describe('api client', () => {
@@ -20,6 +20,19 @@ describe('api client', () => {
     const init = fetchMock.mock.calls.at(-1)?.[1] as RequestInit
     expect((init.headers as Record<string, string>)['X-XSRF-TOKEN']).toBe('abc==')
     expect(init.credentials).toBe('include')
+  })
+
+  it('gửi file bằng multipart: không tự đặt Content-Type JSON và không mã hóa JSON phần thân', async () => {
+    const server = mockApi({ 'POST /api/v1/upload': { status: 201, json: { data: 1 } } })
+    const form = new FormData()
+    form.append('file', new File(['abc'], 'a.agbk'))
+
+    await expect(postForm('/upload', form)).resolves.toEqual({ data: 1 })
+
+    const sent = vi.mocked(fetch).mock.calls.at(-1)?.[1] as RequestInit
+    expect(sent.body).toBe(form)
+    expect((sent.headers as Record<string, string>)['Content-Type']).toBeUndefined()
+    expect((server.to('POST', '/api/v1/upload')[0]?.body as { file?: File } | undefined)?.file?.name).toBe('a.agbk')
   })
 
   it('không xin CSRF cho yêu cầu đọc (GET)', async () => {

@@ -1,4 +1,4 @@
-import { Download } from 'lucide-react'
+import { Download, RotateCcw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Badge, Button, type Tone } from '../../components/ui.tsx'
 import { formatBytes, formatDateTime } from '../../lib/format.ts'
@@ -12,6 +12,7 @@ export function BackupTable({
   showPlatformColumns = false,
   onDownload,
   downloadHref,
+  onRestore,
 }: {
   rows: BackupRow[]
   /** Cột khôi phục thử và dấu vân tay khóa (chỉ có ý nghĩa với sao lưu toàn hệ thống). */
@@ -20,6 +21,8 @@ export function BackupTable({
   onDownload?: (row: BackupRow) => void
   /** Có thì "Tải về" là liên kết trực tiếp (Tenant: quyền đã kiểm tra ở máy chủ). */
   downloadHref?: (row: BackupRow) => string
+  /** Có thì hiện nút "Khôi phục" ở các bản đã hoàn tất. */
+  onRestore?: (row: BackupRow) => void
 }) {
   const { t } = useTranslation()
 
@@ -44,7 +47,10 @@ export function BackupTable({
           {rows.map((row) => (
             <tr key={row.id}>
               <td className="py-2 pr-3 whitespace-nowrap">{formatDateTime(row.created_at)}</td>
-              <td className="py-2 pr-3">{t(`backup.kinds.${row.kind}`)}</td>
+              <td className="py-2 pr-3">
+                {t(`backup.kinds.${row.kind}`)}
+                {row.original_name && <span className="block max-w-[14rem] truncate text-xs text-slate-500" title={row.original_name}>{row.original_name}</span>}
+              </td>
               <td className="py-2 pr-3">
                 <Badge tone={statusTone[row.status]}>{t(`backup.statuses.${row.status}`)}</Badge>
                 {row.error && <span className="mt-1 block max-w-xs text-xs text-red-700">{row.error}</span>}
@@ -63,23 +69,31 @@ export function BackupTable({
               )}
               <td className="py-2 pr-3 whitespace-nowrap">{formatDateTime(row.downloaded_at)}</td>
               {showPlatformColumns && <td className="py-2 pr-3 font-mono text-xs">{row.key_fingerprint ?? '—'}</td>}
-              <td className="py-2 text-right">
-                {row.status === 'completed' && onDownload && (
-                  <Button variant="secondary" onClick={() => onDownload(row)} aria-label={`${t('backup.actions.download')} ${formatDateTime(row.created_at)}`}>
-                    <Download className="h-4 w-4" aria-hidden="true" />
-                    {t('backup.actions.download')}
-                  </Button>
-                )}
-                {row.status === 'completed' && downloadHref && (
-                  <a
-                    href={downloadHref(row)}
-                    aria-label={`${t('backup.actions.download')} ${formatDateTime(row.created_at)}`}
-                    className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50"
-                  >
-                    <Download className="h-4 w-4" aria-hidden="true" />
-                    {t('backup.actions.download')}
-                  </a>
-                )}
+              <td className="py-2 text-right whitespace-nowrap">
+                <div className="flex justify-end gap-2">
+                  {row.status === 'completed' && onRestore && (
+                    <Button variant="secondary" onClick={() => onRestore(row)} aria-label={`${t('backup.actions.restore')} ${formatDateTime(row.created_at)}`}>
+                      <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                      {t('backup.actions.restore')}
+                    </Button>
+                  )}
+                  {row.status === 'completed' && onDownload && (
+                    <Button variant="secondary" onClick={() => onDownload(row)} aria-label={`${t('backup.actions.download')} ${formatDateTime(row.created_at)}`}>
+                      <Download className="h-4 w-4" aria-hidden="true" />
+                      {t('backup.actions.download')}
+                    </Button>
+                  )}
+                  {row.status === 'completed' && downloadHref && (
+                    <a
+                      href={downloadHref(row)}
+                      aria-label={`${t('backup.actions.download')} ${formatDateTime(row.created_at)}`}
+                      className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50"
+                    >
+                      <Download className="h-4 w-4" aria-hidden="true" />
+                      {t('backup.actions.download')}
+                    </a>
+                  )}
+                </div>
               </td>
             </tr>
           ))}

@@ -52,6 +52,7 @@ export const routes: RouteObject[] = [
                 children: [
                   { path: 'platform/tenants', lazy: async () => ({ Component: (await import('../features/platform/TenantsPage.tsx')).default }) },
                   { path: 'platform/tenants/:id', lazy: async () => ({ Component: (await import('../features/platform/TenantDetailPage.tsx')).default }) },
+                  { path: 'platform/tenants/:id/backups', lazy: async () => ({ Component: (await import('../features/backup/TenantBackupsAdminPage.tsx')).default }) },
                   { path: 'platform/renewals', lazy: async () => ({ Component: (await import('../features/platform/RenewalsPage.tsx')).default }) },
                   { path: 'platform/plans', lazy: async () => ({ Component: (await import('../features/platform/PlansPage.tsx')).default }) },
                   { path: 'platform/backups', lazy: async () => ({ Component: (await import('../features/backup/PlatformBackupsPage.tsx')).default }) },
