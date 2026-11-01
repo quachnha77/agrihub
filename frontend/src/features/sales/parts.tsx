@@ -1,6 +1,7 @@
 import { Search } from 'lucide-react'
 import { useDeferredValue, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { SectionTabs } from '../../components/page.tsx'
 import { ListSkeleton } from '../../components/skeleton.tsx'
 import { fieldBase, fieldTone } from '../../components/styles.ts'
 import { Badge } from '../../components/ui.tsx'
@@ -14,6 +15,21 @@ export function PaymentBadge({ status, overdue = false }: { status: PaymentStatu
   if (overdue) return <Badge tone="danger" dot>{t('sales.status.overdue')}</Badge>
 
   return <Badge tone={status === 'paid' ? 'success' : status === 'partial' ? 'warning' : 'danger'} dot>{t(`sales.status.${status}`)}</Badge>
+}
+
+/** Thanh tab của phân hệ Bán hàng: Phiếu bán | Công nợ khách (cùng quyền xem bán hàng). */
+export function SalesTabs() {
+  const { t } = useTranslation()
+
+  return (
+    <SectionTabs
+      label={t('sales.tabs.label')}
+      items={[
+        { to: '/sales', label: t('sales.tabs.sales'), end: true },
+        { to: '/sales/receivables', label: t('sales.tabs.receivables') },
+      ]}
+    />
+  )
 }
 
 /** Tìm khách đang giao dịch theo tên / mã / số điện thoại; bấm một dòng để chọn. Dùng khi bán chịu (hoặc ghi tên khách cho phiếu bán). */

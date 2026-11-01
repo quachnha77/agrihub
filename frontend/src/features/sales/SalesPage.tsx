@@ -13,7 +13,7 @@ import { useClampPage } from '../../lib/pagination.ts'
 import { useAuth } from '../auth/auth-context.ts'
 import { useAllWarehouses } from '../inventory/api.ts'
 import { PAYMENT_STATUSES, useAllCustomers, useSales, type SaleFilters } from './api.ts'
-import { PaymentBadge } from './parts.tsx'
+import { PaymentBadge, SalesTabs } from './parts.tsx'
 
 const EMPTY_FILTERS: SaleFilters = { q: '', customer: '', warehouse: '', payment_status: '', from: '', to: '', page: 1 }
 
@@ -46,6 +46,7 @@ export default function SalesPage() {
       <PageHeader
         title={t('sales.title')}
         description={t('sales.intro')}
+        tabs={<SalesTabs />}
         actions={
           canCreate && (
             <ButtonLink {...link('sale-new')}>

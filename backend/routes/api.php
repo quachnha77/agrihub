@@ -21,6 +21,7 @@ use App\Http\Controllers\Api\V1\Platform\TenantController;
 use App\Http\Controllers\Api\V1\Platform\UserController as PlatformUserController;
 use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\PurchaseController;
+use App\Http\Controllers\Api\V1\ReceivableController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\SalesController;
 use App\Http\Controllers\Api\V1\SessionController;
@@ -162,6 +163,9 @@ Route::middleware(['auth:sanctum', 'tenant.context'])->group(function () {
             Route::get('/sales/{sale}', [SalesController::class, 'show']);
             Route::post('/sales/{sale}/payments', [SalesController::class, 'collect']);
             Route::post('/sales/{sale}/payments/{payment}/void', [SalesController::class, 'voidPayment']);
+            // Công nợ khách hàng: khách đang nợ (theo tuổi nợ) và thu một khoản cho nhiều phiếu cùng lúc; dữ liệu lấy từ phiếu bán.
+            Route::get('/receivables', [ReceivableController::class, 'index']);
+            Route::post('/receivables/{customer}/collect', [ReceivableController::class, 'collect']);
             // Kiểm kê: một đợt khóa kho đang đếm; chênh lệch được ghi bằng MỘT phiếu điều chỉnh (kiểm kê không sửa tồn trực tiếp).
             Route::get('/stocktakes', [StocktakeController::class, 'index']);
             Route::post('/stocktakes', [StocktakeController::class, 'store']);

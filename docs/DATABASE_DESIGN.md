@@ -55,6 +55,8 @@
 
 - **Bán hàng** (đã chốt 2026-11-02, quy trình đơn giản): `SalesService::sell` ghi phiếu xuất kho (qua `StockService::post`, loại `issue`, lý do `sale` do hệ thống truyền, không nhận từ API), phiếu bán, các dòng và lần thu đầu trong MỘT transaction. Bán chịu (còn nợ > 0) chỉ khi có khách đang giao dịch, hạn mức > 0, không có phiếu nợ quá hạn và nợ hiện tại + nợ mới ≤ hạn mức (khóa dòng khách `FOR UPDATE`). Sản phẩm theo dõi lô tự lấy lô gần hết hạn trước, bỏ lô đã quá hạn. Phiếu bất biến; thu nhầm thì hủy lần thu (không xóa).
 
+- **Công nợ khách hàng** (2026-11-02): KHÔNG có bảng riêng (không migration). Nợ của khách = Σ (`total` − `paid_amount`) của các `sales_orders` còn nợ; tuổi nợ tính từ `due_on` (ngày bán + `credit_days` của khách). `ReceivableController` chỉ tổng hợp và `SalesService::collectFromCustomer` chia một khoản thu vào nhiều phiếu (mỗi phiếu một dòng `sales_payments`), nên các ràng buộc CHECK/RLS của phiếu bán vẫn là chốt chặn cuối. Sổ nợ riêng theo hóa đơn / phân bổ (`receivables`, `receipt_allocations` ở thiết kế dưới) chỉ cần khi có thu chi tổng hợp, trả hàng.
+
 ## 4. Quy tắc công nợ
 - `receivables.amount_due = total - paid` được kiểm bằng tổng `receipt_allocations`; không lưu sửa tay.
 - Một phiếu thu phân bổ nhiều hóa đơn qua `receipt_allocations`.

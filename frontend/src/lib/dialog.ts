@@ -9,13 +9,14 @@ import { useLocation, useNavigate, useSearchParams, type To } from 'react-router
  *   `?dialog=transfer-new`      chuyển kho           `?dialog=transfer:<id>`    xem một phiếu chuyển kho
  *   `?dialog=purchase-new`      nhập hàng            `?dialog=purchase:<id>`    xem một phiếu nhập hàng   `?dialog=purchase-pay:<id>`  trả tiền nhà cung cấp
  *   `?dialog=sale-new`          bán hàng             `?dialog=sale:<id>`        xem một phiếu bán hàng    `?dialog=sale-pay:<id>`      thu tiền của khách
+ *   `?dialog=debt-pay:<id>`     thu nợ của một khách (id khách): một khoản tiền trừ vào nhiều phiếu, phiếu đến hạn sớm nhất trước
  * Mở được trên MỌI trang (kể cả Tổng quan) mà trang phía sau vẫn nguyên: không chuyển trang, giữ bộ lọc và vị trí cuộn. Vì nằm trên địa chỉ
  * nên nút Quay lại của trình duyệt/điện thoại đóng popup, tải lại trang vẫn mở đúng popup, và gửi liên kết cho người khác được.
  */
 
 const PARAM = 'dialog'
 
-export type DialogName = 'product' | 'customer' | 'supplier' | 'stock-new' | 'stock-doc' | 'stocktake-new' | 'stocktake' | 'transfer-new' | 'transfer' | 'purchase-new' | 'purchase' | 'purchase-pay' | 'sale-new' | 'sale' | 'sale-pay'
+export type DialogName = 'product' | 'customer' | 'supplier' | 'stock-new' | 'stock-doc' | 'stocktake-new' | 'stocktake' | 'transfer-new' | 'transfer' | 'purchase-new' | 'purchase' | 'purchase-pay' | 'sale-new' | 'sale' | 'sale-pay' | 'debt-pay'
 
 /** Thuộc tính mà mọi popup nhận từ khung (DialogHost). `arg` là phần sau dấu ":" (mã bản ghi cần sửa/xem, hoặc loại phiếu). */
 export interface DialogProps {

@@ -5,7 +5,7 @@ import { ApiError } from '../../lib/api.ts'
 import type { Product } from '../catalog/api.ts'
 import { parseNumber } from '../catalog/form.ts'
 import { roundMoney } from '../purchase/forms.ts'
-import type { PaymentPayload, SalePayload } from './api.ts'
+import type { PaymentPayload, Sale, SalePayload } from './api.ts'
 
 export { roundMoney, todayIso } from '../purchase/forms.ts'
 
@@ -171,6 +171,27 @@ export function paymentSchema(t: TFunction, balance: number) {
     method: z.enum(['cash', 'bank_transfer']),
     paid_on: z.string().min(1, t('sales.form.dateRequired')),
     note: z.string().max(255, t('validation.maxLength', { count: 255 })),
+  })
+}
+
+/** Thứ tự trừ nợ giống máy chủ: phiếu đến hạn sớm nhất trước, phiếu chưa có hạn trả sau cùng, rồi theo ngày bán và mã phiếu. */
+export function sortByDueFirst(sales: Sale[]): Sale[] {
+  return [...sales].sort((a, b) => {
+    if ((a.due_on === null) !== (b.due_on === null)) return a.due_on === null ? 1 : -1
+
+    return (a.due_on ?? '').localeCompare(b.due_on ?? '') || a.sold_on.localeCompare(b.sold_on) || a.code.localeCompare(b.code)
+  })
+}
+
+/** Chia `amount` đồng cho các phiếu (đã xếp đúng thứ tự trừ nợ): mỗi phiếu nhận tối đa số còn nợ của nó. Phiếu không được trừ có `take` = 0. */
+export function allocateDebt(sales: Sale[], amount: number): { sale: Sale; take: number }[] {
+  let left = roundMoney(amount)
+
+  return sales.map((sale) => {
+    const take = Math.min(left, Number(sale.balance))
+    left = roundMoney(left - take)
+
+    return { sale, take }
   })
 }
 

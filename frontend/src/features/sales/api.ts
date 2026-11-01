@@ -99,8 +99,45 @@ export interface PaymentPayload {
   note: string | null
 }
 
+/** Một khách đang nợ: tổng hợp từ các phiếu bán còn nợ trong phạm vi quyền của người xem (khách mua ở nhiều chi nhánh thì mỗi người thấy phần nợ của chi nhánh mình). */
+export interface Receivable {
+  customer: { id: string; code: string; name: string; phone: string | null; status: string; credit_limit: string; credit_days: number | null }
+  open_orders: number
+  owed: string
+  overdue_amount: string
+  is_overdue: boolean
+  oldest_overdue_on: string | null
+  days_overdue: number
+}
+
+/** Tổng của MỌI khách khớp bộ lọc, nợ chia theo tuổi: chưa đến hạn, quá hạn 1–30 / 31–60 / trên 60 ngày. */
+export interface ReceivableSummary {
+  debtors: number
+  owed: string
+  aging: { current: string; overdue_1_30: string; overdue_31_60: string; overdue_over_60: string }
+}
+
+export interface ReceivableFilters {
+  q: string
+  /** `1` = chỉ khách có phiếu quá hạn. */
+  overdue: string
+  page: number
+}
+
+/** Kết quả thu một khoản cho nhiều phiếu: phần đã trừ vào từng phiếu (đến hạn sớm nhất trước) và số khách còn nợ sau khi thu. */
+export interface CollectResult {
+  customer: string
+  collected: string
+  remaining: string
+  allocations: { order: { id: string; code: string }; amount: string; balance: string }[]
+}
+
 const SALES = ['sales'] as const
+const RECEIVABLES = ['receivables'] as const
 const STOCK = ['stock'] as const
+
+/** Thu tiền, hủy lần thu hay lập phiếu mới đều đổi số nợ: làm mới cả danh sách công nợ. */
+const refreshDebts = (queryClient: ReturnType<typeof useQueryClient>) => queryClient.invalidateQueries({ queryKey: RECEIVABLES })
 
 function params(values: object, perPage: number): URLSearchParams {
   const query = new URLSearchParams({ per_page: String(perPage) })
@@ -118,6 +155,23 @@ export function useSales(filters: SaleFilters) {
     queryKey: [...SALES, 'list', filters],
     queryFn: () => get<Paginated<Sale> & { summary: SaleSummary }>(`/sales?${params(filters, 20).toString()}`),
     placeholderData: keepPreviousData,
+  })
+}
+
+export function useReceivables(filters: ReceivableFilters) {
+  return useQuery({
+    queryKey: [...RECEIVABLES, 'list', filters],
+    queryFn: () => get<Paginated<Receivable> & { summary: ReceivableSummary }>(`/receivables?${params(filters, 20).toString()}`),
+    placeholderData: keepPreviousData,
+  })
+}
+
+/** Các phiếu còn nợ của một khách (cũ nhất trước ở phía máy khách), để người thu thấy tiền sẽ trừ vào phiếu nào. Tối đa 100 phiếu. */
+export function useCustomerOpenSales(customerId: string | undefined) {
+  return useQuery({
+    queryKey: [...SALES, 'open', customerId],
+    queryFn: async () => (await get<Paginated<Sale>>(`/sales?${params({ customer: customerId, payment_status: 'open' }, 100).toString()}`)).data,
+    enabled: customerId !== undefined,
   })
 }
 
@@ -156,6 +210,7 @@ export function useCreateSale() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: SALES })
       void queryClient.invalidateQueries({ queryKey: STOCK })
+      void refreshDebts(queryClient)
     },
   })
 }
@@ -169,6 +224,8 @@ export function useCollectSale(id: string) {
     onSuccess: (sale) => {
       queryClient.setQueryData([...SALES, 'detail', id], sale)
       void queryClient.invalidateQueries({ queryKey: [...SALES, 'list'] })
+      void queryClient.invalidateQueries({ queryKey: [...SALES, 'open'] })
+      void refreshDebts(queryClient)
     },
   })
 }
@@ -182,6 +239,21 @@ export function useVoidSalePayment(id: string) {
     onSuccess: (sale) => {
       queryClient.setQueryData([...SALES, 'detail', id], sale)
       void queryClient.invalidateQueries({ queryKey: [...SALES, 'list'] })
+      void queryClient.invalidateQueries({ queryKey: [...SALES, 'open'] })
+      void refreshDebts(queryClient)
+    },
+  })
+}
+
+/** Thu một khoản của khách cho nhiều phiếu cùng lúc (tự trừ vào phiếu đến hạn sớm nhất trước). */
+export function useCollectReceivable(customerId: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (payload: PaymentPayload) => (await post<{ data: CollectResult }>(`/receivables/${customerId}/collect`, payload)).data,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: SALES })
+      void refreshDebts(queryClient)
     },
   })
 }

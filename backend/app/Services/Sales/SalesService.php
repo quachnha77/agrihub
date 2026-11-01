@@ -158,6 +158,47 @@ class SalesService
         });
     }
 
+    /**
+     * Thu một khoản tiền của khách cho NHIỀU phiếu cùng lúc: phiếu đến hạn sớm nhất được trừ trước (phiếu chưa có hạn trả sau cùng, rồi theo ngày bán), mỗi phiếu nhận
+     * một lần thu riêng nên hủy nhầm vẫn hủy được từng phiếu. Khóa dòng khách rồi các phiếu (theo thứ tự id) để hai người thu cùng lúc không vượt số còn nợ.
+     *
+     * @param  list<int>  $orderIds  các phiếu người thu được phép thu (đã kiểm quyền); phiếu đã thu đủ trong lúc chờ bị bỏ qua
+     * @return list<array{order: SalesOrder, amount: string}> phần tiền đã trừ vào từng phiếu
+     */
+    public function collectFromCustomer(Customer $customer, array $orderIds, string $amount, string $method, ?string $paidOn, ?string $note, ?User $by): array
+    {
+        return DB::transaction(function () use ($customer, $orderIds, $amount, $method, $paidOn, $note, $by) {
+            Customer::whereKey($customer->id)->lockForUpdate()->firstOrFail();
+            $open = SalesOrder::whereIn('id', $orderIds)->where('customer_id', $customer->id)->whereColumn('paid_amount', '<', 'total')->orderBy('id')->lockForUpdate()->get()
+                ->sortBy([fn ($a, $b) => [$a->due_on === null, $a->due_on?->toDateString()] <=> [$b->due_on === null, $b->due_on?->toDateString()], ['sold_on', 'asc'], ['id', 'asc']])->values();
+            $amount = Decimal::round(Decimal::from($amount), 2);
+            $owed = $open->reduce(fn (string $sum, SalesOrder $o) => Decimal::add($sum, $o->balance()), '0');
+
+            if (Decimal::cmp($amount, $owed) > 0) {
+                throw ValidationException::withMessages(['amount' => [sprintf('Số tiền thu (%s) vượt quá số khách còn nợ (%s).', $this->vnd($amount), $this->vnd($owed))]]);
+            }
+
+            $paidOn ??= Carbon::now(config('inventory.timezone'))->toDateString();
+            $left = $amount;
+            $allocations = [];
+
+            foreach ($open as $order) {
+                if (Decimal::cmp($left, '0') <= 0) {
+                    break;
+                }
+
+                $part = Decimal::cmp($left, $order->balance()) < 0 ? $left : $order->balance();
+                $this->addPayment($order, $part, $method, $paidOn, $note, $by);
+                $left = Decimal::sub($left, $part);
+                $allocations[] = ['order' => $order, 'amount' => $part];
+
+                $this->audit->record('sales', 'payment_recorded', $order, after: ['code' => $order->code, 'amount' => $part, 'method' => $method, 'balance' => $order->balance(), 'bulk' => true], branchId: $order->branch_id);
+            }
+
+            return $allocations;
+        });
+    }
+
     /** Hủy một lần thu (thu nhầm): lần thu được đánh dấu hủy, số đã thu của phiếu giảm tương ứng (khách lại còn nợ). Không xóa dữ liệu. */
     public function voidPayment(SalesOrder $order, SalesPayment $payment, string $reason, ?User $by): SalesPayment
     {

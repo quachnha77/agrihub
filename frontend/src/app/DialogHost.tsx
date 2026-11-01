@@ -28,6 +28,7 @@ const loaders = {
   saleNew: () => import('../features/sales/SaleDialog.tsx'),
   sale: () => import('../features/sales/SaleViewDialog.tsx'),
   salePay: () => import('../features/sales/SalePayDialog.tsx'),
+  debtPay: () => import('../features/sales/DebtPayDialog.tsx'),
 }
 
 /**
@@ -55,6 +56,8 @@ const DIALOGS: Record<string, Definition> = {
   'sale-new': { Component: lazy(loaders.saleNew), allowed: (can) => can('sales.order.create') },
   sale: { Component: lazy(loaders.sale), allowed: (can) => can('sales.order.view') },
   'sale-pay': { Component: lazy(loaders.salePay), allowed: (can) => can('sales.order.update') },
+  // Thu nợ một khách (nhiều phiếu một lần) cùng quyền với thu tiền một phiếu.
+  'debt-pay': { Component: lazy(loaders.debtPay), allowed: (can) => can('sales.order.update') },
 }
 
 /** Tải sẵn mã của các popup khi trình duyệt rảnh, để lần bấm đầu tiên không phải chờ mạng (nhất là trên điện thoại). Bỏ qua khi chạy test. */
