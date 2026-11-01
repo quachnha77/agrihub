@@ -97,6 +97,7 @@ export interface StockDocument {
   transfer?: { id: string; code: string } | null
   /** Phiếu nhập hàng (Mua hàng) sinh ra phiếu này, nếu có. */
   purchase?: { id: string; code: string } | null
+  sale?: { id: string; code: string } | null
   performed_by: { id: string; name: string } | null
   performed_at: string
   line_count?: number

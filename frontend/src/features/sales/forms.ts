@@ -1,0 +1,179 @@
+import type { TFunction } from 'i18next'
+import type { Path, UseFormSetError } from 'react-hook-form'
+import { z } from 'zod'
+import { ApiError } from '../../lib/api.ts'
+import type { Product } from '../catalog/api.ts'
+import { parseNumber } from '../catalog/form.ts'
+import { roundMoney } from '../purchase/forms.ts'
+import type { PaymentPayload, SalePayload } from './api.ts'
+
+export { roundMoney, todayIso } from '../purchase/forms.ts'
+
+export interface SaleLineValues {
+  product_id: string
+  unit_id: string
+  quantity: string
+  unit_price: string
+}
+
+/** `full` = khách trả đủ ngay; `debt` = ghi nợ (khách trả trước một phần hoặc không trả, phần còn lại là nợ). */
+export type PayMode = 'full' | 'debt'
+
+export interface SaleFormValues {
+  warehouse_id: string
+  customer_id: string
+  discount: string
+  pay_mode: PayMode
+  prepaid: string
+  payment_method: 'cash' | 'bank_transfer'
+  note: string
+  lines: SaleLineValues[]
+}
+
+export const emptySaleLine = (): SaleLineValues => ({ product_id: '', unit_id: '', quantity: '', unit_price: '' })
+
+/** Đơn giá gợi ý của đơn vị đã chọn: giá tiền mặt khi khách trả đủ, giá công nợ khi ghi nợ. Chuỗi rỗng nếu chưa chọn đơn vị. */
+export function suggestedPrice(product: Product | undefined, unitId: string, mode: PayMode): string {
+  const row = product?.units.find((u) => u.unit.id === unitId)
+
+  if (!row) return ''
+
+  const price = parseNumber(mode === 'debt' ? row.price_credit : row.price_cash)
+
+  return price === null ? '' : String(price)
+}
+
+/** Thành tiền của một dòng = số lượng × đơn giá, 0 nếu chưa nhập đủ. */
+export function lineTotal(line: Pick<SaleLineValues, 'quantity' | 'unit_price'>): number {
+  const quantity = parseNumber(line.quantity)
+  const price = parseNumber(line.unit_price)
+
+  return quantity !== null && price !== null ? roundMoney(quantity * price) : 0
+}
+
+export const goodsTotal = (lines: SaleLineValues[]): number => roundMoney(lines.reduce((sum, line) => sum + lineTotal(line), 0))
+
+/** Tiền khách phải trả = tiền hàng − số bớt (không âm). */
+export const payable = (goods: number, discount: number): number => roundMoney(Math.max(goods - discount, 0))
+
+export function saleSchema(t: TFunction) {
+  const quantity = z.string().trim().refine((v) => {
+    const n = parseNumber(v)
+
+    return n !== null && n > 0 && n <= 99_999_999 && Math.round(n * 1000) / 1000 === n
+  }, t('inventory.form.quantityInvalid'))
+  const price = z.string().trim().refine((v) => {
+    const n = parseNumber(v)
+
+    return n !== null && n >= 0 && n <= 999_999_999 && Math.round(n * 100) / 100 === n
+  }, t('sales.form.priceInvalid'))
+  /** Ô tiền tùy chọn: để trống = 0. */
+  const optionalMoney = z.string().trim().refine((v) => {
+    if (v === '') return true
+    const n = parseNumber(v)
+
+    return n !== null && n >= 0 && n <= 999_999_999_999 && Math.round(n * 100) / 100 === n
+  }, t('sales.form.moneyInvalid'))
+
+  return z
+    .object({
+      warehouse_id: z.string().min(1, t('sales.form.warehouseRequired')),
+      customer_id: z.string(),
+      discount: optionalMoney,
+      pay_mode: z.enum(['full', 'debt']),
+      prepaid: optionalMoney,
+      payment_method: z.enum(['cash', 'bank_transfer']),
+      note: z.string().max(500, t('validation.maxLength', { count: 500 })),
+      lines: z
+        .array(z.object({ product_id: z.string().min(1, t('inventory.form.productRequired')), unit_id: z.string().min(1, t('inventory.form.unitRequired')), quantity, unit_price: price }))
+        .min(1, t('inventory.form.linesRequired'))
+        .max(100, t('inventory.form.tooManyLines', { max: 100 })),
+    })
+    .superRefine((values, ctx) => {
+      const goods = goodsTotal(values.lines)
+      const discount = parseNumber(values.discount) ?? 0
+
+      if (discount > goods) ctx.addIssue({ code: 'custom', path: ['discount'], message: t('sales.form.discountTooMuch') })
+
+      if (values.pay_mode === 'debt') {
+        if (values.customer_id === '') ctx.addIssue({ code: 'custom', path: ['customer_id'], message: t('sales.form.customerForDebt') })
+        if ((parseNumber(values.prepaid) ?? 0) > payable(goods, discount)) ctx.addIssue({ code: 'custom', path: ['prepaid'], message: t('sales.form.prepaidTooMuch') })
+      }
+    })
+}
+
+/** Nội dung gửi API. Trả đủ: số thu = tiền phải trả; ghi nợ: số thu = khách trả trước (có thể 0). Hình thức thu chỉ gửi khi có thu tiền. */
+export function salePayload(values: SaleFormValues): SalePayload {
+  const goods = goodsTotal(values.lines)
+  const discount = parseNumber(values.discount) ?? 0
+  const paid = values.pay_mode === 'full' ? payable(goods, discount) : (parseNumber(values.prepaid) ?? 0)
+
+  return {
+    warehouse_id: values.warehouse_id,
+    customer_id: values.customer_id === '' ? null : values.customer_id,
+    note: values.note.trim() === '' ? null : values.note.trim(),
+    discount,
+    paid_amount: paid,
+    ...(paid > 0 ? { payment_method: values.payment_method } : {}),
+    lines: values.lines.map((line) => ({
+      product_id: line.product_id,
+      unit_id: line.unit_id,
+      quantity: parseNumber(line.quantity) ?? 0,
+      unit_price: parseNumber(line.unit_price) ?? 0,
+    })),
+  }
+}
+
+const LINE_KEY = /^lines\.(\d+)\.(\w+)$/
+// `paid_amount` của máy chủ hiện ở ô "khách trả trước"; `payment_method` không có ô riêng khi trả đủ nên rơi vào lỗi chung nếu có.
+const FIELD_OF: Record<string, string> = { warehouse_id: 'warehouse_id', customer_id: 'customer_id', discount: 'discount', paid_amount: 'prepaid', payment_method: 'payment_method', note: 'note' }
+
+/** Đưa lỗi 422 của máy chủ vào đúng ô (`customer_id`, `discount`, `lines.N.<ô>`...); lỗi không gắn được vào ô nào trả về để hiện chung. */
+export function applySaleErrors(error: unknown, setError: UseFormSetError<SaleFormValues>, payMode: PayMode): { handled: boolean; leftover: string[] } {
+  if (!(error instanceof ApiError) || error.status !== 422) return { handled: false, leftover: [] }
+
+  const leftover: string[] = []
+  let handled = false
+
+  for (const [key, messages] of Object.entries(error.errors)) {
+    const message = messages[0]
+    if (!message) continue
+
+    // Khách trả đủ thì không có ô "trả trước" để hiện lỗi `paid_amount`: hiện chung.
+    const field = key === 'paid_amount' && payMode === 'full' ? undefined : FIELD_OF[key]
+
+    if (field !== undefined || LINE_KEY.test(key)) {
+      setError((field ?? key) as Path<SaleFormValues>, { type: 'server', message })
+      handled = true
+    } else {
+      leftover.push(message)
+    }
+  }
+
+  return { handled: handled || leftover.length > 0, leftover }
+}
+
+export interface PaymentFormValues {
+  amount: string
+  method: 'cash' | 'bank_transfer'
+  paid_on: string
+  note: string
+}
+
+/** Biểu mẫu thu tiền: số tiền > 0 và không vượt số khách còn nợ (`balance`, đồng). */
+export function paymentSchema(t: TFunction, balance: number) {
+  return z.object({
+    amount: z.string().trim().refine((v) => {
+      const n = parseNumber(v)
+
+      return n !== null && n > 0 && n <= 999_999_999_999 && Math.round(n * 100) / 100 === n
+    }, t('sales.pay.amountInvalid')).refine((v) => (parseNumber(v) ?? 0) <= balance, t('sales.pay.tooMuch')),
+    method: z.enum(['cash', 'bank_transfer']),
+    paid_on: z.string().min(1, t('sales.form.dateRequired')),
+    note: z.string().max(255, t('validation.maxLength', { count: 255 })),
+  })
+}
+
+export function paymentPayload(values: PaymentFormValues): PaymentPayload {
+  return { amount: parseNumber(values.amount) ?? 0, method: values.method, paid_on: values.paid_on === '' ? null : values.paid_on, note: values.note.trim() === '' ? null : values.note.trim() }
+}

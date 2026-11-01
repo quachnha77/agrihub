@@ -7,6 +7,7 @@ use App\Models\Brand;
 use App\Models\Category;
 use App\Models\CustomerGroup;
 use App\Models\PurchaseReceipt;
+use App\Models\SalesOrder;
 use App\Models\StockDocument;
 use App\Models\Stocktake;
 use App\Models\StockTransfer;
@@ -17,6 +18,7 @@ use App\Observers\BranchObserver;
 use App\Policies\CatalogListPolicy;
 use App\Policies\CustomerGroupPolicy;
 use App\Policies\PurchaseReceiptPolicy;
+use App\Policies\SalesOrderPolicy;
 use App\Policies\StockDocumentPolicy;
 use App\Policies\StocktakePolicy;
 use App\Policies\StockTransferPolicy;
@@ -66,6 +68,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(Stocktake::class, StocktakePolicy::class);
         Gate::policy(StockTransfer::class, StockTransferPolicy::class);
         Gate::policy(PurchaseReceipt::class, PurchaseReceiptPolicy::class);
+        Gate::policy(SalesOrder::class, SalesOrderPolicy::class);
 
         // Chi nhánh nào cũng có sẵn "Kho chính".
         Branch::observe(BranchObserver::class);
@@ -75,7 +78,7 @@ class AppServiceProvider extends ServiceProvider
         });
 
         // Tham số route là uuid công khai; giá trị khác định dạng => 404 (không để PostgreSQL báo lỗi cú pháp uuid thành 500).
-        foreach (['tenant', 'user', 'branch', 'role', 'plan', 'backup', 'product', 'unit', 'category', 'brand', 'customer', 'customer_group', 'supplier', 'warehouse', 'document'] as $parameter) {
+        foreach (['tenant', 'user', 'branch', 'role', 'plan', 'backup', 'product', 'unit', 'category', 'brand', 'customer', 'customer_group', 'supplier', 'warehouse', 'document', 'purchase', 'sale'] as $parameter) {
             Route::pattern($parameter, '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}');
         }
 

@@ -39,6 +39,9 @@ class StockDocument extends Model
     /** Lý do xuất kho hợp lệ; `expired` (hủy hàng hết hạn) là lý do duy nhất được xuất lô đã quá hạn. */
     public const ISSUE_REASONS = ['damaged', 'expired', 'internal_use', 'sample', 'other'];
 
+    /** Lý do của phiếu xuất do Bán hàng sinh ra; KHÔNG nằm trong ISSUE_REASONS nên người dùng không chọn được khi xuất kho thủ công. */
+    public const SALE_REASON = 'sale';
+
     public const ADJUSTMENT_REASONS = ['count_correction', 'damaged', 'expired', 'other'];
 
     public const UPDATED_AT = null;
@@ -74,6 +77,12 @@ class StockDocument extends Model
     public function purchaseReceipt(): HasOne
     {
         return $this->hasOne(PurchaseReceipt::class);
+    }
+
+    /** Phiếu bán hàng (Bán hàng) sinh ra phiếu kho này, nếu có. */
+    public function salesOrder(): HasOne
+    {
+        return $this->hasOne(SalesOrder::class);
     }
 
     public function movements(): HasMany

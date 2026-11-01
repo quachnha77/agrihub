@@ -64,6 +64,12 @@ export default function StockDocumentViewDialog({ arg: id, onClose }: DialogProp
                 <dd><Link {...link('purchase', data.purchase.id)} className="font-mono text-xs font-semibold text-brand-700 hover:underline">{data.purchase.code}</Link></dd>
               </div>
             )}
+            {data.sale && (
+              <div>
+                <dt className="text-slate-500">{t('inventory.documents.sale')}</dt>
+                <dd><Link {...link('sale', data.sale.id)} className="font-mono text-xs font-semibold text-brand-700 hover:underline">{data.sale.code}</Link></dd>
+              </div>
+            )}
             {data.reason && <div><dt className="text-slate-500">{t('inventory.form.reason')}</dt><dd className="font-medium">{t(`inventory.reasons.${data.reason}`)}</dd></div>}
             {costs && <div><dt className="text-slate-500">{t('inventory.documents.value')}</dt><dd className="font-medium">{money(data.value)}</dd></div>}
             {data.note && <div className="sm:col-span-2 lg:col-span-4"><dt className="text-slate-500">{t('inventory.form.note')}</dt><dd>{data.note}</dd></div>}

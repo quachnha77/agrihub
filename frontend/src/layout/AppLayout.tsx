@@ -1,4 +1,4 @@
-import { Activity, Building2, ChevronDown, Contact, KeyRound, LayoutDashboard, LogOut, Menu as MenuIcon, Package, PhoneCall, ServerCog, ShieldCheck, Sprout, Store, Tags, Truck, Users, Warehouse, X, type LucideIcon } from 'lucide-react'
+import { Activity, Building2, ChevronDown, Contact, KeyRound, LayoutDashboard, LogOut, Menu as MenuIcon, Package, PhoneCall, ServerCog, ShieldCheck, ShoppingCart, Sprout, Store, Tags, Truck, Users, Warehouse, X, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, Outlet, useLocation, useNavigate, useNavigation } from 'react-router'
@@ -49,6 +49,7 @@ export default function AppLayout() {
     {
       items: [
         { to: '/', label: t('nav.dashboard'), icon: LayoutDashboard, visible: true },
+        { to: '/sales', label: t('nav.sales'), icon: ShoppingCart, visible: can('sales.order.view') },
         { to: '/products', label: t('nav.products'), icon: Package, visible: can('catalog.product.view') },
         { to: canStock ? '/stock' : '/warehouses', label: t('nav.stockModule'), icon: Warehouse, visible: canStock || canWarehouses, match: ['/stock', '/warehouses'] },
         { to: '/customers', label: t('nav.customers'), icon: Contact, visible: can('crm.customer.view') },

@@ -25,6 +25,9 @@ const loaders = {
   purchaseNew: () => import('../features/purchase/PurchaseDialog.tsx'),
   purchase: () => import('../features/purchase/PurchaseViewDialog.tsx'),
   purchasePay: () => import('../features/purchase/PurchasePayDialog.tsx'),
+  saleNew: () => import('../features/sales/SaleDialog.tsx'),
+  sale: () => import('../features/sales/SaleViewDialog.tsx'),
+  salePay: () => import('../features/sales/SalePayDialog.tsx'),
 }
 
 /**
@@ -48,6 +51,10 @@ const DIALOGS: Record<string, Definition> = {
   'purchase-new': { Component: lazy(loaders.purchaseNew), allowed: (can) => can('purchase.order.create') },
   purchase: { Component: lazy(loaders.purchase), allowed: (can) => can('purchase.order.view') },
   'purchase-pay': { Component: lazy(loaders.purchasePay), allowed: (can) => can('purchase.order.update') },
+  // Bán hàng dùng quyền `sales.order`: lập phiếu = tạo, xem = xem, thu tiền = cập nhật (API còn kiểm tra theo chi nhánh của kho và người lập phiếu).
+  'sale-new': { Component: lazy(loaders.saleNew), allowed: (can) => can('sales.order.create') },
+  sale: { Component: lazy(loaders.sale), allowed: (can) => can('sales.order.view') },
+  'sale-pay': { Component: lazy(loaders.salePay), allowed: (can) => can('sales.order.update') },
 }
 
 /** Tải sẵn mã của các popup khi trình duyệt rảnh, để lần bấm đầu tiên không phải chờ mạng (nhất là trên điện thoại). Bỏ qua khi chạy test. */

@@ -22,6 +22,7 @@ use App\Http\Controllers\Api\V1\Platform\UserController as PlatformUserControlle
 use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\PurchaseController;
 use App\Http\Controllers\Api\V1\RoleController;
+use App\Http\Controllers\Api\V1\SalesController;
 use App\Http\Controllers\Api\V1\SessionController;
 use App\Http\Controllers\Api\V1\StockController;
 use App\Http\Controllers\Api\V1\StockDocumentController;
@@ -155,6 +156,12 @@ Route::middleware(['auth:sanctum', 'tenant.context'])->group(function () {
             Route::get('/purchases/{purchase}', [PurchaseController::class, 'show']);
             Route::post('/purchases/{purchase}/payments', [PurchaseController::class, 'pay']);
             Route::post('/purchases/{purchase}/payments/{payment}/void', [PurchaseController::class, 'voidPayment']);
+            // Bán hàng: phiếu bán (hàng ra kho qua StockService) và thu tiền của khách; bán chịu bị chặn theo hạn mức công nợ.
+            Route::get('/sales', [SalesController::class, 'index']);
+            Route::post('/sales', [SalesController::class, 'store']);
+            Route::get('/sales/{sale}', [SalesController::class, 'show']);
+            Route::post('/sales/{sale}/payments', [SalesController::class, 'collect']);
+            Route::post('/sales/{sale}/payments/{payment}/void', [SalesController::class, 'voidPayment']);
             // Kiểm kê: một đợt khóa kho đang đếm; chênh lệch được ghi bằng MỘT phiếu điều chỉnh (kiểm kê không sửa tồn trực tiếp).
             Route::get('/stocktakes', [StocktakeController::class, 'index']);
             Route::post('/stocktakes', [StocktakeController::class, 'store']);

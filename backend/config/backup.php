@@ -162,6 +162,10 @@ return [
         'purchase_receipts',
         'purchase_receipt_lines',
         'purchase_payments',
+        // Bán hàng (cha → con): phiếu bán tham chiếu khách, kho và phiếu xuất kho; dòng và lần thu tiền tham chiếu phiếu.
+        'sales_orders',
+        'sales_order_lines',
+        'sales_payments',
     ],
 
     /**

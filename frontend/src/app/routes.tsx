@@ -62,6 +62,10 @@ export const routes: RouteObject[] = [
                 children: [{ path: 'purchases', lazy: async () => ({ Component: (await import('../features/purchase/PurchasesPage.tsx')).default }) }],
               },
               {
+                element: <RequireAccess permission="sales.order.view" />,
+                children: [{ path: 'sales', lazy: async () => ({ Component: (await import('../features/sales/SalesPage.tsx')).default }) }],
+              },
+              {
                 element: <RequireAccess permission="inventory.movement.view" />,
                 children: [
                   { path: 'stock', lazy: async () => ({ Component: (await import('../features/inventory/StockPage.tsx')).default }) },
