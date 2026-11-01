@@ -18,7 +18,7 @@ use Illuminate\Validation\Rule;
 /** Phiếu kho: danh sách, chi tiết, và ghi phiếu mới (nhập, xuất, điều chỉnh, tồn đầu kỳ). Phiếu đã ghi không sửa/xóa được; sai sót sửa bằng phiếu điều chỉnh. */
 class StockDocumentController extends Controller
 {
-    private const WITH = ['warehouse', 'branch', 'performer', 'transfer', 'purchaseReceipt', 'salesOrder'];
+    private const WITH = ['warehouse', 'branch', 'performer', 'transfer', 'purchaseReceipt', 'salesOrder', 'salesReturn'];
 
     public function __construct(private StockService $stock) {}
 

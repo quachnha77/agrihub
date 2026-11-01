@@ -7,6 +7,8 @@ use App\Models\Product;
 use App\Models\SalesOrder;
 use App\Models\SalesOrderLine;
 use App\Models\SalesPayment;
+use App\Models\SalesReturn;
+use App\Models\SalesReturnLine;
 use App\Models\StockDocument;
 use App\Models\User;
 use App\Models\Warehouse;
@@ -169,7 +171,7 @@ class SalesService
     {
         return DB::transaction(function () use ($customer, $orderIds, $amount, $method, $paidOn, $note, $by) {
             Customer::whereKey($customer->id)->lockForUpdate()->firstOrFail();
-            $open = SalesOrder::whereIn('id', $orderIds)->where('customer_id', $customer->id)->whereColumn('paid_amount', '<', 'total')->orderBy('id')->lockForUpdate()->get()
+            $open = SalesOrder::whereIn('id', $orderIds)->where('customer_id', $customer->id)->owing()->orderBy('id')->lockForUpdate()->get()
                 ->sortBy([fn ($a, $b) => [$a->due_on === null, $a->due_on?->toDateString()] <=> [$b->due_on === null, $b->due_on?->toDateString()], ['sold_on', 'asc'], ['id', 'asc']])->values();
             $amount = Decimal::round(Decimal::from($amount), 2);
             $owed = $open->reduce(fn (string $sum, SalesOrder $o) => Decimal::add($sum, $o->balance()), '0');
@@ -199,6 +201,133 @@ class SalesService
         });
     }
 
+    /**
+     * Khách trả lại hàng của một phiếu bán (một bước, không duyệt): hàng NHẬP LẠI kho bán ban đầu (phiếu nhập kho do StockService ghi, theo đúng giá vốn lúc bán và đúng lô cũ),
+     * giá trị hàng trả lại trừ vào nợ còn lại của phiếu trước, phần vượt (khách đã trả rồi) được hoàn lại cho khách.
+     *
+     * - Giá trị trả lại = số lượng × đơn giá, chia đều phần bớt tiền của cả phiếu (`total / goods_total`); trả hết số hàng còn lại thì lấy đúng phần còn lại của phiếu nên không lệch xu.
+     * - Mỗi dòng chỉ trả được tối đa (đã bán − đã trả). Khóa dòng phiếu nên hai người trả cùng lúc không vượt số đã bán.
+     * - Phiếu bán gốc không sửa: chỉ `returned_amount` tăng và `paid_amount` giảm đúng số đã hoàn.
+     *
+     * @param  array<string, mixed>  $data  đã kiểm tra hình dạng: `returned_on`, `note`, `refund_method`, `lines` (line_id, quantity)
+     */
+    public function returnGoods(SalesOrder $order, array $data, ?User $by): SalesOrder
+    {
+        return CodeSequence::retrying(SalesReturn::class, 'TH', fn (string $code) => DB::transaction(fn () => $this->recordReturn($order, $data, $by, $code)));
+    }
+
+    /** @param  array<string, mixed>  $data */
+    private function recordReturn(SalesOrder $order, array $data, ?User $by, string $code): SalesOrder
+    {
+        $locked = SalesOrder::whereKey($order->id)->lockForUpdate()->firstOrFail();
+        $today = Carbon::now(config('inventory.timezone'))->toDateString();
+        $returnedOn = $data['returned_on'] ?? $today;
+        $errors = [];
+
+        if ($returnedOn < $locked->sold_on->toDateString()) {
+            $errors['returned_on'][] = sprintf('Ngày trả hàng không được trước ngày bán (%s).', $locked->sold_on->format('d/m/Y'));
+        }
+
+        $lines = $locked->lines()->with(['product.baseUnit', 'unit', 'batch'])
+            ->withSum('returnLines as returned_quantity', 'quantity')->withSum('returnLines as returned_value', 'line_total')->withSum('returnLines as returned_cost', 'cost_amount')
+            ->get()->keyBy('uuid');
+
+        $rows = [];
+        $picked = [];
+
+        foreach (array_values($data['lines']) as $i => $raw) {
+            $line = $lines->get($raw['line_id'] ?? '');
+
+            if ($line === null) {
+                $errors["lines.{$i}.line_id"][] = 'Dòng hàng này không thuộc phiếu bán.';
+
+                continue;
+            }
+
+            if (isset($picked[$line->uuid])) {
+                $errors["lines.{$i}.line_id"][] = 'Dòng hàng này đã được chọn ở trên: gộp số lượng vào một dòng.';
+
+                continue;
+            }
+
+            $qty = Decimal::from($raw['quantity']);
+            $returnable = Decimal::sub((string) $line->quantity, (string) ($line->returned_quantity ?? '0'));
+
+            if (Decimal::cmp($qty, $returnable) > 0) {
+                $errors["lines.{$i}.quantity"][] = sprintf(
+                    'Chỉ trả lại được tối đa %s %s %s (đã bán %s, đã trả %s).',
+                    $this->plain($returnable), $line->unit->name, $line->product->name, $this->plain((string) $line->quantity), $this->plain((string) ($line->returned_quantity ?? '0')),
+                );
+
+                continue;
+            }
+
+            $picked[$line->uuid] = $qty;
+            $rest = Decimal::cmp($qty, $returnable) === 0; // trả hết số còn lại của dòng: lấy đúng phần còn lại để tổng khớp
+            $rows[] = [
+                'line' => $line,
+                'quantity' => $qty,
+                'value' => $rest ? Decimal::sub((string) $line->line_total, (string) ($line->returned_value ?? '0')) : Decimal::round(Decimal::mul($qty, (string) $line->unit_price, 6), 2),
+                'cost' => $rest ? Decimal::sub((string) $line->cost_amount, (string) ($line->returned_cost ?? '0')) : Decimal::round(Decimal::div(Decimal::mul((string) $line->cost_amount, $qty, 6), (string) $line->quantity, 6), 2),
+            ];
+        }
+
+        $this->failIfAny($errors);
+
+        $goodsValue = array_reduce($rows, fn (string $sum, array $row) => Decimal::add($sum, $row['value']), '0');
+        $remaining = $locked->netTotal();
+        $everything = $lines->every(fn ($line) => Decimal::cmp(Decimal::sub((string) $line->quantity, Decimal::add((string) ($line->returned_quantity ?? '0'), $picked[$line->uuid] ?? '0')), '0') === 0);
+        $goods = (string) $locked->goods_total;
+
+        $value = match (true) {
+            $everything => $remaining,
+            Decimal::cmp($goods, '0') === 0 => '0',
+            default => Decimal::round(Decimal::div(Decimal::mul($goodsValue, (string) $locked->total, 6), $goods, 6), 2),
+        };
+        $value = Decimal::cmp($value, $remaining) > 0 ? $remaining : $value;
+
+        $balance = $locked->balance();
+        $debtReduction = Decimal::cmp($value, $balance) < 0 ? $value : $balance;
+        $refund = Decimal::sub($value, $debtReduction);
+        $method = Decimal::cmp($refund, '0') > 0 ? ($data['refund_method'] ?? SalesPayment::CASH) : null;
+
+        $stockLines = array_map(fn (array $row) => array_filter([
+            'product_id' => $row['line']->product->uuid,
+            'unit_id' => $row['line']->unit->uuid,
+            'quantity' => $row['quantity'],
+            'unit_cost' => Decimal::div((string) $row['line']->cost_amount, (string) $row['line']->quantity, 6), // đúng giá vốn lúc bán, mỗi đơn vị bán
+            'batch_id' => $row['line']->batch?->uuid,
+        ], fn ($v) => $v !== null), $rows);
+
+        $document = $this->stock->post($locked->warehouse, StockDocument::RECEIPT, ['system_reason' => StockDocument::SALE_RETURN_REASON, 'note' => sprintf('Khách trả hàng %s (phiếu bán %s)', $code, $locked->code), 'lines' => $stockLines], $by);
+
+        $return = new SalesReturn([
+            'code' => $code, 'returned_on' => $returnedOn, 'note' => $this->blank($data['note'] ?? null),
+            'total' => $value, 'debt_reduction' => $debtReduction, 'refund_amount' => $refund, 'refund_method' => $method,
+        ]);
+        $return->branch_id = $locked->branch_id;
+        $return->order_id = $locked->id;
+        $return->warehouse_id = $locked->warehouse_id;
+        $return->stock_document_id = $document->id;
+        $return->created_by = $by?->id;
+        $return->save();
+
+        foreach ($rows as $i => $row) {
+            $item = new SalesReturnLine(['quantity' => $row['quantity'], 'line_total' => $row['value'], 'cost_amount' => $row['cost'], 'sort_order' => $i]);
+            $item->return_id = $return->id;
+            $item->order_line_id = $row['line']->id;
+            $item->save();
+        }
+
+        $locked->forceFill(['returned_amount' => Decimal::add((string) $locked->returned_amount, $value), 'paid_amount' => Decimal::sub((string) $locked->paid_amount, $refund)])->save();
+
+        $this->audit->record('sales', 'return_created', $locked, after: [
+            'code' => $code, 'order' => $locked->code, 'lines' => count($rows), 'total' => Decimal::money($value), 'debt_reduction' => Decimal::money($debtReduction), 'refund_amount' => Decimal::money($refund), 'balance' => $locked->balance(),
+        ], branchId: $locked->branch_id);
+
+        return $this->loaded($locked);
+    }
+
     /** Hủy một lần thu (thu nhầm): lần thu được đánh dấu hủy, số đã thu của phiếu giảm tương ứng (khách lại còn nợ). Không xóa dữ liệu. */
     public function voidPayment(SalesOrder $order, SalesPayment $payment, string $reason, ?User $by): SalesPayment
     {
@@ -208,6 +337,10 @@ class SalesService
 
             if ($row->voided_at !== null) {
                 throw ValidationException::withMessages(['payment' => ['Lần thu này đã được hủy trước đó.']]);
+            }
+
+            if (Decimal::cmp(Decimal::sub((string) $locked->paid_amount, (string) $row->amount), '0') < 0) {
+                throw ValidationException::withMessages(['payment' => ['Không hủy được lần thu này: phiếu đã hoàn tiền cho khách khi trả hàng nên số đã thu không đủ để trừ.']]);
             }
 
             $row->forceFill(['voided_at' => now(), 'voided_by' => $by?->id, 'void_reason' => trim($reason)])->save();
@@ -223,7 +356,8 @@ class SalesService
     public function loaded(SalesOrder $order): SalesOrder
     {
         // `refresh` đọc lại số đã lưu (làm tròn theo cột database) để phản hồi trùng đúng với dữ liệu.
-        return $order->refresh()->load(['customer', 'warehouse', 'branch', 'creator', 'stockDocument', 'lines.product.baseUnit', 'lines.unit', 'lines.batch', 'payments.creator', 'payments.voider']);
+        return $order->refresh()->load(['customer', 'warehouse', 'branch', 'creator', 'stockDocument', 'lines.product.baseUnit', 'lines.unit', 'lines.batch', 'payments.creator', 'payments.voider', 'returns.creator', 'returns.stockDocument', 'returns.lines.orderLine.product', 'returns.lines.orderLine.unit'])
+            ->load(['lines' => fn ($q) => $q->withSum('returnLines as returned_quantity', 'quantity')]);
     }
 
     /**
@@ -248,8 +382,8 @@ class SalesService
             return;
         }
 
-        $open = SalesOrder::where('customer_id', $locked->id)->whereColumn('paid_amount', '<', 'total');
-        $owed = (string) (clone $open)->selectRaw('coalesce(sum(total - paid_amount), 0) as owed')->value('owed');
+        $open = SalesOrder::where('customer_id', $locked->id)->owing();
+        $owed = (string) (clone $open)->selectRaw('coalesce(sum(total - returned_amount - paid_amount), 0) as owed')->value('owed');
         $overdue = (clone $open)->whereDate('due_on', '<', $today)->orderBy('due_on')->first();
 
         if ($overdue !== null) {

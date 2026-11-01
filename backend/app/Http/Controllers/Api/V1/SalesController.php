@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\SalesOrderRequest;
 use App\Http\Requests\Api\V1\SalesPaymentRequest;
+use App\Http\Requests\Api\V1\SalesReturnRequest;
 use App\Http\Requests\Api\V1\VoidSalesPaymentRequest;
 use App\Http\Resources\Api\V1\SalesOrderResource;
 use App\Models\Customer;
@@ -61,15 +62,15 @@ class SalesController extends Controller
             ->when($f['to'] ?? null, fn ($q, $v) => $q->where('sold_on', '<=', $v));
 
         match ($f['payment_status'] ?? null) {
-            SalesOrder::UNPAID => $filtered->where('paid_amount', 0)->where('total', '>', 0),
-            SalesOrder::PARTIAL => $filtered->where('paid_amount', '>', 0)->whereColumn('paid_amount', '<', 'total'),
-            SalesOrder::PAID => $filtered->whereColumn('paid_amount', '>=', 'total'),
-            'open' => $filtered->whereColumn('paid_amount', '<', 'total'),
-            'overdue' => $filtered->whereColumn('paid_amount', '<', 'total')->where('due_on', '<', Carbon::now(config('inventory.timezone'))->toDateString()),
+            SalesOrder::UNPAID => $filtered->where('paid_amount', 0)->whereRaw(SalesOrder::NET.' > 0'),
+            SalesOrder::PARTIAL => $filtered->where('paid_amount', '>', 0)->owing(),
+            SalesOrder::PAID => $filtered->whereRaw('paid_amount >= '.SalesOrder::NET),
+            'open' => $filtered->owing(),
+            'overdue' => $filtered->owing()->where('due_on', '<', Carbon::now(config('inventory.timezone'))->toDateString()),
             default => null,
         };
 
-        $totals = (clone $filtered)->selectRaw('coalesce(sum(total), 0) as total, coalesce(sum(paid_amount), 0) as paid')->first();
+        $totals = (clone $filtered)->selectRaw('coalesce(sum(total - returned_amount), 0) as total, coalesce(sum(paid_amount), 0) as paid')->first();
         $total = Decimal::money((string) $totals->total);
         $paid = Decimal::money((string) $totals->paid);
 
@@ -111,6 +112,17 @@ class SalesController extends Controller
         $this->sales->collect($sale, (string) $request->validated('amount'), $request->validated('method'), $request->validated('paid_on'), $request->validated('note'), $request->user());
 
         return new SalesOrderResource($this->sales->loaded($sale->refresh()));
+    }
+
+    /** Khách trả hàng: hàng nhập lại kho, trừ vào nợ hoặc hoàn tiền; trả về phiếu đã cập nhật kèm lần trả mới. */
+    public function returnGoods(SalesReturnRequest $request, SalesOrder $sale): JsonResponse
+    {
+        Gate::authorize('view', $sale);
+        Gate::authorize('returnGoods', $sale);
+
+        $order = $this->sales->returnGoods($sale, $request->validated(), $request->user());
+
+        return (new SalesOrderResource($order))->response()->setStatusCode(201);
     }
 
     /** Hủy một lần thu (thu nhầm); trả về phiếu đã cập nhật. */

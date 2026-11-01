@@ -28,6 +28,7 @@ const loaders = {
   saleNew: () => import('../features/sales/SaleDialog.tsx'),
   sale: () => import('../features/sales/SaleViewDialog.tsx'),
   salePay: () => import('../features/sales/SalePayDialog.tsx'),
+  saleReturn: () => import('../features/sales/SaleReturnDialog.tsx'),
   debtPay: () => import('../features/sales/DebtPayDialog.tsx'),
 }
 
@@ -56,6 +57,8 @@ const DIALOGS: Record<string, Definition> = {
   'sale-new': { Component: lazy(loaders.saleNew), allowed: (can) => can('sales.order.create') },
   sale: { Component: lazy(loaders.sale), allowed: (can) => can('sales.order.view') },
   'sale-pay': { Component: lazy(loaders.salePay), allowed: (can) => can('sales.order.update') },
+  // Trả hàng dùng quyền `sales.order.cancel` (xử lý sai sót sau khi bán): API còn kiểm tra theo chi nhánh của kho và người lập phiếu.
+  'sale-return': { Component: lazy(loaders.saleReturn), allowed: (can) => can('sales.order.cancel') },
   // Thu nợ một khách (nhiều phiếu một lần) cùng quyền với thu tiền một phiếu.
   'debt-pay': { Component: lazy(loaders.debtPay), allowed: (can) => can('sales.order.update') },
 }

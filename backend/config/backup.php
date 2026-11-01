@@ -166,6 +166,9 @@ return [
         'sales_orders',
         'sales_order_lines',
         'sales_payments',
+        // Trả hàng (cha → con): lần trả tham chiếu phiếu bán, kho và phiếu nhập kho; dòng trả tham chiếu lần trả và dòng phiếu bán.
+        'sales_returns',
+        'sales_return_lines',
     ],
 
     /**

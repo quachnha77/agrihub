@@ -39,6 +39,12 @@ class SalesOrderPolicy
         return $this->inScope($user, 'sales.order.cancel', $order->branch_id, $order->created_by);
     }
 
+    /** Nhận lại hàng khách trả của phiếu bán: dùng quyền `cancel` (cùng mức với hủy lần thu: xử lý sai sót sau khi bán). */
+    public function returnGoods(User $user, SalesOrder $order): bool
+    {
+        return $this->inScope($user, 'sales.order.cancel', $order->branch_id, $order->created_by);
+    }
+
     private function inScope(User $user, string $permission, int $branchId, ?int $createdBy): bool
     {
         return match ($user->permissionScope($permission)) {

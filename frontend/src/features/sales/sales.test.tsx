@@ -47,17 +47,21 @@ const product = (overrides: Partial<Product> = {}): Product => ({
 const NPK = product()
 const DRUG = product({ id: 'p-ts', type: 'pesticide', type_label: 'Thuốc bảo vệ thực vật', sku: 'TS-01', name: 'Thuốc trừ sâu 25WG', track_batch: true })
 
-const sale = (overrides: Partial<Sale> = {}): Sale => ({
+const sale = (overrides: Partial<Sale> = {}): Sale => withNet({
   id: 's-1', code: 'BH0001', sold_on: '2026-10-30', due_on: '2026-11-29', is_overdue: false, note: 'Lấy tại quầy', customer: { id: 'c-1', code: 'C-1', name: NONG.name },
   warehouse: { id: 'w-1', code: 'KHO-01', name: 'Kho chính' }, branch: BR1, goods_total: '1550000.00', discount: '50000.00', total: '1500000.00', paid_amount: '500000.00', balance: '1000000.00',
   payment_status: 'partial', stock_document: { id: 'd-1', code: 'PX0001' }, created_by: { id: 'u-1', name: 'Nguyễn Văn A' }, created_at: '2026-10-30T03:00:00Z', line_count: 2, ...overrides,
 })
+/** Số khách phải trả thực mặc định bằng tổng phiếu (chưa trả hàng). */
+function withNet(order: Omit<Sale, 'returned_amount' | 'net_total'> & Partial<Pick<Sale, 'returned_amount' | 'net_total'>>): Sale {
+  return { ...order, returned_amount: order.returned_amount ?? '0.00', net_total: order.net_total ?? order.total }
+}
 const PAID_ONE = sale({ id: 's-2', code: 'BH0002', customer: null, note: null, due_on: null, goods_total: '155000.00', discount: '0.00', total: '155000.00', paid_amount: '155000.00', balance: '0.00', payment_status: 'paid', line_count: 1 })
 const OVERDUE_ONE = sale({ id: 's-3', code: 'BH0003', customer: { id: 'c-2', code: 'C-2', name: KHONG_NO.name }, due_on: '2026-09-01', is_overdue: true, payment_status: 'unpaid', paid_amount: '0.00', balance: '1500000.00' })
 const DETAIL = sale({
   lines: [
-    { product: { id: 'p-npk', sku: 'NPK-16', name: 'Phân NPK 16-16-8', base_unit: 'Kg' }, batch: null, unit: 'Bao', quantity: '2.000', unit_price: '750000.00', line_total: '1500000.00', cost_amount: '1000000.00' },
-    { product: { id: 'p-ts', sku: 'TS-01', name: 'Thuốc trừ sâu 25WG', base_unit: 'Kg' }, batch: { id: 'b-1', batch_no: 'L-GAN', expires_at: '2030-01-31' }, unit: 'Kg', quantity: '5.000', unit_price: '10000.00', line_total: '50000.00', cost_amount: '25000.00' },
+    { id: 'l-1', returned_quantity: '0.000', product: { id: 'p-npk', sku: 'NPK-16', name: 'Phân NPK 16-16-8', base_unit: 'Kg' }, batch: null, unit: 'Bao', quantity: '2.000', unit_price: '750000.00', line_total: '1500000.00', cost_amount: '1000000.00' },
+    { id: 'l-2', returned_quantity: '0.000', product: { id: 'p-ts', sku: 'TS-01', name: 'Thuốc trừ sâu 25WG', base_unit: 'Kg' }, batch: { id: 'b-1', batch_no: 'L-GAN', expires_at: '2030-01-31' }, unit: 'Kg', quantity: '5.000', unit_price: '10000.00', line_total: '50000.00', cost_amount: '25000.00' },
   ],
   payments: [
     { id: 'pay-1', amount: '300000.00', method: 'bank_transfer', paid_on: '2026-10-30', note: null, created_by: { id: 'u-1', name: 'Nguyễn Văn A' }, created_at: '2026-10-30T03:00:00Z', voided: null },

@@ -31,6 +31,7 @@ class StockDocumentResource extends JsonResource
             'transfer' => $this->whenLoaded('transfer', fn () => $this->transfer === null ? null : ['id' => $this->transfer->uuid, 'code' => $this->transfer->code]),
             'purchase' => $this->whenLoaded('purchaseReceipt', fn () => $this->purchaseReceipt === null ? null : ['id' => $this->purchaseReceipt->uuid, 'code' => $this->purchaseReceipt->code]),
             'sale' => $this->whenLoaded('salesOrder', fn () => $this->salesOrder === null ? null : ['id' => $this->salesOrder->uuid, 'code' => $this->salesOrder->code]),
+            'sale_return' => $this->whenLoaded('salesReturn', fn () => $this->salesReturn === null ? null : ['id' => $this->salesReturn->uuid, 'code' => $this->salesReturn->code, 'sale' => ['id' => $this->salesReturn->order->uuid, 'code' => $this->salesReturn->order->code]]),
             'performed_by' => $this->whenLoaded('performer', fn () => $this->performer === null ? null : ['id' => $this->performer->uuid, 'name' => $this->performer->name]),
             'performed_at' => $this->performed_at?->toIso8601String(),
             'line_count' => $this->whenCounted('movements'),

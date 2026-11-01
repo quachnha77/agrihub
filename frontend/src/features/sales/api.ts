@@ -11,13 +11,32 @@ export const PAYMENT_METHODS: PaymentMethod[] = ['cash', 'bank_transfer']
 
 /** Một dòng hàng của phiếu bán. Tiền là chuỗi thập phân đúng như lưu trong database; `cost_amount` (giá vốn) chỉ có với người được xem giá vốn. */
 export interface SaleLine {
+  id: string
   product: { id: string; sku: string; name: string; base_unit: string | null }
   batch: { id: string; batch_no: string; expires_at: string | null } | null
   unit: string
   quantity: string
+  /** Số lượng khách đã trả lại (theo đơn vị bán); còn trả được = quantity − returned_quantity. */
+  returned_quantity: string
   unit_price: string
   line_total: string
   cost_amount?: string
+}
+
+/** Một lần khách trả hàng: hàng nhập lại kho; `total` = `debt_reduction` (trừ vào nợ của phiếu) + `refund_amount` (hoàn tiền cho khách). */
+export interface SaleReturn {
+  id: string
+  code: string
+  returned_on: string
+  note: string | null
+  total: string
+  debt_reduction: string
+  refund_amount: string
+  refund_method: PaymentMethod | null
+  stock_document: { id: string; code: string }
+  created_by: { id: string; name: string } | null
+  created_at: string
+  lines: { product: { id: string; sku: string; name: string }; unit: string; quantity: string; line_total: string }[]
 }
 
 export interface SalePayment {
@@ -46,6 +65,9 @@ export interface Sale {
   goods_total: string
   discount: string
   total: string
+  /** Giá trị hàng khách đã trả lại; `net_total` = total − returned_amount là số khách phải trả thực (`balance` và `payment_status` tính theo số này). */
+  returned_amount: string
+  net_total: string
   paid_amount: string
   balance: string
   payment_status: PaymentStatus
@@ -55,6 +77,7 @@ export interface Sale {
   line_count?: number
   lines?: SaleLine[]
   payments?: SalePayment[]
+  returns?: SaleReturn[]
 }
 
 /** Tổng của MỌI phiếu khớp bộ lọc (không chỉ trang đang xem). */
@@ -90,6 +113,13 @@ export interface SalePayload {
   paid_amount: number
   payment_method?: PaymentMethod
   lines: SaleLinePayload[]
+}
+
+export interface ReturnPayload {
+  returned_on: string | null
+  note: string | null
+  refund_method?: PaymentMethod
+  lines: { line_id: string; quantity: number }[]
 }
 
 export interface PaymentPayload {
@@ -253,6 +283,22 @@ export function useCollectReceivable(customerId: string) {
     mutationFn: async (payload: PaymentPayload) => (await post<{ data: CollectResult }>(`/receivables/${customerId}/collect`, payload)).data,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: SALES })
+      void refreshDebts(queryClient)
+    },
+  })
+}
+
+/** Khách trả hàng: hàng nhập lại kho nên làm mới cả tồn kho; phiếu trả về đã cập nhật nên đặt thẳng vào bộ nhớ đệm chi tiết. */
+export function useReturnSale(id: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (payload: ReturnPayload) => (await post<{ data: Sale }>(`/sales/${id}/returns`, payload)).data,
+    onSuccess: (sale) => {
+      queryClient.setQueryData([...SALES, 'detail', id], sale)
+      void queryClient.invalidateQueries({ queryKey: [...SALES, 'list'] })
+      void queryClient.invalidateQueries({ queryKey: [...SALES, 'open'] })
+      void queryClient.invalidateQueries({ queryKey: STOCK })
       void refreshDebts(queryClient)
     },
   })

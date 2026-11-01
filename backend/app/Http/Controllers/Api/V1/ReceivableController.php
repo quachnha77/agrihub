@@ -16,7 +16,7 @@ use Illuminate\Validation\ValidationException;
 
 /**
  * Công nợ khách hàng: mỗi khách còn nợ bao nhiêu (có phân theo tuổi nợ) và thu một khoản tiền cho nhiều phiếu cùng lúc. Chỉ đọc từ phiếu bán (`sales_orders`), không có sổ riêng:
- * tổng nợ = Σ (total − paid_amount) của các phiếu còn nợ. Người dùng chỉ thấy / thu các phiếu trong phạm vi quyền `sales.order.*` của mình (khách mua ở nhiều chi nhánh
+ * tổng nợ = Σ (total − returned_amount − paid_amount) của các phiếu còn nợ. Người dùng chỉ thấy / thu các phiếu trong phạm vi quyền `sales.order.*` của mình (khách mua ở nhiều chi nhánh
  * thì mỗi người xem phần nợ thuộc chi nhánh của mình).
  */
 class ReceivableController extends Controller
@@ -52,17 +52,17 @@ class ReceivableController extends Controller
             ->when($f['overdue'] ?? false, fn ($q) => $q->whereIn('customer_id', (clone $open)->where('due_on', '<', $todayDate)->select('customer_id')));
 
         $s = (clone $filtered)->toBase()->selectRaw(
-            'count(distinct customer_id) as debtors, coalesce(sum(total - paid_amount), 0) as owed,'
-            .' coalesce(sum(case when due_on is null or due_on >= ? then total - paid_amount else 0 end), 0) as current,'
-            .' coalesce(sum(case when due_on < ? and due_on >= ? then total - paid_amount else 0 end), 0) as d1_30,'
-            .' coalesce(sum(case when due_on < ? and due_on >= ? then total - paid_amount else 0 end), 0) as d31_60,'
-            .' coalesce(sum(case when due_on < ? then total - paid_amount else 0 end), 0) as d61_plus',
+            'count(distinct customer_id) as debtors, coalesce(sum(total - returned_amount - paid_amount), 0) as owed,'
+            .' coalesce(sum(case when due_on is null or due_on >= ? then total - returned_amount - paid_amount else 0 end), 0) as current,'
+            .' coalesce(sum(case when due_on < ? and due_on >= ? then total - returned_amount - paid_amount else 0 end), 0) as d1_30,'
+            .' coalesce(sum(case when due_on < ? and due_on >= ? then total - returned_amount - paid_amount else 0 end), 0) as d31_60,'
+            .' coalesce(sum(case when due_on < ? then total - returned_amount - paid_amount else 0 end), 0) as d61_plus',
             [$todayDate, $todayDate, $d30, $d30, $d60, $d60],
         )->first();
 
         $page = (clone $filtered)->toBase()->selectRaw(
-            'customer_id, count(*) as open_orders, sum(total - paid_amount) as owed,'
-            .' coalesce(sum(case when due_on < ? then total - paid_amount else 0 end), 0) as overdue,'
+            'customer_id, count(*) as open_orders, sum(total - returned_amount - paid_amount) as owed,'
+            .' coalesce(sum(case when due_on < ? then total - returned_amount - paid_amount else 0 end), 0) as overdue,'
             .' min(case when due_on < ? then due_on end) as oldest_overdue_on',
             [$todayDate, $todayDate],
         )->groupBy('customer_id')->orderByDesc('owed')->orderBy('customer_id')->paginate($f['per_page'] ?? 20)->withQueryString();
@@ -123,7 +123,7 @@ class ReceivableController extends Controller
         $v = $request->validated();
         $allocations = $this->sales->collectFromCustomer($customer, $orders->pluck('id')->all(), (string) $v['amount'], $v['method'], $v['paid_on'] ?? null, $v['note'] ?? null, $request->user());
 
-        $remaining = (string) SalesOrder::whereIn('id', $orders->pluck('id'))->whereColumn('paid_amount', '<', 'total')->selectRaw('coalesce(sum(total - paid_amount), 0) as owed')->value('owed');
+        $remaining = (string) SalesOrder::whereIn('id', $orders->pluck('id'))->owing()->selectRaw('coalesce(sum(total - returned_amount - paid_amount), 0) as owed')->value('owed');
 
         return response()->json(['data' => [
             'customer' => $customer->uuid,
@@ -140,7 +140,7 @@ class ReceivableController extends Controller
     /** Các phiếu còn nợ của khách đã chọn (không tính khách lẻ), trong phạm vi xem phiếu bán của người dùng. */
     private function openOrders(Request $request)
     {
-        $query = SalesOrder::query()->whereNotNull('customer_id')->whereColumn('paid_amount', '<', 'total');
+        $query = SalesOrder::query()->whereNotNull('customer_id')->owing();
 
         if ($request->user()->permissionScope('sales.order.view') !== 'tenant') {
             $query->whereIn('branch_id', $request->user()->branchIds());

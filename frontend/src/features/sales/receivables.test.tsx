@@ -22,11 +22,14 @@ const LAN = debtor({ id: 'c-2', name: 'Lê Thị Lan', open_orders: 1, owed: '25
 
 const SUMMARY: ReceivableSummary = { debtors: 2, owed: '1250000.00', aging: { current: '850000.00', overdue_1_30: '0.00', overdue_31_60: '0.00', overdue_over_60: '400000.00' } }
 
-const sale = (overrides: Partial<Sale> = {}): Sale => ({
+const sale = (overrides: Partial<Sale> = {}): Sale => withNet({
   id: 's-1', code: 'BH0001', sold_on: '2026-08-02', due_on: '2026-09-01', is_overdue: true, note: null, customer: { id: 'c-1', code: 'KH0001', name: 'Nguyễn Văn Nông' },
   warehouse: { id: 'w-1', code: 'KHO-01', name: 'Kho chính' }, branch: BR1, goods_total: '400000.00', discount: '0.00', total: '400000.00', paid_amount: '0.00', balance: '400000.00',
   payment_status: 'unpaid', stock_document: { id: 'd-1', code: 'PX0001' }, created_by: null, created_at: '2026-08-02T03:00:00Z', line_count: 1, ...overrides,
 })
+function withNet(order: Omit<Sale, 'returned_amount' | 'net_total'> & Partial<Pick<Sale, 'returned_amount' | 'net_total'>>): Sale {
+  return { ...order, returned_amount: order.returned_amount ?? '0.00', net_total: order.net_total ?? order.total }
+}
 const OLD = sale()
 const NEWER = sale({ id: 's-2', code: 'BH0002', sold_on: '2026-11-01', due_on: '2026-12-01', is_overdue: false, total: '700000.00', paid_amount: '100000.00', balance: '600000.00', payment_status: 'partial' })
 

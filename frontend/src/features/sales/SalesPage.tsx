@@ -133,7 +133,7 @@ export default function SalesPage() {
                     </td>
                     <td className="py-3 pr-4">{row.customer?.name ?? <span className="text-slate-500">{t('sales.walkIn')}</span>}</td>
                     <td className="py-3 pr-4">{row.warehouse.name}</td>
-                    <td className="py-3 pr-4 text-right whitespace-nowrap tabular-nums">{money(row.total)}</td>
+                    <td className="py-3 pr-4 text-right whitespace-nowrap tabular-nums">{money(row.net_total)}{Number(row.returned_amount) > 0 && <span className="block text-xs text-slate-500">{t('sales.return.returnedHint', { amount: money(row.returned_amount) })}</span>}</td>
                     <td className={`py-3 pr-4 text-right whitespace-nowrap tabular-nums ${Number(row.balance) > 0 ? 'font-medium text-red-700' : 'text-slate-500'}`}>{money(row.balance)}</td>
                     <td className="py-3 whitespace-nowrap"><PaymentBadge status={row.payment_status} overdue={row.is_overdue} /></td>
                   </tr>

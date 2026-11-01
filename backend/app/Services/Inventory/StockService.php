@@ -64,12 +64,14 @@ class StockService
 
         $this->guardWarehouse($warehouse, 'warehouse_id', $stocktake, $errors);
 
-        // `system_reason` chỉ do dịch vụ nghiệp vụ (SalesService) truyền vào, không bao giờ đến từ API phiếu kho (Request bỏ khóa này): người dùng không tự xuất kho với lý do "Bán hàng".
+        // `system_reason` chỉ do dịch vụ nghiệp vụ (SalesService) truyền vào, không bao giờ đến từ API phiếu kho (Request bỏ khóa này): người dùng không tự xuất kho với lý do "Bán hàng" hay nhập kho với lý do "Khách trả hàng".
         $sale = $type === StockDocument::ISSUE && ($data['system_reason'] ?? null) === StockDocument::SALE_REASON;
-        $reason = $sale ? StockDocument::SALE_REASON : ($data['reason'] ?? null);
+        $saleReturn = $type === StockDocument::RECEIPT && ($data['system_reason'] ?? null) === StockDocument::SALE_RETURN_REASON; // khách trả hàng: nhập lại kho
+        $reason = $sale ? StockDocument::SALE_REASON : ($saleReturn ? StockDocument::SALE_RETURN_REASON : ($data['reason'] ?? null));
         $note = isset($data['note']) && trim((string) $data['note']) !== '' ? trim((string) $data['note']) : null;
         $allowed = match (true) {
             $sale => [StockDocument::SALE_REASON],
+            $saleReturn => [StockDocument::SALE_RETURN_REASON],
             $type === StockDocument::ISSUE => StockDocument::ISSUE_REASONS,
             $type === StockDocument::ADJUSTMENT => StockDocument::ADJUSTMENT_REASONS,
             default => [],

@@ -42,6 +42,9 @@ class StockDocument extends Model
     /** Lý do của phiếu xuất do Bán hàng sinh ra; KHÔNG nằm trong ISSUE_REASONS nên người dùng không chọn được khi xuất kho thủ công. */
     public const SALE_REASON = 'sale';
 
+    /** Lý do của phiếu NHẬP kho do Trả hàng sinh ra (khách trả lại hàng đã bán); chỉ hệ thống truyền, người dùng không chọn được. */
+    public const SALE_RETURN_REASON = 'sale_return';
+
     public const ADJUSTMENT_REASONS = ['count_correction', 'damaged', 'expired', 'other'];
 
     public const UPDATED_AT = null;
@@ -83,6 +86,12 @@ class StockDocument extends Model
     public function salesOrder(): HasOne
     {
         return $this->hasOne(SalesOrder::class);
+    }
+
+    /** Lần trả hàng (Bán hàng) sinh ra phiếu nhập kho này, nếu có. */
+    public function salesReturn(): HasOne
+    {
+        return $this->hasOne(SalesReturn::class);
     }
 
     public function movements(): HasMany

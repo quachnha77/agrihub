@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Gate;
 
 /**
  * Phiếu bán hàng. Tiền là chuỗi thập phân đúng như lưu trong database. `total` = tiền khách phải trả (đã trừ `discount`), `balance` = khách còn nợ phiếu này;
- * `customer` là null với khách lẻ. `lines` và `payments` chỉ có khi đã nạp (xem chi tiết, vừa lập phiếu). Giá vốn (`cost_amount`) chỉ hiện với người được xem giá vốn.
+ * `customer` là null với khách lẻ. `returned_amount` = giá trị hàng khách đã trả lại, `net_total` = `total` − `returned_amount` (số khách phải trả thực; `balance` và `payment_status` tính theo số này). `lines` và `payments` chỉ có khi đã nạp (xem chi tiết, vừa lập phiếu). Giá vốn (`cost_amount`) chỉ hiện với người được xem giá vốn.
  *
  * @mixin SalesOrder
  */
@@ -35,6 +35,8 @@ class SalesOrderResource extends JsonResource
             'goods_total' => (string) $this->goods_total,
             'discount' => (string) $this->discount,
             'total' => (string) $this->total,
+            'returned_amount' => (string) $this->returned_amount,
+            'net_total' => $this->netTotal(),
             'paid_amount' => (string) $this->paid_amount,
             'balance' => $this->balance(),
             'payment_status' => $this->paymentStatus(),
@@ -43,13 +45,34 @@ class SalesOrderResource extends JsonResource
             'created_at' => $this->created_at?->toIso8601String(),
             'line_count' => $this->whenCounted('lines'),
             'lines' => $this->whenLoaded('lines', fn () => $this->lines->map(fn ($line) => [
+                'id' => $line->uuid,
                 'product' => ['id' => $line->product->uuid, 'sku' => $line->product->sku, 'name' => $line->product->name, 'base_unit' => $line->product->baseUnit?->name],
                 'batch' => $line->batch === null ? null : ['id' => $line->batch->uuid, 'batch_no' => $line->batch->batch_no, 'expires_at' => $line->batch->expires_at?->toDateString()],
                 'unit' => $line->unit->name,
                 'quantity' => (string) $line->quantity,
+                'returned_quantity' => (string) ($line->returned_quantity ?? '0.000'),
                 'unit_price' => (string) $line->unit_price,
                 'line_total' => (string) $line->line_total,
                 ...($costs ? ['cost_amount' => (string) $line->cost_amount] : []),
+            ])->values()),
+            'returns' => $this->whenLoaded('returns', fn () => $this->returns->map(fn ($return) => [
+                'id' => $return->uuid,
+                'code' => $return->code,
+                'returned_on' => $return->returned_on->toDateString(),
+                'note' => $return->note,
+                'total' => (string) $return->total,
+                'debt_reduction' => (string) $return->debt_reduction,
+                'refund_amount' => (string) $return->refund_amount,
+                'refund_method' => $return->refund_method,
+                'stock_document' => ['id' => $return->stockDocument->uuid, 'code' => $return->stockDocument->code],
+                'created_by' => $return->creator === null ? null : ['id' => $return->creator->uuid, 'name' => $return->creator->name],
+                'created_at' => $return->created_at?->toIso8601String(),
+                'lines' => $return->lines->map(fn ($item) => [
+                    'product' => ['id' => $item->orderLine->product->uuid, 'sku' => $item->orderLine->product->sku, 'name' => $item->orderLine->product->name],
+                    'unit' => $item->orderLine->unit->name,
+                    'quantity' => (string) $item->quantity,
+                    'line_total' => (string) $item->line_total,
+                ])->values(),
             ])->values()),
             'payments' => $this->whenLoaded('payments', fn () => $this->payments->map(fn ($payment) => [
                 'id' => $payment->uuid,

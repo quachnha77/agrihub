@@ -98,6 +98,8 @@ export interface StockDocument {
   /** Phiếu nhập hàng (Mua hàng) sinh ra phiếu này, nếu có. */
   purchase?: { id: string; code: string } | null
   sale?: { id: string; code: string } | null
+  /** Lần trả hàng (Bán hàng) sinh ra phiếu nhập kho này, kèm phiếu bán gốc. */
+  sale_return?: { id: string; code: string; sale: { id: string; code: string } } | null
   performed_by: { id: string; name: string } | null
   performed_at: string
   line_count?: number

@@ -163,6 +163,7 @@ Route::middleware(['auth:sanctum', 'tenant.context'])->group(function () {
             Route::get('/sales/{sale}', [SalesController::class, 'show']);
             Route::post('/sales/{sale}/payments', [SalesController::class, 'collect']);
             Route::post('/sales/{sale}/payments/{payment}/void', [SalesController::class, 'voidPayment']);
+            Route::post('/sales/{sale}/returns', [SalesController::class, 'returnGoods']);
             // Công nợ khách hàng: khách đang nợ (theo tuổi nợ) và thu một khoản cho nhiều phiếu cùng lúc; dữ liệu lấy từ phiếu bán.
             Route::get('/receivables', [ReceivableController::class, 'index']);
             Route::post('/receivables/{customer}/collect', [ReceivableController::class, 'collect']);

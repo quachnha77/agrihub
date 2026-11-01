@@ -1,4 +1,4 @@
-import { Wallet } from 'lucide-react'
+import { Undo2, Wallet } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
@@ -15,6 +15,7 @@ import { useToast } from '../../lib/toast.ts'
 import { useAuth } from '../auth/auth-context.ts'
 import { ExpiryBadge } from '../inventory/parts.tsx'
 import { useSale, useVoidSalePayment, type SalePayment } from './api.ts'
+import { returnable } from './forms.ts'
 import { PaymentBadge } from './parts.tsx'
 
 const money = (value: string | undefined) => formatVnd(Number(value ?? 0))
@@ -34,6 +35,8 @@ export default function SaleViewDialog({ arg: id, onClose }: DialogProps) {
   const notFound = sale.error instanceof ApiError && (sale.error.status === 404 || sale.error.status === 403)
   const canCollect = can('sales.order.update') && data !== undefined && Number(data.balance) > 0
   const canVoid = can('sales.order.cancel')
+  const returns = data?.returns ?? []
+  const canReturn = canVoid && lines.some((line) => returnable(line) > 0)
   const showCost = lines.some((line) => line.cost_amount !== undefined)
   const [voiding, setVoiding] = useState<SalePayment | null>(null)
 
@@ -71,7 +74,7 @@ export default function SaleViewDialog({ arg: id, onClose }: DialogProps) {
           <div className="grid gap-3 sm:grid-cols-4">
             <Stat label={t('sales.detail.goodsTotal')} value={money(data.goods_total)} />
             <Stat label={t('sales.detail.discount')} value={money(data.discount)} />
-            <Stat label={t('sales.detail.total')} value={money(data.total)} />
+            <Stat label={t('sales.detail.total')} value={money(data.net_total)} hint={Number(data.returned_amount) > 0 ? t('sales.return.returnedHint', { amount: money(data.returned_amount) }) : undefined} />
             <Stat label={t('sales.detail.balance')} value={money(data.balance)} strong={Number(data.balance) > 0} hint={t('sales.detail.paidHint', { amount: money(data.paid_amount) })} />
           </div>
 
@@ -92,7 +95,7 @@ export default function SaleViewDialog({ arg: id, onClose }: DialogProps) {
                   <tr key={`${line.product.id}-${line.batch?.id ?? index}-${index}`}>
                     <td className="py-3 pr-4"><span className="font-mono text-xs">{line.product.sku}</span> <span className="font-medium text-slate-900">{line.product.name}</span></td>
                     <td className="py-3 pr-4">{line.batch ? <>{line.batch.batch_no}<span className="block text-xs"><ExpiryBadge date={line.batch.expires_at} /></span></> : '—'}</td>
-                    <td className="py-3 pr-4 text-right whitespace-nowrap">{formatQuantity(line.quantity)} {line.unit}</td>
+                    <td className="py-3 pr-4 text-right whitespace-nowrap">{formatQuantity(line.quantity)} {line.unit}{Number(line.returned_quantity) > 0 && <span className="block text-xs text-slate-500">{t('sales.return.returnedQty', { quantity: formatQuantity(line.returned_quantity) })}</span>}</td>
                     <td className="py-3 pr-4 text-right whitespace-nowrap">{money(line.unit_price)}</td>
                     <td className={`py-3 text-right whitespace-nowrap font-medium ${showCost ? 'pr-4' : ''}`}>{money(line.line_total)}</td>
                     {showCost && <td className="py-3 text-right whitespace-nowrap text-slate-600">{money(line.cost_amount)}</td>}
@@ -143,8 +146,48 @@ export default function SaleViewDialog({ arg: id, onClose }: DialogProps) {
             )}
           </FormSection>
 
+          {returns.length > 0 && (
+            <FormSection title={t('sales.return.history')}>
+              <DataTable minWidth="40rem">
+                <thead className="border-b border-slate-200 text-xs font-medium text-slate-500">
+                  <tr>
+                    <th scope="col" data-role="title" className="py-2.5 pr-4">{t('sales.return.columns.code')}</th>
+                    <th scope="col" className="py-2.5 pr-4">{t('sales.return.columns.goods')}</th>
+                    <th scope="col" className="py-2.5 pr-4 text-right">{t('sales.return.columns.total')}</th>
+                    <th scope="col" className="py-2.5">{t('sales.return.columns.effect')}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {returns.map((item) => (
+                    <tr key={item.id}>
+                      <td className="py-3 pr-4 whitespace-nowrap">
+                        <Link {...link('stock-doc', item.stock_document.id)} className="font-mono text-xs font-semibold text-brand-700 hover:underline">{item.code}</Link>
+                        <span className="block text-xs text-slate-500">{formatDate(item.returned_on)}</span>
+                      </td>
+                      <td className="py-3 pr-4">
+                        {item.lines.map((line) => <span key={`${line.product.id}-${line.quantity}`} className="block">{line.product.name} <span className="text-slate-500">× {formatQuantity(line.quantity)} {line.unit}</span></span>)}
+                        {item.note && <span className="block text-xs text-slate-500">{item.note}</span>}
+                      </td>
+                      <td className="py-3 pr-4 text-right whitespace-nowrap font-medium tabular-nums">{money(item.total)}</td>
+                      <td className="py-3 text-slate-600">
+                        {Number(item.debt_reduction) > 0 && <span className="block">{t('sales.return.debtOf', { amount: money(item.debt_reduction) })}</span>}
+                        {Number(item.refund_amount) > 0 && <span className="block">{t('sales.return.refundOf', { amount: money(item.refund_amount) })}{item.refund_method && ` (${t(`sales.methods.${item.refund_method}`)})`}</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </DataTable>
+            </FormSection>
+          )}
+
           <ModalActions>
             <Button variant={canCollect ? 'ghost' : 'primary'} onClick={onClose}>{t('common.close')}</Button>
+            {canReturn && (
+              <ButtonLink variant="secondary" {...link('sale-return', data.id)}>
+                <Undo2 className="h-4 w-4" aria-hidden="true" />
+                {t('sales.return.button')}
+              </ButtonLink>
+            )}
             {canCollect && (
               <ButtonLink {...link('sale-pay', data.id)}>
                 <Wallet className="h-4 w-4" aria-hidden="true" />

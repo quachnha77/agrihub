@@ -5,7 +5,7 @@ import { ApiError } from '../../lib/api.ts'
 import type { Product } from '../catalog/api.ts'
 import { parseNumber } from '../catalog/form.ts'
 import { roundMoney } from '../purchase/forms.ts'
-import type { PaymentPayload, Sale, SalePayload } from './api.ts'
+import type { PaymentPayload, ReturnPayload, Sale, SaleLine, SalePayload } from './api.ts'
 
 export { roundMoney, todayIso } from '../purchase/forms.ts'
 
@@ -197,4 +197,107 @@ export function allocateDebt(sales: Sale[], amount: number): { sale: Sale; take:
 
 export function paymentPayload(values: PaymentFormValues): PaymentPayload {
   return { amount: parseNumber(values.amount) ?? 0, method: values.method, paid_on: values.paid_on === '' ? null : values.paid_on, note: values.note.trim() === '' ? null : values.note.trim() }
+}
+
+/** Số lượng của dòng phiếu còn trả lại được (đã bán − đã trả), theo đơn vị bán. */
+export const returnable = (line: Pick<SaleLine, 'quantity' | 'returned_quantity'>): number => Math.round((Number(line.quantity) - Number(line.returned_quantity)) * 1000) / 1000
+
+export interface ReturnFormValues {
+  /** Số lượng trả của từng dòng CÒN trả được (cùng thứ tự với danh sách dòng đó); trống = không trả. */
+  lines: { quantity: string }[]
+  returned_on: string
+  refund_method: 'cash' | 'bank_transfer'
+  note: string
+}
+
+/** Biểu mẫu trả hàng: mỗi ô số lượng trống hoặc từ 0 đến số còn trả được của dòng (`max`, theo đơn vị bán `unit`). Việc chọn ít nhất một dòng kiểm tra khi gửi. */
+export function returnSchema(t: TFunction, limits: { max: number; unit: string }[]) {
+  return z
+    .object({
+      lines: z.array(z.object({ quantity: z.string().trim() })),
+      returned_on: z.string().min(1, t('sales.form.dateRequired')),
+      refund_method: z.enum(['cash', 'bank_transfer']),
+      note: z.string().max(500, t('validation.maxLength', { count: 500 })),
+    })
+    .superRefine((values, ctx) => {
+      values.lines.forEach((line, index) => {
+        if (line.quantity === '') return
+
+        const n = parseNumber(line.quantity)
+        const limit = limits[index]
+
+        if (n === null || n < 0 || Math.round(n * 1000) / 1000 !== n) {
+          ctx.addIssue({ code: 'custom', path: ['lines', index, 'quantity'], message: t('sales.return.quantityInvalid') })
+        } else if (limit && n > limit.max) {
+          ctx.addIssue({ code: 'custom', path: ['lines', index, 'quantity'], message: t('sales.return.tooMany', { max: limit.max, unit: limit.unit }) })
+        }
+      })
+    })
+}
+
+/** Các dòng được chọn trả (số lượng > 0): vị trí trong `lines` của biểu mẫu và số lượng. */
+export function pickedLines(values: Pick<ReturnFormValues, 'lines'>): { index: number; quantity: number }[] {
+  return values.lines.flatMap((line, index) => {
+    const quantity = parseNumber(line.quantity) ?? 0
+
+    return quantity > 0 ? [{ index, quantity }] : []
+  })
+}
+
+/**
+ * Xem trước kết quả trả hàng, tính giống máy chủ: giá trị = số lượng × đơn giá chia phần bớt tiền của phiếu (total / goods_total); trả hết hàng còn lại thì lấy đúng số khách còn phải trả thực.
+ * Trừ vào nợ của phiếu trước, phần vượt hoàn cho khách. Con số cuối cùng do máy chủ tính.
+ */
+export function returnPreview(sale: Sale, open: SaleLine[], values: Pick<ReturnFormValues, 'lines'>): { goods: number; value: number; debt: number; refund: number } {
+  const picked = pickedLines(values)
+  const goods = roundMoney(picked.reduce((sum, { index, quantity }) => sum + roundMoney(quantity * Number(open[index]?.unit_price ?? 0)), 0))
+  const everything = (sale.lines ?? []).every((line) => {
+    const taken = picked.find(({ index }) => open[index]?.id === line.id)?.quantity ?? 0
+
+    return Math.round((returnable(line) - taken) * 1000) === 0
+  })
+  const remaining = Number(sale.net_total)
+  const ratio = Number(sale.goods_total) > 0 ? Number(sale.total) / Number(sale.goods_total) : 0
+  const value = picked.length === 0 ? 0 : Math.min(everything ? remaining : roundMoney(goods * ratio), remaining)
+  const debt = Math.min(value, Number(sale.balance))
+
+  return { goods, value, debt: roundMoney(debt), refund: roundMoney(value - debt) }
+}
+
+/** Nội dung gửi API: chỉ các dòng có số lượng; hình thức hoàn tiền chỉ gửi khi có tiền phải hoàn. */
+export function returnPayload(values: ReturnFormValues, open: SaleLine[], refund: number): ReturnPayload {
+  return {
+    returned_on: values.returned_on === '' ? null : values.returned_on,
+    note: values.note.trim() === '' ? null : values.note.trim(),
+    ...(refund > 0 ? { refund_method: values.refund_method } : {}),
+    lines: pickedLines(values).map(({ index, quantity }) => ({ line_id: open[index]!.id, quantity })),
+  }
+}
+
+/** Đưa lỗi 422 của máy chủ vào đúng ô (`lines.N.quantity` theo vị trí trong lần gửi → ô của dòng tương ứng, `returned_on`, `note`...); phần còn lại trả về để hiện chung. */
+export function applyReturnErrors(error: unknown, setError: UseFormSetError<ReturnFormValues>, sentIndexes: number[]): { handled: boolean; leftover: string[] } {
+  if (!(error instanceof ApiError) || error.status !== 422) return { handled: false, leftover: [] }
+
+  const leftover: string[] = []
+
+  for (const [key, messages] of Object.entries(error.errors)) {
+    const message = messages[0]
+    if (!message) continue
+
+    const line = /^lines\.(\d+)\.(\w+)$/.exec(key)
+
+    if (line) {
+      const formIndex = sentIndexes[Number(line[1])]
+
+      if (formIndex !== undefined) {
+        setError(`lines.${formIndex}.quantity`, { type: 'server', message })
+        continue
+      }
+    }
+
+    if (key === 'returned_on' || key === 'note' || key === 'refund_method') setError(key, { type: 'server', message })
+    else leftover.push(message)
+  }
+
+  return { handled: true, leftover }
 }
